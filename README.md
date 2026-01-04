@@ -33,7 +33,7 @@ A visual piano keyboard that displays MIDI input in real-time. Perfect for music
 
 1. Clone this repository:
 ```bash
-git clone https://codeberg.org/YOUR_USERNAME/piano-midi-viewer.git
+git clone https://codeberg.org/skoomabwoy/piano-midi-viewer.git
 cd piano-midi-viewer
 ```
 
