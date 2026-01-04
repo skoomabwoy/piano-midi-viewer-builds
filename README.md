@@ -2,7 +2,7 @@
 
 A virtual piano keyboard that displays MIDI input in real-time or allows highlighting notes with mouse clicks. Perfect for music education, online lessons, and creating video content.
 
-![Version](https://img.shields.io/badge/version-5.0.1-blue)
+![Version](https://img.shields.io/badge/version-5.1.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 
@@ -140,6 +140,13 @@ Toggle resizing limits in Settings (⚙️):
 See [`CLAUDE.md`](CLAUDE.md) for detailed architecture documentation, code organization, and implementation notes.
 
 ## Changelog
+
+### 5.1.0 (2026-01-04)
+- **Settings persistence**: All preferences now save automatically
+- MIDI device selection remembered between sessions
+- Highlight color preference saved
+- Window size and position restored on startup
+- Resize limits preference persisted
 
 ### 5.0.1 (2026-01-04)
 - Gap clicks now snap to closest key for easier chord clicking

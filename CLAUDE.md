@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~1600 lines).
 
-**Current Version: 5.0.1**
+**Current Version: 5.1.0**
 
 ### Major Features (5.0.0)
 - **MIDI sustain pedal support**: Recognizes CC 64 messages to sustain notes
@@ -18,6 +18,13 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 - **Smart glissando**: ON mode (paint notes) or OFF mode (erase notes) determined by initial click
 - **Out-of-range sustain**: Notes sustained outside visible range stay highlighted when octave expanded
 - **Error correction**: Click/play sustained notes again to toggle them off
+
+### Changes in 5.1.0
+- **Settings persistence**: All user preferences now save automatically to `~/.config/piano-midi-viewer/settings.ini`
+- **MIDI device**: Last selected device reconnects on startup
+- **Highlight color**: Color preference persisted between sessions
+- **Window geometry**: Size and position restored on launch
+- **Resize limits**: On/off preference saved
 
 ### Changes in 5.0.1
 - **Gap click tolerance**: Clicking between keys now snaps to the closest key (easier chord clicking during lessons)
@@ -162,6 +169,12 @@ Key additions in 5.0.0:
 - `PianoMIDIViewer.clear_all_sustained_notes()` - Clears all sustain sets
 - `PianoMIDIViewer.update_sustain_button_visual()` - S button appearance
 
+Key additions in 5.1.0:
+- `get_config_path()` - Returns platform-specific config file path (~/.config/piano-midi-viewer/settings.ini)
+- `PianoMIDIViewer.load_settings()` - Loads all preferences from config file on startup
+- `PianoMIDIViewer.save_settings()` - Saves all preferences to config file
+- Settings auto-save on: MIDI device change, color change, ratio limits toggle, window close
+
 Key additions in 5.0.1:
 - `PianoKeyboard._find_closest_note_to_position()` - Snaps gap clicks to nearest key
 - `SettingsDialog.choose_color()` - Now updates all UI elements when color changes
@@ -259,6 +272,6 @@ Mode is locked for entire drag:
 - No test suite currently exists
 - All UI strings are hardcoded (no i18n)
 - MIDI device connection errors print to console
-- Version number in docstring (currently 5.0.1)
+- Version number in docstring (currently 5.1.0)
 - Extensive inline comments for educational purposes and code continuity
 - Linux-focused (Windows build support removed)

@@ -3,7 +3,7 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 5.0.1
+Version: 5.1.0
 License: GPL-3.0
 
 Major Features in 5.0.0:
@@ -14,6 +14,13 @@ Major Features in 5.0.0:
 - Out-of-range sustained notes tracked invisibly
 - Toggle sustained notes off by clicking/playing them again
 
+Changes in 5.1.0:
+- Settings persistence: All preferences now save automatically
+- MIDI device selection remembered between sessions
+- Highlight color preference saved
+- Window size and position restored on startup
+- Resize limits preference persisted
+
 Changes in 5.0.1:
 - Gap clicks now snap to closest key for easier chord clicking
 - Highlighted white keys now have visible borders
@@ -22,13 +29,16 @@ Changes in 5.0.1:
 """
 
 import sys
+import os
+import configparser
+from pathlib import Path
 import rtmidi
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
     QColorDialog, QCheckBox
 )
-from PyQt6.QtCore import Qt, QRectF, QTimer
+from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap
 
 
@@ -117,6 +127,32 @@ def create_piano_icon():
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+def get_config_path():
+    """
+    Returns the path to the configuration file.
+
+    On Linux: ~/.config/piano-midi-viewer/settings.ini
+    On Windows: %APPDATA%/piano-midi-viewer/settings.ini
+    On macOS: ~/Library/Application Support/piano-midi-viewer/settings.ini
+
+    Creates the directory if it doesn't exist.
+
+    Returns:
+        Path: Path object pointing to the settings.ini file
+    """
+    if sys.platform == "win32":
+        config_dir = Path(os.environ.get("APPDATA", "~")) / "piano-midi-viewer"
+    elif sys.platform == "darwin":
+        config_dir = Path.home() / "Library" / "Application Support" / "piano-midi-viewer"
+    else:  # Linux and other Unix-like systems
+        config_dir = Path.home() / ".config" / "piano-midi-viewer"
+
+    # Create directory if it doesn't exist
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    return config_dir / "settings.ini"
+
 
 def is_black_key(midi_note):
     """
@@ -332,6 +368,9 @@ class SettingsDialog(QDialog):
             if self.main_window.piano.glow_right_plus:
                 self.main_window.apply_button_glow(self.main_window.right_plus_btn, True)
 
+            # Save color preference
+            self.main_window.save_settings()
+
     def update_color_preview(self, color):
         """Updates the color preview button."""
         self.color_preview.setStyleSheet(
@@ -346,6 +385,9 @@ class SettingsDialog(QDialog):
         if self.main_window.ratio_limits_enabled:
             # Just re-enabled limits - snap to valid size if needed
             self.main_window.snap_to_valid_size()
+
+        # Save ratio limits preference
+        self.main_window.save_settings()
 
 
 # ============================================================================
@@ -787,6 +829,7 @@ class PianoMIDIViewer(QMainWindow):
 
         self.init_ui()
         self.setup_midi_polling()
+        self.load_settings()  # Load saved settings after UI is initialized
 
     @property
     def is_sustain_active(self):
@@ -936,6 +979,93 @@ class PianoMIDIViewer(QMainWindow):
         """Opens the settings dialog."""
         dialog = SettingsDialog(self)
         dialog.exec()
+
+    def load_settings(self):
+        """
+        Loads settings from the configuration file.
+
+        Reads saved settings for:
+        - MIDI device selection
+        - Highlight color
+        - Ratio limits enabled/disabled
+        - Window size and position
+
+        If the config file doesn't exist, default values are used.
+        """
+        config_path = get_config_path()
+        config = configparser.ConfigParser()
+
+        if not config_path.exists():
+            return  # No saved settings yet, use defaults
+
+        try:
+            config.read(config_path)
+
+            # Load MIDI device
+            if config.has_option('midi', 'device'):
+                device_name = config.get('midi', 'device')
+                if device_name:  # Only connect if not empty
+                    self.connect_midi_device(device_name)
+
+            # Load highlight color
+            if config.has_option('appearance', 'highlight_color'):
+                color_hex = config.get('appearance', 'highlight_color')
+                self.piano.highlight_color = QColor(color_hex)
+                self.piano.update()
+
+            # Load ratio limits setting
+            if config.has_option('window', 'ratio_limits_enabled'):
+                self.ratio_limits_enabled = config.getboolean('window', 'ratio_limits_enabled')
+
+            # Load window geometry (size and position)
+            # Using Qt's saveGeometry/restoreGeometry handles window manager issues better
+            if config.has_option('window', 'geometry'):
+                geometry_string = config.get('window', 'geometry')
+                geometry_bytes = QByteArray.fromBase64(geometry_string.encode())
+                self.restoreGeometry(geometry_bytes)
+
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+            # Continue with defaults if loading fails
+
+    def save_settings(self):
+        """
+        Saves current settings to the configuration file.
+
+        Saves:
+        - Current MIDI device
+        - Highlight color
+        - Ratio limits enabled/disabled
+        - Window size and position
+        """
+        config_path = get_config_path()
+        config = configparser.ConfigParser()
+
+        # MIDI settings
+        config['midi'] = {
+            'device': self.current_midi_device or ''
+        }
+
+        # Appearance settings
+        config['appearance'] = {
+            'highlight_color': self.piano.highlight_color.name()
+        }
+
+        # Window settings
+        # Use Qt's saveGeometry for better window manager compatibility
+        geometry_bytes = self.saveGeometry()
+        geometry_string = geometry_bytes.toBase64().data().decode()
+
+        config['window'] = {
+            'ratio_limits_enabled': str(self.ratio_limits_enabled),
+            'geometry': geometry_string
+        }
+
+        try:
+            with open(config_path, 'w') as f:
+                config.write(f)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
 
     def toggle_sustain_button(self):
         """Toggles the sustain button sticky state."""
@@ -1113,6 +1243,7 @@ class PianoMIDIViewer(QMainWindow):
                 self.midi_in.open_port(port_index)
                 self.current_midi_device = device_name
                 print(f"Connected to MIDI device: {device_name}")
+                self.save_settings()  # Save MIDI device preference
             else:
                 print(f"Device not found: {device_name}")
                 del self.midi_in
@@ -1539,6 +1670,9 @@ class PianoMIDIViewer(QMainWindow):
 
     def closeEvent(self, event):
         """Called when the window is closed. Clean up MIDI resources."""
+        # Save settings before closing
+        self.save_settings()
+
         if self.midi_timer:
             self.midi_timer.stop()
 
@@ -1559,7 +1693,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 5.0.1")
+    print("Piano MIDI Viewer - Version 5.1.0")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Absolute minimums: {ABSOLUTE_MIN_KEY_WIDTH}px × {ABSOLUTE_MIN_KEY_HEIGHT}px")
