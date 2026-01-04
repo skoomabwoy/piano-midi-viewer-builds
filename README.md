@@ -1,6 +1,6 @@
 # Piano MIDI Viewer
 
-A visual piano keyboard that displays MIDI input in real-time. Perfect for music education and online lessons via OBS.
+A virtual piano keyboard that displays MIDI input in real-time or allows highlighting notes with mouse clicks. Perfect for music education, online lessons, and creating video content.
 
 ![Version](https://img.shields.io/badge/version-5.0.1-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
@@ -8,35 +8,37 @@ A visual piano keyboard that displays MIDI input in real-time. Perfect for music
 
 ## Features
 
-- 🎹 **Real-time MIDI input display** - See notes as you play
-- 🎨 **Customizable highlight color** - Choose your preferred color scheme
-- 🎵 **Sustain pedal support** - Recognizes MIDI CC 64 messages
-- 🖱️ **Mouse interaction** - Click keys or drag for glissando effects
-- ⌨️ **Shift key sustain** - Hold Shift to sustain notes
-- 📊 **Dynamic range** - Display 3-7 octaves (A0 to C8)
-- 🎯 **Smart glissando** - Paint notes (ON mode) or erase notes (OFF mode)
-- 🔄 **Out-of-range tracking** - Tracks notes played outside visible range
-- ✨ **Clean, minimal UI** - Distraction-free design for streaming
+- 🎹 **Real-time MIDI input tracking**
+- 🖱️ **Mouse-based note highlighting**
+- 🎨 **Customizable highlight color**
+- ↔️ **Adjustable octave range (A0 to C8)**
+- 🎵 **Flexible sustain mode**
+- 🪟 **Clean, minimal UI**
 
 ## Screenshots
 
 ### Default Interface
 ![Default Interface](screenshots/default-interface.png)
-*Clean, minimal design with 3-octave keyboard*
+
+*Default look with 3-octave keyboard*
 
 ### Customizable Colors & Dynamic Range
 ![Blue Highlight - 2 Octaves](screenshots/sustained-blue-2-octaves.png)
-*Arch Blue theme (default) with sustained notes*
+
+*Arch Blue highlight (default) on 2-octave range*
 
 ![Red Highlight - 4 Octaves](screenshots/sustained-red-4-octaves.png)
-*Custom red highlight color with expanded 4-octave range*
+
+*Red highlight with expanded 4-octave range*
 
 ![Teal Highlight - Stretched](screenshots/sustained-teal-stretched.png)
-*Teal color theme with resized window*
+
+*Window stretched vertically to its allowed limit (can be disabled in Settings)*
 
 ### Settings Dialog
 ![Settings Dialog](screenshots/settings-dialog.png)
-*Configure MIDI device, highlight color, and resize limits*
+
+*Settings dialog showing MIDI device selection, color picker, and resize options*
 
 ## Installation
 
@@ -84,8 +86,8 @@ python piano_viewer.py
 
 Sustain can be activated three ways:
 - Click the **S button** (sticky toggle)
-- Hold the **Shift key** (temporary)
-- Press **MIDI sustain pedal** (CC 64, temporary)
+- Hold the **Shift key** (momentary)
+- Press **MIDI sustain pedal** (CC 64, momentary)
 
 When sustain is active:
 - Released notes stay highlighted until sustain is released
@@ -95,34 +97,21 @@ When sustain is active:
 ### Mouse Interaction
 
 **Without sustain:**
-- Click and release to briefly highlight a note
+- Click to briefly highlight a note
 
 **With sustain:**
 - Click to toggle notes on/off
 - Drag across keys for glissando:
   - Start on empty note → Paint mode (adds notes)
   - Start on highlighted note → Erase mode (removes notes)
-- Clicks on gaps between keys snap to the nearest key
-
-## For Streamers (OBS Integration)
-
-This app is designed to be captured via OBS:
-
-1. Add a **Window Capture** source in OBS
-2. Select "Piano MIDI Viewer" as the window
-3. Right-click → Filters → Add **Chroma Key**
-4. Set key color to the grey background (or use Color Key with similarity ~50)
-5. Position and resize as needed
-
-The minimal UI keeps focus on the keyboard, perfect for music education streams.
 
 ## Configuration
 
 ### Resizing Limits
 
 Toggle resizing limits in Settings (⚙️):
-- **ON**: Maintains aspect ratio (width 0.1-0.7× height, height 3-10× width)
-- **OFF**: Free resize (absolute minimums still enforced)
+- **ON**: Maintains aspect ratio within reasonable limits (width 0.1-0.7× height, height 3-10× width)
+- **OFF**: Free resize (minimum key size still enforced)
 
 ### Keyboard Shortcuts
 
@@ -177,4 +166,4 @@ Built for music education and online lessons.
 
 ---
 
-**Note**: This project is Linux-focused. Windows support has been removed as of version 5.0.0.
+**Note**: This project is Linux-focused. Support for other platforms may be added later.
