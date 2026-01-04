@@ -20,7 +20,23 @@ A visual piano keyboard that displays MIDI input in real-time. Perfect for music
 
 ## Screenshots
 
-> *Screenshot coming soon*
+### Default Interface
+![Default Interface](screenshots/default-interface.png)
+*Clean, minimal design with 3-octave keyboard*
+
+### Customizable Colors & Dynamic Range
+![Blue Highlight - 2 Octaves](screenshots/sustained-blue-2-octaves.png)
+*Arch Blue theme (default) with sustained notes*
+
+![Red Highlight - 4 Octaves](screenshots/sustained-red-4-octaves.png)
+*Custom red highlight color with expanded 4-octave range*
+
+![Teal Highlight - Stretched](screenshots/sustained-teal-stretched.png)
+*Teal color theme with resized window*
+
+### Settings Dialog
+![Settings Dialog](screenshots/settings-dialog.png)
+*Configure MIDI device, highlight color, and resize limits*
 
 ## Installation
 
