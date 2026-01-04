@@ -18,11 +18,13 @@ A virtual piano keyboard that displays MIDI input in real-time or allows highlig
 ## Screenshots
 
 ### Default Interface
+
 ![Default Interface](screenshots/default-interface.png)
 
 *Default look with 3-octave keyboard*
 
-### Customizable Colors & Dynamic Range
+### Customizable Colors & Octave Range
+
 ![Blue Highlight - 2 Octaves](screenshots/sustained-blue-2-octaves.png)
 
 *Arch Blue highlight (default) on 2-octave range*
@@ -36,6 +38,7 @@ A virtual piano keyboard that displays MIDI input in real-time or allows highlig
 *Window stretched vertically to its allowed limit (can be disabled in Settings)*
 
 ### Settings Dialog
+
 ![Settings Dialog](screenshots/settings-dialog.png)
 
 *Settings dialog showing MIDI device selection, color picker, and resize options*
