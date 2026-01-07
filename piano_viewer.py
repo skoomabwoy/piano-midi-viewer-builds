@@ -3,7 +3,7 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 5.1.0
+Version: 5.2.0
 License: GPL-3.0
 
 Major Features in 5.0.0:
@@ -13,6 +13,9 @@ Major Features in 5.0.0:
 - Sustain button (S) with sticky toggle and visual indicator
 - Out-of-range sustained notes tracked invisibly
 - Toggle sustained notes off by clicking/playing them again
+
+Changes in 5.2.0:
+- Info link: Added clickable link to project repository in settings dialog
 
 Changes in 5.1.0:
 - Settings persistence: All preferences now save automatically
@@ -38,8 +41,8 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
     QColorDialog, QCheckBox
 )
-from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap
+from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QUrl
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap, QDesktopServices
 
 
 # ============================================================================
@@ -312,13 +315,26 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(self.ratio_limits_checkbox)
 
-        # CLOSE BUTTON
+        # INFO LINK
         layout.addStretch()
+        info_label = QLabel()
+        info_label.setText('<a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" style="color: #5094d4;">Project Info & Source Code</a>')
+        info_label.setOpenExternalLinks(True)
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setTextFormat(Qt.TextFormat.RichText)
+        info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        layout.addWidget(info_label)
+
+        # CLOSE BUTTON
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.accept)
 
         layout.addWidget(close_button)
         self.setLayout(layout)
+
+        # Make dialog fixed size (non-resizable) - Qt calculates optimal size
+        self.adjustSize()
+        self.setFixedSize(self.size())
 
     def populate_midi_devices(self):
         """Scans for available MIDI input devices."""
@@ -1693,7 +1709,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 5.1.0")
+    print("Piano MIDI Viewer - Version 5.2.0")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Absolute minimums: {ABSOLUTE_MIN_KEY_WIDTH}px × {ABSOLUTE_MIN_KEY_HEIGHT}px")

@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. It's designed for music education and online lessons via OBS.
 
-**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~1600 lines).
+**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~1720 lines).
 
-**Current Version: 5.1.0**
+**Current Version: 5.2.0**
 
 ### Major Features (5.0.0)
 - **MIDI sustain pedal support**: Recognizes CC 64 messages to sustain notes
@@ -18,6 +18,9 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 - **Smart glissando**: ON mode (paint notes) or OFF mode (erase notes) determined by initial click
 - **Out-of-range sustain**: Notes sustained outside visible range stay highlighted when octave expanded
 - **Error correction**: Click/play sustained notes again to toggle them off
+
+### Changes in 5.2.0
+- **Info link**: Clickable link to project repository in settings dialog (https://codeberg.org/skoomabwoy/piano-midi-viewer)
 
 ### Changes in 5.1.0
 - **Settings persistence**: All user preferences now save automatically to `~/.config/piano-midi-viewer/settings.ini`
@@ -98,10 +101,11 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - Enforces window resize constraints in `resizeEvent()`
    - Three-column layout: S button/+/- (left) | piano (center) | ⚙️/+/- (right)
 
-3. **`SettingsDialog` (QDialog)** - Configuration interface (piano_viewer.py:151-269)
+3. **`SettingsDialog` (QDialog)** - Configuration interface (piano_viewer.py:151-278)
    - MIDI device selection with refresh button
    - Highlight color picker (QColorDialog)
    - Resizing limits toggle checkbox
+   - Project info link (opens browser to Codeberg repository)
 
 4. **Helper functions** - MIDI note calculations (piano_viewer.py:106-144)
    - `is_black_key()` - Determines if MIDI note is a black key
@@ -168,6 +172,10 @@ Key additions in 5.0.0:
 - `PianoMIDIViewer.keyPressEvent/ReleaseEvent()` - Shift key handling
 - `PianoMIDIViewer.clear_all_sustained_notes()` - Clears all sustain sets
 - `PianoMIDIViewer.update_sustain_button_visual()` - S button appearance
+
+Key additions in 5.2.0:
+- Import of `QUrl` and `QDesktopServices` from PyQt6 for URL handling
+- Info link in SettingsDialog using QLabel with rich text and `setOpenExternalLinks(True)`
 
 Key additions in 5.1.0:
 - `get_config_path()` - Returns platform-specific config file path (~/.config/piano-midi-viewer/settings.ini)
@@ -272,6 +280,6 @@ Mode is locked for entire drag:
 - No test suite currently exists
 - All UI strings are hardcoded (no i18n)
 - MIDI device connection errors print to console
-- Version number in docstring (currently 5.1.0)
+- Version number in docstring (currently 5.2.0)
 - Extensive inline comments for educational purposes and code continuity
 - Linux-focused (Windows build support removed)
