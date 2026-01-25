@@ -2,16 +2,17 @@
 
 A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
 
-![Version](https://img.shields.io/badge/version-6.1.0-blue)
+![Version](https://img.shields.io/badge/version-6.2.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 
 ## Features
 
 - 🎹 **MIDI input** — real-time key visualization
 - 🖱️ **Mouse support** — click and drag to highlight keys
-- 🏷️ **Key labels** — note names, octave numbers, sharps & flats
-- 👁️ **Show on press** — display labels only on active keys
+- 🔠 **Key labels** — note names, octave numbers, sharps & flats
+- 👇 **Show on press** — display labels only on active keys
 - 🎨 **Custom colors** — with automatic text contrast
 - 🎵 **Sustain** — via pedal, Shift key, or S button
 - ↔️ **Octave range** — adjustable from A0 to C8
@@ -43,6 +44,12 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 *MIDI device, colors, and display options*
 
 ## Installation
+
+### Windows
+
+Download `PianoMIDIViewer.exe` from [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) — no installation required.
+
+### Linux
 
 **Requirements:** Python 3.8+, MIDI device (optional)
 
@@ -81,6 +88,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**6.2.0** — Windows standalone .exe
 **6.1.0** — Show labels only when pressed
 **6.0.0** — Key labels (note names, octaves, accidentals)
 **5.0.0** — Mouse support, sustain modes
@@ -95,4 +103,4 @@ See [CLAUDE.md](CLAUDE.md) for architecture docs.
 
 ---
 
-Linux-focused. Contributions welcome.
+Contributions welcome.
