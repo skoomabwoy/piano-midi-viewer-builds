@@ -3,8 +3,24 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 5.2.0
+Version: 6.0.1
 License: GPL-3.0
+
+Changes in 6.0.1:
+- Fixed text rendering: Font size now correctly calculated using proper
+  pixel-to-point conversion (was treating pixels as points, causing overflow)
+- Fixed text positioning: Now accounts for font descent, ensuring consistent
+  gaps between key edge, note letter, and octave number
+- Simplified text positioning code for all three display cases
+
+Major Features in 6.0.0:
+- Note names and octave numbers: Customizable display of musical notation
+- Octave numbers on all C keys (replaces single Middle C dot)
+- White key names (C, D, E, F, G, A, B) with dynamic positioning
+- Black key names with flats, sharps, or both enharmonic equivalents
+- Adaptive layout: Text stacks vertically on narrow keys
+- Smart contrast: Text color adapts to highlight color brightness
+- JetBrains Mono font embedded for consistent, readable typography
 
 Major Features in 5.0.0:
 - MIDI sustain pedal support (CC 64)
@@ -42,7 +58,7 @@ from PyQt6.QtWidgets import (
     QColorDialog, QCheckBox
 )
 from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QUrl
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap, QDesktopServices
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap, QDesktopServices, QFontDatabase
 
 
 # ============================================================================
@@ -64,26 +80,24 @@ DEFAULT_START_NOTE = 48  # C3
 DEFAULT_END_NOTE = 83    # B5
 
 # SINGLE WHITE KEY - Foundation of all sizing
+# Everything scales from white_key_width as the anchor
 INITIAL_KEY_WIDTH = 25  # pixels (tweakable)
 
-# RATIO LIMITS (toggleable via settings)
-MIN_KEY_WIDTH_RATIO = 0.1   # key_width ≥ key_height * 0.1
-MAX_KEY_WIDTH_RATIO = 0.7   # key_width ≤ key_height * 0.7
-MIN_KEY_HEIGHT_RATIO = 3    # key_height ≥ key_width * 3
-MAX_KEY_HEIGHT_RATIO = 10   # key_height ≤ key_width * 10
+# HEIGHT RATIO LIMITS
+# white_key_height = white_key_width × height_ratio
+MIN_HEIGHT_RATIO = 3    # minimum: keys are 3× as tall as wide
+MAX_HEIGHT_RATIO = 6    # maximum: keys are 6× as tall as wide
 
-# INITIAL KEY HEIGHT - middle of allowed ratio range
-# Range is 3 to 10, middle is 6.5
-INITIAL_KEY_HEIGHT = INITIAL_KEY_WIDTH * 6.5  # = 162.5px
+# INITIAL KEY HEIGHT - within allowed ratio range
+INITIAL_KEY_HEIGHT = INITIAL_KEY_WIDTH * MAX_HEIGHT_RATIO  # = 150px
 
-# ABSOLUTE MINIMUMS (ALWAYS enforced, even with limits off)
-ABSOLUTE_MIN_KEY_WIDTH = 15   # pixels (increased by 50% from 10)
-ABSOLUTE_MIN_KEY_HEIGHT = 30  # pixels (increased by 50% from 20)
+# PRACTICAL MINIMUM KEY WIDTH (for UI usability, used for min window size)
+PRACTICAL_MIN_KEY_WIDTH = 15  # pixels
 
 # VISUAL STYLING
 KEY_GAP = 2
-BLACK_KEY_HEIGHT_RATIO = 0.6
-BLACK_KEY_WIDTH_RATIO = 0.6
+BLACK_KEY_HEIGHT_RATIO = 0.6    # black_key_height = white_key_height × 0.6
+BLACK_KEY_WIDTH_RATIO = 0.8     # black_key_width = white_key_width × 0.8
 KEY_CORNER_RADIUS_RATIO = 0.08
 KEY_CORNER_RADIUS_MIN = 4
 KEYBOARD_CANVAS_MARGIN = 4
@@ -101,6 +115,22 @@ WINDOW_VERTICAL_MARGIN = 50  # Extra space for top/bottom window margins
 
 # MIDI POLLING
 MIDI_POLL_INTERVAL = 10
+
+# NOTE NAMES AND TEXT RENDERING
+NOTE_NAMES_WHITE = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
+NOTE_NAMES_BLACK_SHARPS = ['C♯', 'D♯', 'F♯', 'G♯', 'A♯']  # Using Unicode sharp symbol
+NOTE_NAMES_BLACK_FLATS = ['D♭', 'E♭', 'G♭', 'A♭', 'B♭']  # Using Unicode flat symbol
+
+# Text sizing - all derived from white_key_width
+WHITE_TEXT_GAP_RATIO = 0.02         # white_text_gap = white_key_height × 0.02
+BLACK_TEXT_GAP_RATIO = 0.05         # black_text_gap = white_key_height × 0.05
+WHITE_KEY_TEXT_WIDTH_RATIO = 0.7    # 1 char must fit in white_key_width × 0.7
+BLACK_KEY_TEXT_WIDTH_RATIO = 0.5    # 2 chars must fit in white_key_width × 0.5
+WHITE_KEY_TEXT_AREA_RATIO = 0.4     # bottom 40% of white key is available for text
+MIN_FONT_SIZE = 6                   # hide text if font size falls below this
+
+# Global variable to store the loaded font family name
+LOADED_FONT_FAMILY = None  # Will be set in main() after font loading
 
 
 # ============================================================================
@@ -254,6 +284,181 @@ def calculate_initial_window_size():
     return window_width, window_height
 
 
+def get_text_color_for_highlight(highlight_color):
+    """
+    Calculates optimal text color (black or white) for a given background color.
+
+    Uses relative luminance calculation to determine if the background is
+    light or dark, then returns contrasting text color for readability.
+
+    Args:
+        highlight_color: QColor of the background
+
+    Returns:
+        QColor: Black for light backgrounds, white for dark backgrounds
+    """
+    # Get RGB components
+    r = highlight_color.red()
+    g = highlight_color.green()
+    b = highlight_color.blue()
+
+    # Calculate relative luminance (perceived brightness)
+    # Using standard sRGB luminance formula
+    luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
+
+    # Return black text for bright backgrounds, white for dark
+    if luminance > 0.5:
+        return QColor(0, 0, 0)  # Black
+    else:
+        return QColor(255, 255, 255)  # White
+
+
+def calculate_font_size_for_width(target_width, num_chars, font_family):
+    """
+    Calculates font size to fit a given number of characters in a target width.
+
+    Uses font metrics to accurately measure character width at a reference size,
+    then scales to fit the target width.
+
+    Args:
+        target_width: Available width in pixels to fit the text
+        num_chars: Number of characters that must fit in the width
+        font_family: Font family name to use for measurement
+
+    Returns:
+        int: Font size in points, or 0 if below MIN_FONT_SIZE
+    """
+    from PyQt6.QtGui import QFont, QFontMetrics
+
+    # Measure character width at a reference size
+    reference_size = 20  # Use 20pt as reference for better precision
+    reference_font = QFont(font_family, reference_size)
+    metrics = QFontMetrics(reference_font)
+
+    # Measure width of a sample character (use 'M' as it's typically widest)
+    char_width_at_reference = metrics.horizontalAdvance('M')
+
+    if char_width_at_reference == 0:
+        return 0
+
+    # Calculate pixels per point
+    pixels_per_point = char_width_at_reference / reference_size
+
+    # Calculate font size that fits num_chars in target_width
+    font_size = int(target_width / (num_chars * pixels_per_point))
+
+    if font_size < MIN_FONT_SIZE:
+        return 0  # Too small to render
+
+    return font_size
+
+
+def calculate_font_size_for_height(target_height, font_family):
+    """
+    Calculates font size to fit a character in a target height.
+
+    Uses font metrics to accurately measure character height (ascent + descent)
+    at a reference size, then scales to fit the target height.
+
+    Args:
+        target_height: Available height in pixels for one character
+        font_family: Font family name to use for measurement
+
+    Returns:
+        int: Font size in points, or 0 if below MIN_FONT_SIZE
+    """
+    from PyQt6.QtGui import QFont, QFontMetrics
+
+    # Measure full character height at a reference size
+    reference_size = 20  # Use 20pt as reference for better precision
+    reference_font = QFont(font_family, reference_size)
+    metrics = QFontMetrics(reference_font)
+
+    # Use ascent + descent as the character height (excludes leading)
+    char_height_at_reference = metrics.ascent() + metrics.descent()
+
+    if char_height_at_reference == 0:
+        return 0
+
+    # Calculate height pixels per point
+    height_per_point = char_height_at_reference / reference_size
+
+    # Calculate font size that fits in target_height
+    font_size = int(target_height / height_per_point)
+
+    if font_size < MIN_FONT_SIZE:
+        return 0  # Too small to render
+
+    return font_size
+
+
+def get_note_name(midi_note):
+    """
+    Gets the note name (C, D, E, etc.) for a MIDI note number.
+
+    Args:
+        midi_note: MIDI note number (0-127)
+
+    Returns:
+        str: Note name ('C', 'D', 'E', 'F', 'G', 'A', or 'B')
+    """
+    note_in_octave = midi_note % 12
+    # MIDI notes: C=0, C#=1, D=2, D#=3, E=4, F=5, F#=6, G=7, G#=8, A=9, A#=10, B=11
+    note_map = {0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B'}
+    return note_map.get(note_in_octave, '')
+
+
+def get_octave_number(midi_note):
+    """
+    Gets the octave number for a MIDI note.
+
+    MIDI note 60 is Middle C (C4 in scientific pitch notation).
+    Octave numbers start at -1 for MIDI notes 0-11.
+
+    Args:
+        midi_note: MIDI note number (0-127)
+
+    Returns:
+        int: Octave number
+    """
+    return (midi_note // 12) - 1
+
+
+def get_black_key_name(midi_note, notation_type):
+    """
+    Gets the name(s) for a black key based on notation type.
+
+    Args:
+        midi_note: MIDI note number (must be a black key)
+        notation_type: "Flats", "Sharps", or "Both"
+
+    Returns:
+        tuple: (sharp_name, flat_name) or (name, None) for single notation
+               Returns (None, None) if not a black key
+    """
+    if not is_black_key(midi_note):
+        return (None, None)
+
+    note_in_octave = midi_note % 12
+    # Map MIDI note positions to indices in the sharp/flat arrays
+    # C#/Db=1, D#/Eb=3, F#/Gb=6, G#/Ab=8, A#/Bb=10
+    black_key_index_map = {1: 0, 3: 1, 6: 2, 8: 3, 10: 4}
+
+    index = black_key_index_map.get(note_in_octave)
+    if index is None:
+        return (None, None)
+
+    sharp_name = NOTE_NAMES_BLACK_SHARPS[index]
+    flat_name = NOTE_NAMES_BLACK_FLATS[index]
+
+    if notation_type == "Sharps":
+        return (sharp_name, None)
+    elif notation_type == "Flats":
+        return (flat_name, None)
+    else:  # "Both"
+        return (sharp_name, flat_name)
+
+
 # ============================================================================
 # SETTINGS DIALOG
 # ============================================================================
@@ -308,12 +513,52 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(color_layout)
 
-        # RESIZING LIMITS CHECKBOX (checked = limits ON)
-        self.ratio_limits_checkbox = QCheckBox("Resizing Limits")
-        self.ratio_limits_checkbox.setChecked(self.main_window.ratio_limits_enabled)
-        self.ratio_limits_checkbox.stateChanged.connect(self.toggle_ratio_limits)
+        # SEPARATOR
+        layout.addSpacing(10)
 
-        layout.addWidget(self.ratio_limits_checkbox)
+        # SHOW OCTAVE NUMBERS CHECKBOX
+        self.octave_numbers_checkbox = QCheckBox("Show Octave Numbers")
+        self.octave_numbers_checkbox.setChecked(self.main_window.show_octave_numbers)
+        self.octave_numbers_checkbox.stateChanged.connect(self.toggle_octave_numbers)
+
+        layout.addWidget(self.octave_numbers_checkbox)
+
+        # WHITE KEY NAMES CHECKBOX
+        self.white_key_names_checkbox = QCheckBox("White Key Names")
+        self.white_key_names_checkbox.setChecked(self.main_window.show_white_key_names)
+        self.white_key_names_checkbox.stateChanged.connect(self.toggle_white_key_names)
+
+        layout.addWidget(self.white_key_names_checkbox)
+
+        # BLACK KEY NAMES CHECKBOX
+        self.black_key_names_checkbox = QCheckBox("Black Key Names")
+        self.black_key_names_checkbox.setChecked(self.main_window.show_black_key_names)
+        self.black_key_names_checkbox.stateChanged.connect(self.toggle_black_key_names)
+
+        layout.addWidget(self.black_key_names_checkbox)
+
+        # BLACK KEY NOTATION DROPDOWN
+        notation_layout = QHBoxLayout()
+        notation_layout.setContentsMargins(20, 0, 0, 0)  # Indent to show it's related to black keys
+
+        self.black_key_notation_dropdown = QComboBox()
+        self.black_key_notation_dropdown.addItem("♭ Flats", "Flats")
+        self.black_key_notation_dropdown.addItem("♯ Sharps", "Sharps")
+        self.black_key_notation_dropdown.addItem("Both", "Both")
+
+        # Set current value
+        current_notation = self.main_window.black_key_notation
+        index = self.black_key_notation_dropdown.findData(current_notation)
+        if index >= 0:
+            self.black_key_notation_dropdown.setCurrentIndex(index)
+
+        self.black_key_notation_dropdown.currentIndexChanged.connect(self.notation_changed)
+
+        # Enable/disable based on black key names checkbox
+        self.black_key_notation_dropdown.setEnabled(self.main_window.show_black_key_names)
+
+        notation_layout.addWidget(self.black_key_notation_dropdown)
+        layout.addLayout(notation_layout)
 
         # INFO LINK
         layout.addStretch()
@@ -393,16 +638,33 @@ class SettingsDialog(QDialog):
             f"background-color: {color.name()}; border: 1px solid #999; border-radius: 15px;"
         )
 
-    def toggle_ratio_limits(self, state):
-        """Toggles ratio limit enforcement."""
-        # Checked = limits ON
-        self.main_window.ratio_limits_enabled = (state == Qt.CheckState.Checked.value)
+    def toggle_octave_numbers(self, state):
+        """Toggles octave number display."""
+        self.main_window.show_octave_numbers = (state == Qt.CheckState.Checked.value)
+        self.main_window.piano.update()
+        self.main_window.save_settings()
 
-        if self.main_window.ratio_limits_enabled:
-            # Just re-enabled limits - snap to valid size if needed
-            self.main_window.snap_to_valid_size()
+    def toggle_white_key_names(self, state):
+        """Toggles white key name display."""
+        self.main_window.show_white_key_names = (state == Qt.CheckState.Checked.value)
+        self.main_window.piano.update()
+        self.main_window.save_settings()
 
-        # Save ratio limits preference
+    def toggle_black_key_names(self, state):
+        """Toggles black key name display."""
+        self.main_window.show_black_key_names = (state == Qt.CheckState.Checked.value)
+
+        # Enable/disable the notation dropdown
+        self.black_key_notation_dropdown.setEnabled(self.main_window.show_black_key_names)
+
+        self.main_window.piano.update()
+        self.main_window.save_settings()
+
+    def notation_changed(self, index):
+        """Called when black key notation type changes."""
+        notation = self.black_key_notation_dropdown.currentData()
+        self.main_window.black_key_notation = notation
+        self.main_window.piano.update()
         self.main_window.save_settings()
 
 
@@ -494,8 +756,20 @@ class PianoKeyboard(QWidget):
                     black_key_width, keyboard_x, keyboard_y, black_key_height, key_corner_radius
                 )
 
-        # Draw Middle C indicator
-        self._draw_middle_c_indicator(painter, keyboard_x, keyboard_y, keyboard_height, white_key_width)
+        # Draw note names and octave numbers (if enabled)
+        main_window = self._get_main_window()
+        if main_window:
+            # Draw white key text (note names and/or octave numbers)
+            if main_window.show_white_key_names or main_window.show_octave_numbers:
+                self._draw_white_key_text(
+                    painter, keyboard_x, keyboard_y, keyboard_height, white_key_width, main_window
+                )
+
+            # Draw black key text (accidental names)
+            if main_window.show_black_key_names:
+                self._draw_black_key_text(
+                    painter, white_key_width, black_key_width, keyboard_x, keyboard_y, black_key_height, keyboard_height, main_window
+                )
 
     def _draw_white_key(self, painter, midi_note, key_width, x_offset, y_offset, height, corner_radius):
         """Draws a single white key."""
@@ -577,29 +851,251 @@ class PianoKeyboard(QWidget):
             corner_radius, corner_radius
         )
 
-    def _draw_middle_c_indicator(self, painter, x_offset, y_offset, height, white_key_width):
-        """Draws a visual indicator for Middle C (MIDI note 60)."""
-        MIDDLE_C = 60
+    def _draw_white_key_text(self, painter, x_offset, y_offset, white_key_height, white_key_width, main_window):
+        """
+        Draws note names and octave numbers on white keys.
 
-        if not (self.start_note <= MIDDLE_C <= self.end_note):
+        All text is centered horizontally. Note letters at bottom of all white keys,
+        octave numbers above the letter on C keys only.
+
+        Font size is determined by:
+        1. Width constraint: 1 char must fit in white_key_width × 0.7
+        2. Height constraint: text must fit in bottom 40% of key with gaps
+        Final size = min(width_based, height_based)
+        """
+        font_family = LOADED_FONT_FAMILY if LOADED_FONT_FAMILY else "monospace"
+
+        # Calculate text_gap = white_key_height × 0.02
+        text_gap = white_key_height * WHITE_TEXT_GAP_RATIO
+
+        # Calculate width-based font size: 1 char in white_key_width × 0.7
+        target_width = white_key_width * WHITE_KEY_TEXT_WIDTH_RATIO
+        width_based_size = calculate_font_size_for_width(target_width, 1, font_family)
+
+        # Calculate height-based font size (safety cap)
+        available_height = white_key_height * WHITE_KEY_TEXT_AREA_RATIO
+        both_enabled = main_window.show_white_key_names and main_window.show_octave_numbers
+
+        if both_enabled:
+            # Need: 3 gaps + 2 symbols
+            # Calculate pixel height available per symbol, then convert to font size
+            symbol_height = (available_height - (text_gap * 3)) / 2
+            height_based_size = calculate_font_size_for_height(symbol_height, font_family)
+        else:
+            # Need: 2 gaps + 1 symbol
+            symbol_height = available_height - (text_gap * 2)
+            height_based_size = calculate_font_size_for_height(symbol_height, font_family)
+
+        # Width constraint is primary - if text won't fit horizontally, don't render
+        if width_based_size == 0:
             return
 
-        if is_black_key(MIDDLE_C):
+        # Final font size = min of both constraints
+        font_size = min(width_based_size, height_based_size)
+
+        if font_size < MIN_FONT_SIZE:
+            return  # Too small to render
+
+        # Set up font
+        font = QFont(font_family, font_size)
+        painter.setFont(font)
+        font_metrics = painter.fontMetrics()
+
+        # Iterate through white keys
+        for note in range(self.start_note, self.end_note + 1):
+            if is_black_key(note):
+                continue
+
+            white_index = get_white_key_index(note, self.start_note)
+            key_x = x_offset + (white_index * white_key_width)
+            key_center_x = key_x + white_key_width / 2
+
+            # Check if key is highlighted
+            is_highlighted = (note in self.active_notes or
+                             note in self.sustained_notes or
+                             note == self.mouse_held_note)
+
+            # Determine text color based on highlight state
+            if is_highlighted:
+                text_color = get_text_color_for_highlight(self.highlight_color)
+            else:
+                text_color = QColor(0, 0, 0)  # Black for normal white keys
+
+            painter.setPen(text_color)
+
+            # Get note information
+            note_name = get_note_name(note)
+            octave_num = get_octave_number(note)
+            is_c_note = (note % 12 == 0)
+
+            # Font metrics for positioning
+            # Note: descent is the space below baseline (even caps reserve this space)
+            ascent = font_metrics.ascent()
+            descent = font_metrics.descent()
+
+            # Key positions
+            key_bottom = y_offset + white_key_height
+
+            # CASE 1: Both note names and octave numbers enabled
+            if main_window.show_white_key_names and main_window.show_octave_numbers:
+                # Layout from bottom: key_bottom -> gap -> letter -> gap -> number
+                # Text bottom = baseline + descent, so baseline = bottom - descent
+                letter_baseline_y = key_bottom - text_gap - descent
+                # Number bottom should be at letter_top - gap
+                # letter_top = letter_baseline - ascent
+                # number_bottom = letter_top - gap = letter_baseline - ascent - gap
+                # number_baseline = number_bottom - descent
+                octave_baseline_y = key_bottom - (2 * text_gap) - (2 * descent) - ascent
+
+                # Draw note name (all white keys)
+                if note_name:
+                    text_width = font_metrics.horizontalAdvance(note_name)
+                    text_x = key_center_x - text_width / 2
+                    painter.drawText(int(text_x), int(letter_baseline_y), note_name)
+
+                # Draw octave number (C keys only)
+                if is_c_note:
+                    octave_text = str(octave_num)
+                    text_width = font_metrics.horizontalAdvance(octave_text)
+                    text_x = key_center_x - text_width / 2
+                    painter.drawText(int(text_x), int(octave_baseline_y), octave_text)
+
+            # CASE 2: Only note names enabled
+            elif main_window.show_white_key_names:
+                # Note letter at bottom with gap from edge
+                letter_baseline_y = key_bottom - text_gap - descent
+
+                if note_name:
+                    text_width = font_metrics.horizontalAdvance(note_name)
+                    text_x = key_center_x - text_width / 2
+                    painter.drawText(int(text_x), int(letter_baseline_y), note_name)
+
+            # CASE 3: Only octave numbers enabled
+            elif main_window.show_octave_numbers:
+                # Octave number at bottom with gap from edge (C keys only)
+                octave_baseline_y = key_bottom - text_gap - descent
+
+                if is_c_note:
+                    octave_text = str(octave_num)
+                    text_width = font_metrics.horizontalAdvance(octave_text)
+                    text_x = key_center_x - text_width / 2
+                    painter.drawText(int(text_x), int(octave_baseline_y), octave_text)
+
+    def _draw_black_key_text(self, painter, white_key_width, black_key_width, x_offset, y_offset, black_key_height, white_key_height, main_window):
+        """
+        Draws accidental names on black keys.
+
+        All text is centered horizontally. Sharps at top with gap from edge,
+        flats below sharps with gap between (when Both mode enabled).
+
+        Font size is determined by:
+        1. Width constraint: 2 chars must fit in white_key_width × 0.5
+        2. Height constraint: text must fit in black key height with gaps
+        Final size = min(width_based, height_based)
+        """
+        font_family = LOADED_FONT_FAMILY if LOADED_FONT_FAMILY else "monospace"
+
+        # Calculate text_gap = white_key_height × 0.05
+        text_gap = white_key_height * BLACK_TEXT_GAP_RATIO
+
+        # Calculate width-based font size: 2 chars in white_key_width × 0.5
+        target_width = white_key_width * BLACK_KEY_TEXT_WIDTH_RATIO
+        width_based_size = calculate_font_size_for_width(target_width, 2, font_family)
+
+        # Calculate height-based font size (safety cap)
+        both_enabled = (main_window.black_key_notation == "Both")
+
+        if both_enabled:
+            # Need: 3 gaps + 2 symbols
+            # Calculate pixel height available per symbol, then convert to font size
+            symbol_height = (black_key_height - (text_gap * 3)) / 2
+            height_based_size = calculate_font_size_for_height(symbol_height, font_family)
+        else:
+            # Need: 2 gaps + 1 symbol
+            symbol_height = black_key_height - (text_gap * 2)
+            height_based_size = calculate_font_size_for_height(symbol_height, font_family)
+
+        # Width constraint is primary - if text won't fit horizontally, don't render
+        if width_based_size == 0:
             return
 
-        white_index = get_white_key_index(MIDDLE_C, self.start_note)
-        key_x = x_offset + (white_index * white_key_width)
-        key_center_x = key_x + white_key_width / 2
+        # Final font size = min of both constraints
+        font_size = min(width_based_size, height_based_size)
 
-        dot_radius = min(5, white_key_width / 8)
-        dot_y = y_offset + height - dot_radius * 3
+        if font_size < MIN_FONT_SIZE:
+            return  # Too small to render
 
-        painter.setBrush(QBrush(QColor(100, 100, 100)))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(
-            int(key_center_x - dot_radius), int(dot_y - dot_radius),
-            int(dot_radius * 2), int(dot_radius * 2)
-        )
+        # Set up font
+        font = QFont(font_family, font_size)
+        painter.setFont(font)
+        font_metrics = painter.fontMetrics()
+
+        # Iterate through black keys
+        for note in range(self.start_note, self.end_note + 1):
+            if not is_black_key(note):
+                continue
+
+            # Calculate black key position
+            left_white_note = get_left_white_key(note, self.start_note)
+            white_index = get_white_key_index(left_white_note, self.start_note)
+            key_x = x_offset + ((white_index + 1) * white_key_width - black_key_width / 2)
+            key_center_x = key_x + black_key_width / 2
+
+            # Check if key is highlighted
+            is_highlighted = (note in self.active_notes or
+                             note in self.sustained_notes or
+                             note == self.mouse_held_note)
+
+            # Determine text color based on highlight state
+            if is_highlighted:
+                text_color = get_text_color_for_highlight(self.highlight_color)
+            else:
+                text_color = QColor(255, 255, 255)  # White for normal black keys
+
+            painter.setPen(text_color)
+
+            # Get black key name(s)
+            sharp_name, flat_name = get_black_key_name(note, main_window.black_key_notation)
+
+            if not sharp_name and not flat_name:
+                continue
+
+            # Text positioning uses font height and ascent
+            # drawText(x, y) places BASELINE at y
+            # baseline = top_of_text + ascent
+            text_height = font_metrics.height()
+            ascent = font_metrics.ascent()
+
+            # Layout (top to bottom):
+            # key_top -> gap -> sharp -> gap -> flat -> gap -> key_bottom
+            key_top = y_offset
+
+            # Sharp: top is at key_top + gap
+            sharp_top = key_top + text_gap
+            sharp_baseline_y = sharp_top + ascent
+
+            if both_enabled:
+                # Both sharp and flat - always vertical stack (2 lines)
+
+                # Draw sharp name at top
+                sharp_width = font_metrics.horizontalAdvance(sharp_name)
+                sharp_x = key_center_x - sharp_width / 2
+                painter.drawText(int(sharp_x), int(sharp_baseline_y), sharp_name)
+
+                # Flat: top is at sharp_top + text_height + gap
+                flat_top = sharp_top + text_height + text_gap
+                flat_baseline_y = flat_top + ascent
+
+                flat_width = font_metrics.horizontalAdvance(flat_name)
+                flat_x = key_center_x - flat_width / 2
+                painter.drawText(int(flat_x), int(flat_baseline_y), flat_name)
+
+            else:
+                # Single notation (Sharps or Flats) - just one line
+                name = sharp_name if sharp_name else flat_name
+                text_width = font_metrics.horizontalAdvance(name)
+                text_x = key_center_x - text_width / 2
+                painter.drawText(int(text_x), int(sharp_baseline_y), name)
 
     def _get_main_window(self):
         """
@@ -832,7 +1328,6 @@ class PianoMIDIViewer(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.ratio_limits_enabled = True  # Default: limits ON
         self._in_resize_event = False  # Guard against recursion
         self.midi_in = None
         self.current_midi_device = None
@@ -842,6 +1337,12 @@ class PianoMIDIViewer(QMainWindow):
         self.sustain_button_toggled = False  # Sticky toggle via S button
         self.sustain_pedal_active = False    # MIDI pedal held
         self.shift_key_active = False        # Shift key held
+
+        # Note name and octave number display settings
+        self.show_octave_numbers = True   # Default: ON
+        self.show_white_key_names = True  # Default: ON
+        self.show_black_key_names = False # Default: OFF
+        self.black_key_notation = "Flats"  # Default: Flats
 
         self.init_ui()
         self.setup_midi_polling()
@@ -873,10 +1374,12 @@ class PianoMIDIViewer(QMainWindow):
         initial_width, initial_height = calculate_initial_window_size()
         self.resize(initial_width, initial_height)
 
-        # Set minimum size (based on absolute minimums)
+        # Set minimum size (for UI usability)
         num_white_keys = count_white_keys(DEFAULT_START_NOTE, DEFAULT_END_NOTE)
-        min_width = (ABSOLUTE_MIN_KEY_WIDTH * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
-        min_height = ABSOLUTE_MIN_KEY_HEIGHT + WINDOW_VERTICAL_MARGIN
+        min_key_width = PRACTICAL_MIN_KEY_WIDTH
+        min_key_height = min_key_width * MIN_HEIGHT_RATIO  # Minimum height at ratio 3
+        min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
+        min_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
         self.setMinimumSize(int(min_width), int(min_height))
 
         central_widget = QWidget()
@@ -1003,7 +1506,7 @@ class PianoMIDIViewer(QMainWindow):
         Reads saved settings for:
         - MIDI device selection
         - Highlight color
-        - Ratio limits enabled/disabled
+        - Note name and octave number display options
         - Window size and position
 
         If the config file doesn't exist, default values are used.
@@ -1029,9 +1532,21 @@ class PianoMIDIViewer(QMainWindow):
                 self.piano.highlight_color = QColor(color_hex)
                 self.piano.update()
 
-            # Load ratio limits setting
-            if config.has_option('window', 'ratio_limits_enabled'):
-                self.ratio_limits_enabled = config.getboolean('window', 'ratio_limits_enabled')
+            # Load note name and octave number settings
+            if config.has_option('appearance', 'show_octave_numbers'):
+                self.show_octave_numbers = config.getboolean('appearance', 'show_octave_numbers')
+
+            if config.has_option('appearance', 'show_white_key_names'):
+                self.show_white_key_names = config.getboolean('appearance', 'show_white_key_names')
+
+            if config.has_option('appearance', 'show_black_key_names'):
+                self.show_black_key_names = config.getboolean('appearance', 'show_black_key_names')
+
+            if config.has_option('appearance', 'black_key_notation'):
+                notation = config.get('appearance', 'black_key_notation')
+                # Validate the notation value
+                if notation in ['Flats', 'Sharps', 'Both']:
+                    self.black_key_notation = notation
 
             # Load window geometry (size and position)
             # Using Qt's saveGeometry/restoreGeometry handles window manager issues better
@@ -1051,7 +1566,7 @@ class PianoMIDIViewer(QMainWindow):
         Saves:
         - Current MIDI device
         - Highlight color
-        - Ratio limits enabled/disabled
+        - Note name and octave number display options
         - Window size and position
         """
         config_path = get_config_path()
@@ -1064,7 +1579,11 @@ class PianoMIDIViewer(QMainWindow):
 
         # Appearance settings
         config['appearance'] = {
-            'highlight_color': self.piano.highlight_color.name()
+            'highlight_color': self.piano.highlight_color.name(),
+            'show_octave_numbers': str(self.show_octave_numbers),
+            'show_white_key_names': str(self.show_white_key_names),
+            'show_black_key_names': str(self.show_black_key_names),
+            'black_key_notation': self.black_key_notation
         }
 
         # Window settings
@@ -1073,7 +1592,6 @@ class PianoMIDIViewer(QMainWindow):
         geometry_string = geometry_bytes.toBase64().data().decode()
 
         config['window'] = {
-            'ratio_limits_enabled': str(self.ratio_limits_enabled),
             'geometry': geometry_string
         }
 
@@ -1162,69 +1680,6 @@ class PianoMIDIViewer(QMainWindow):
         key_height = piano_height - (KEYBOARD_CANVAS_MARGIN * 2)
 
         return key_width, key_height
-
-    def snap_to_valid_size(self):
-        """
-        Called when re-enabling ratio limits.
-        Snaps window to valid size if current dimensions violate limits.
-        Always reduces, never increases.
-        """
-        key_width, key_height = self.get_current_key_dimensions()
-
-        if key_width is None or key_height is None:
-            return
-
-        # Check all 4 ratio constraints and find violations
-        violations = []
-
-        # Violation 1: key too wide (key_width > key_height * MAX_KEY_WIDTH_RATIO)
-        max_allowed_width = key_height * MAX_KEY_WIDTH_RATIO
-        if key_width > max_allowed_width:
-            # Need to reduce width
-            width_reduction = key_width - max_allowed_width
-            violations.append(('width', width_reduction, max_allowed_width))
-
-        # Violation 2: key too narrow (key_width < key_height * MIN_KEY_WIDTH_RATIO)
-        min_allowed_width = key_height * MIN_KEY_WIDTH_RATIO
-        if key_width < min_allowed_width:
-            # Need to reduce height
-            max_allowed_height_from_width = key_width / MIN_KEY_WIDTH_RATIO
-            height_reduction = key_height - max_allowed_height_from_width
-            violations.append(('height', height_reduction, max_allowed_height_from_width))
-
-        # Violation 3: key too tall (key_height > key_width * MAX_KEY_HEIGHT_RATIO)
-        max_allowed_height = key_width * MAX_KEY_HEIGHT_RATIO
-        if key_height > max_allowed_height:
-            # Need to reduce height
-            height_reduction = key_height - max_allowed_height
-            violations.append(('height', height_reduction, max_allowed_height))
-
-        # Violation 4: key too short (key_height < key_width * MIN_KEY_HEIGHT_RATIO)
-        min_allowed_height = key_width * MIN_KEY_HEIGHT_RATIO
-        if key_height < min_allowed_height:
-            # Need to reduce width
-            max_allowed_width_from_height = key_height / MIN_KEY_HEIGHT_RATIO
-            width_reduction = key_width - max_allowed_width_from_height
-            violations.append(('width', width_reduction, max_allowed_width_from_height))
-
-        if not violations:
-            return  # No violations, already valid
-
-        # Find smallest reduction
-        smallest_violation = min(violations, key=lambda x: x[1])
-        dimension, reduction, new_key_size = smallest_violation
-
-        num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
-
-        if dimension == 'width':
-            # Reduce window width
-            new_piano_width = new_key_size * num_white_keys
-            new_window_width = int(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
-            self.resize(new_window_width, self.height())
-        else:  # dimension == 'height'
-            # Reduce window height
-            new_window_height = int(new_key_size + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN)
-            self.resize(self.width(), new_window_height)
 
     # MIDI FUNCTIONALITY
 
@@ -1471,7 +1926,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = int(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -1483,7 +1938,7 @@ class PianoMIDIViewer(QMainWindow):
         """Removes an octave from the left."""
         new_start = self.piano.start_note + 12
 
-        if new_start < self.piano.end_note - 12:
+        if new_start <= self.piano.end_note - 11:
             # Get current key width
             key_width, _ = self.get_current_key_dimensions()
             if key_width is None:
@@ -1507,7 +1962,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = int(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -1543,7 +1998,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = int(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -1555,7 +2010,7 @@ class PianoMIDIViewer(QMainWindow):
         """Removes an octave from the right."""
         new_end = self.piano.end_note - 12
 
-        if new_end > self.piano.start_note + 12:
+        if new_end >= self.piano.start_note + 11:
             # Get current key width
             key_width, _ = self.get_current_key_dimensions()
             if key_width is None:
@@ -1579,7 +2034,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = int(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -1590,20 +2045,18 @@ class PianoMIDIViewer(QMainWindow):
     def update_button_states(self):
         """Updates the enabled/disabled state of octave control buttons."""
         self.left_plus_btn.setEnabled(self.piano.start_note > MIDI_NOTE_MIN + 12)
-        self.left_minus_btn.setEnabled(self.piano.start_note + 24 <= self.piano.end_note)
+        self.left_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
         self.right_plus_btn.setEnabled(self.piano.end_note < MIDI_NOTE_MAX - 12)
-        self.right_minus_btn.setEnabled(self.piano.end_note - 24 >= self.piano.start_note)
+        self.right_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
 
     # WINDOW MANAGEMENT
 
     def resizeEvent(self, event):
         """
-        Called when window is resized. Enforces absolute and ratio limits.
+        Called when window is resized. Enforces height ratio limits.
 
-        Core behavior:
-        - Accept resize if within all limits
-        - If ratio limit violated, grow the OTHER dimension to maintain ratio
-        - Never shrink against user's drag direction
+        Height ratio = white_key_height / white_key_width
+        Must stay within [MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO] (3 to 6).
         """
         # Prevent recursion
         if self._in_resize_event:
@@ -1614,47 +2067,33 @@ class PianoMIDIViewer(QMainWindow):
         try:
             super().resizeEvent(event)
 
-            # Get desired size from the resize event
-            w = event.size().width()
-            h = event.size().height()
+            # Get current size
+            w = self.width()
+            h = self.height()
 
-            # Calculate minimums
+            # Calculate key dimensions
             num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
-            min_window_width = int(ABSOLUTE_MIN_KEY_WIDTH * num_white_keys + TOTAL_HORIZONTAL_MARGIN)
-            min_window_height = int(ABSOLUTE_MIN_KEY_HEIGHT + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN)
+            if num_white_keys == 0:
+                return
 
-            # Enforce absolute minimums (ALWAYS)
-            w = max(w, min_window_width)
-            h = max(h, min_window_height)
+            piano_width = w - TOTAL_HORIZONTAL_MARGIN
+            piano_height = h - WINDOW_VERTICAL_MARGIN
+            white_key_width = piano_width / num_white_keys
+            white_key_height = piano_height - (KEYBOARD_CANVAS_MARGIN * 2)
 
-            # Enforce ratio limits (if enabled)
-            if self.ratio_limits_enabled:
-                # Calculate key dimensions
-                piano_width = w - TOTAL_HORIZONTAL_MARGIN
-                piano_height = h - WINDOW_VERTICAL_MARGIN
-                key_width = piano_width / num_white_keys
-                key_height = piano_height - (KEYBOARD_CANVAS_MARGIN * 2)
+            # Calculate current height ratio
+            if white_key_width > 0:
+                height_ratio = white_key_height / white_key_width
 
-                if key_height > 0:
-                    # Calculate the width/height ratio
-                    ratio = key_width / key_height
+                # Too tall (ratio > 6)? Reduce height
+                if height_ratio > MAX_HEIGHT_RATIO:
+                    white_key_height = white_key_width * MAX_HEIGHT_RATIO
+                    h = round(white_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN)
 
-                    # The four ratio constraints define effective bounds
-                    # From width constraints: MIN_KEY_WIDTH_RATIO ≤ w/h ≤ MAX_KEY_WIDTH_RATIO
-                    # From height constraints: 1/MAX_KEY_HEIGHT_RATIO ≤ w/h ≤ 1/MIN_KEY_HEIGHT_RATIO
-                    # Take the intersection (most restrictive)
-                    max_ratio = min(MAX_KEY_WIDTH_RATIO, 1.0 / MIN_KEY_HEIGHT_RATIO)
-                    min_ratio = max(MIN_KEY_WIDTH_RATIO, 1.0 / MAX_KEY_HEIGHT_RATIO)
-
-                    # Apply ratio constraints
-                    if ratio > max_ratio:
-                        # Too wide - grow height to accommodate width
-                        key_height = key_width / max_ratio
-                        h = int(key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN)
-                    elif ratio < min_ratio:
-                        # Too narrow - grow width to accommodate height
-                        key_width = key_height * min_ratio
-                        w = int(key_width * num_white_keys + TOTAL_HORIZONTAL_MARGIN)
+                # Too short (ratio < 3)? Reduce width
+                elif height_ratio < MIN_HEIGHT_RATIO:
+                    white_key_width = white_key_height / MIN_HEIGHT_RATIO
+                    w = round(white_key_width * num_white_keys + TOTAL_HORIZONTAL_MARGIN)
 
             # Apply constrained size
             if w != self.width() or h != self.height():
@@ -1709,11 +2148,10 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 5.2.0")
+    print("Piano MIDI Viewer - Version 6.0.1")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
-    print(f"Absolute minimums: {ABSOLUTE_MIN_KEY_WIDTH}px × {ABSOLUTE_MIN_KEY_HEIGHT}px")
-    print(f"Ratio limits: width {MIN_KEY_WIDTH_RATIO}-{MAX_KEY_WIDTH_RATIO}×height, height {MIN_KEY_HEIGHT_RATIO}-{MAX_KEY_HEIGHT_RATIO}×width")
+    print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
     print("=" * 40)
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -1722,6 +2160,26 @@ def main():
 
     app = QApplication(sys.argv)
     app.setWindowIcon(create_piano_icon())
+
+    # Load JetBrains Mono font for note names and octave numbers
+    global LOADED_FONT_FAMILY
+    font_path = os.path.join(os.path.dirname(__file__), "JetBrainsMono-Regular.ttf")
+    if os.path.exists(font_path):
+        font_id = QFontDatabase.addApplicationFont(font_path)
+        if font_id != -1:
+            font_families = QFontDatabase.applicationFontFamilies(font_id)
+            if font_families:
+                LOADED_FONT_FAMILY = font_families[0]
+                print(f"✓ Loaded font: {LOADED_FONT_FAMILY}")
+            else:
+                print("⚠ Font loaded but no families found")
+                LOADED_FONT_FAMILY = "monospace"  # Fallback
+        else:
+            print(f"⚠ Failed to load font from {font_path}")
+            LOADED_FONT_FAMILY = "monospace"  # Fallback
+    else:
+        print(f"⚠ Font file not found: {font_path}")
+        LOADED_FONT_FAMILY = "monospace"  # Fallback
 
     window = PianoMIDIViewer()
     window.show()

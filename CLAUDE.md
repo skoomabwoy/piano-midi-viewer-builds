@@ -6,9 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. It's designed for music education and online lessons via OBS.
 
-**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~1720 lines).
+**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 5.2.0**
+**Current Version: 6.0.1**
+
+### Changes in 6.0.1
+- **Text rendering fix**: Font size now correctly calculated using proper pixel-to-point conversion
+- **Text positioning fix**: Now accounts for font descent, ensuring consistent gaps between key edge, note letter, and octave number
+- **Code cleanup**: Simplified text positioning logic for all three display cases
+
+### Major Features (6.0.0)
+- **Note names and octave numbers**: Fully customizable display of musical notation on keys
+- **Octave numbering**: Numbers displayed on all C keys (replaced single Middle C dot)
+- **White key names**: Show natural note names (C, D, E, F, G, A, B) on white keys
+- **Black key names**: Show accidentals with three options: Flats (♭), Sharps (♯), or Both
+- **Adaptive text layout**: Text automatically stacks vertically on narrow keys for readability
+- **Smart text contrast**: Text color dynamically adapts based on highlight color brightness (luminance-based)
+- **Dynamic positioning**: When both note names and octave numbers enabled, numbers jump to top of C keys
+- **Embedded typography**: JetBrains Mono font embedded for consistent, professional appearance across platforms
+- **Settings persistence**: All display preferences saved to config file
 
 ### Major Features (5.0.0)
 - **MIDI sustain pedal support**: Recognizes CC 64 messages to sustain notes
@@ -59,14 +75,14 @@ The project uses a Python virtual environment in `venv/`.
 **MIDI Range:**
 - Full range: A0 to C8 (MIDI notes 21-108)
 - Default display: C3 to B5 (MIDI notes 48-83, 3 octaves)
-- Minimum span: ~3 octaves (enforced by button state logic)
+- Minimum span: 1 octave (12 notes, enforced by button state logic)
 - Maximum span: 7 octaves
 
 **Sizing:**
-- Initial key dimensions: 25px width × 162.5px height (ratio 6.5:1)
+- Initial key dimensions: 25px width × 150px height (ratio 6:1)
 - Absolute minimums: 15px width × 30px height (always enforced)
-- Ratio limits (toggleable): width 0.1-0.7× height, height 3-10× width
-- Black key size: 60% of white key width, 60% of keyboard height
+- Ratio limits (always enforced): width 0.1-0.7× height, height 3-6× width
+- Black key size: 80% of white key width, 60% of keyboard height
 
 **Performance:**
 - MIDI polling interval: 10ms (100Hz)
@@ -87,9 +103,10 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
      - `sustained_notes_left/right` - Sustained notes outside visible range
    - Mouse interaction tracking (`mouse_held_note`, `glissando_mode`)
    - Handles visual styling (colors, dimensions, rounded corners)
-   - Draws Middle C indicator dot
+   - Renders note names and octave numbers with adaptive layout
    - Helper method `_get_main_window()` to access parent window
    - Hit detection `_get_note_at_position()` for mouse clicks
+   - Text rendering methods: `_draw_white_key_text()`, `_draw_black_key_text()`
 
 2. **`PianoMIDIViewer` (QMainWindow)** - Main application window
    - Manages MIDI connection and polling via QTimer
@@ -97,29 +114,39 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - Handles octave addition/removal (+/- buttons)
    - Three sustain state booleans (`sustain_button_toggled`, `sustain_pedal_active`, `shift_key_active`)
    - Property `is_sustain_active` - unified check for any sustain source
+   - Four note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`)
    - Keyboard event handlers for Shift key press/release
    - Enforces window resize constraints in `resizeEvent()`
    - Three-column layout: S button/+/- (left) | piano (center) | ⚙️/+/- (right)
 
-3. **`SettingsDialog` (QDialog)** - Configuration interface (piano_viewer.py:151-278)
+3. **`SettingsDialog` (QDialog)** - Configuration interface
    - MIDI device selection with refresh button
    - Highlight color picker (QColorDialog)
-   - Resizing limits toggle checkbox
+   - **NEW in 6.0:** Show Octave Numbers checkbox (default: ON)
+   - **NEW in 6.0:** White Key Names checkbox (default: ON)
+   - **NEW in 6.0:** Black Key Names checkbox (default: OFF)
+   - **NEW in 6.0:** Black key notation dropdown (♭ Flats / ♯ Sharps / Both)
    - Project info link (opens browser to Codeberg repository)
 
-4. **Helper functions** - MIDI note calculations (piano_viewer.py:106-144)
+4. **Helper functions** - MIDI note calculations and text rendering
    - `is_black_key()` - Determines if MIDI note is a black key
    - `count_white_keys()` - Counts white keys in a range
    - `get_white_key_index()` - Gets position index of a white key
    - `get_left_white_key()` - Finds white key left of a black key
    - `calculate_initial_window_size()` - Computes starting window dimensions
+   - **NEW in 6.0:** `get_text_color_for_highlight()` - Calculates optimal text color (black/white) based on background luminance
+   - **NEW in 6.0:** `calculate_font_size_for_width()` - Calculates font size to fit characters in a target width
+   - **NEW in 6.0.1:** `calculate_font_size_for_height()` - Calculates font size to fit characters in a target height
+   - **NEW in 6.0:** `get_note_name()` - Returns note name (C, D, E, etc.) for MIDI note
+   - **NEW in 6.0:** `get_octave_number()` - Returns octave number for MIDI note
+   - **NEW in 6.0:** `get_black_key_name()` - Returns sharp/flat/both names for black keys
 
 ### Key Architectural Concepts
 
 **Sizing System**: Everything is calculated from a single white key's dimensions
 - Constants define initial key size (`INITIAL_KEY_WIDTH`, `INITIAL_KEY_HEIGHT`)
 - Window size is derived from key count × key dimensions
-- Ratio limits enforce aspect ratio constraints (toggleable)
+- Ratio limits enforce aspect ratio constraints (always enforced)
 - Absolute minimums always enforced (`ABSOLUTE_MIN_KEY_WIDTH/HEIGHT`)
 
 **MIDI Handling**: Polling-based (not callback)
@@ -143,6 +170,27 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 - White keys drawn first, then black keys on top
 - Active notes use highlight color
 - Proportional sizing based on widget dimensions
+- **NEW in 6.0:** Text rendered last (note names and octave numbers)
+
+**Text Rendering** (NEW in 6.0): Adaptive typography system
+- Font: JetBrains Mono (embedded), fallback to system monospace
+- Font size scales with key WIDTH (white keys: width/2.0, black keys: width/1.8)
+  - Ensures text grows when window stretched horizontally, not vertically
+  - More intuitive scaling behavior
+- Minimum readable size: 8pt (text hidden if smaller)
+- Text color: Dynamic contrast based on key state
+  - Normal white keys: Black text
+  - Normal black keys: White text
+  - Highlighted keys: Luminance-based (black on light, white on dark)
+- White key positioning:
+  - Note names at bottom center
+  - Octave numbers at top center (for C keys only)
+  - When both enabled: numbers jump to top, letters stay at bottom
+- Black key positioning:
+  - Text at top center
+  - Adaptive layout: Horizontal when wide ("C#"), vertical when narrow ("C\n#")
+  - Both mode: 2-line or 4-line stack depending on width
+- Text margins: 4px minimum or 15% of black key width (whichever is larger)
 
 **Icon Generation**: Window and taskbar icon created at runtime
 - `create_piano_icon()` function (piano_viewer.py:82-99)
@@ -164,6 +212,24 @@ MAIN WINDOW       - Application controller (PianoMIDIViewer class)
 ENTRY POINT       - main() function
 ```
 
+Key additions in 6.0.1:
+- `calculate_font_size_for_height()` - Properly converts pixel height to font point size using font metrics
+- Fixed `_draw_white_key_text()` - Uses descent for accurate text positioning with consistent gaps
+- Fixed `_draw_black_key_text()` - Same height-based font sizing fix applied
+
+Key additions in 6.0.0:
+- Import of `QFontDatabase` from PyQt6 for font loading
+- Constants: `NOTE_NAMES_WHITE`, `NOTE_NAMES_BLACK_SHARPS/FLATS`, font rendering ratios
+- Helper functions: `get_text_color_for_highlight()`, `calculate_font_size_for_width()`, `get_note_name()`, `get_octave_number()`, `get_black_key_name()`
+- `PianoKeyboard._draw_white_key_text()` - Renders note names and octave numbers on white keys
+- `PianoKeyboard._draw_black_key_text()` - Renders accidental names on black keys with adaptive layout
+- Removed: `PianoKeyboard._draw_middle_c_indicator()` (replaced by octave numbers on all C keys)
+- `PianoMIDIViewer` members: `show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`
+- `SettingsDialog` controls: 3 checkboxes + 1 dropdown for note display options
+- `SettingsDialog` callbacks: `toggle_octave_numbers()`, `toggle_white_key_names()`, `toggle_black_key_names()`, `notation_changed()`
+- Extended `save_settings()` and `load_settings()` to persist note display preferences
+- Font loading in `main()` - loads JetBrainsMono-Regular.ttf with fallback
+
 Key additions in 5.0.0:
 - `PianoKeyboard._get_main_window()` - Helper to access parent window
 - `PianoKeyboard._get_note_at_position()` - Hit detection for mouse
@@ -181,7 +247,7 @@ Key additions in 5.1.0:
 - `get_config_path()` - Returns platform-specific config file path (~/.config/piano-midi-viewer/settings.ini)
 - `PianoMIDIViewer.load_settings()` - Loads all preferences from config file on startup
 - `PianoMIDIViewer.save_settings()` - Saves all preferences to config file
-- Settings auto-save on: MIDI device change, color change, ratio limits toggle, window close
+- Settings auto-save on: MIDI device change, color change, note display options change, window close
 
 Key additions in 5.0.1:
 - `PianoKeyboard._find_closest_note_to_position()` - Snaps gap clicks to nearest key
@@ -192,11 +258,19 @@ Key additions in 5.0.1:
 
 ### Resizing Behavior
 
-The `resizeEvent()` method enforces constraints:
-- **Always enforced**: Absolute minimums (10px width, 20px height per key)
-- **When enabled**: Ratio limits (width 0.1-0.7× height, height 3-10× width)
-- Window is automatically resized if user drags beyond limits
-- `snap_to_valid_size()` called when re-enabling limits
+The `resizeEvent()` method enforces constraints using simple clamping:
+- **Always enforced**: Absolute minimums (15px width, 30px height per key)
+- **Always enforced**: Ratio limits (width 0.1-0.7× height, height 3-6× width)
+
+**Logic**:
+1. Get current window size
+2. Enforce absolute minimums
+3. Calculate key dimensions
+4. If ratio too wide → reduce width
+5. If ratio too narrow → reduce height
+6. Apply the constrained size
+
+Simple, predictable behavior without complex edge detection.
 
 ### Octave Management
 
@@ -273,13 +347,38 @@ Mode is locked for entire drag:
 - **Keyboard canvas**: Grey background (150, 150, 150), 4px margin, 6px rounded corners
 - **White keys**: Off-white (245, 245, 245) with subtle shadow lines, dark borders when highlighted (60, 60, 60)
 - **Black keys**: Near-black (26, 26, 26) with black borders
-- **Middle C indicator**: Small grey dot (100, 100, 100) at bottom center of MIDI note 60
+
+## Future Features & Ideas
+
+### Show Note Names for Active Keys Only
+**Status**: Planned for future release
+
+**Concept**: Display note names/octave numbers only on keys that are currently active (pressed or sustained), hiding text on inactive keys.
+
+**Benefits**:
+- Dramatically reduces visual clutter on unpressed keys
+- Makes active note names highly visible and readable
+- Helps during performances/lessons by clearly showing what's being played
+- Maintains clean aesthetic when no keys are pressed
+
+**Design Challenges**:
+- Settings UI integration: How to combine with existing "Show Octave Numbers", "White Key Names", "Black Key Names" checkboxes?
+  - Option 1: Add a master "Show Only When Active" checkbox that modifies behavior of all three
+  - Option 2: Replace all three with a dropdown: "Never / Always / When Active"
+  - Option 3: Individual checkboxes for each: "Show [X] Names" + radio buttons (Always/Active Only)
+- Performance: Text rendering would need to update on every note on/off event (likely negligible impact)
+- Edge case: What about sustained notes when sustain is released? Show until they turn off?
+
+**Implementation Notes**:
+- Modify `_draw_white_key_text()` and `_draw_black_key_text()` to check if note is in `active_notes`, `sustained_notes`, or equals `mouse_held_note`
+- Add new settings property (e.g., `show_names_active_only`) to control this behavior
+- Update settings dialog UI to accommodate new option
 
 ## Development Notes
 
 - No test suite currently exists
 - All UI strings are hardcoded (no i18n)
 - MIDI device connection errors print to console
-- Version number in docstring (currently 5.2.0)
+- Version number in docstring (currently 6.0.1)
 - Extensive inline comments for educational purposes and code continuity
 - Linux-focused (Windows build support removed)
