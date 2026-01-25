@@ -8,7 +8,13 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.0.2**
+**Current Version: 6.1.0**
+
+### Changes in 6.1.0
+- **Show names only when pressed**: New Settings toggle to display note names only on active keys
+- **Educational focus**: Helps students focus on relevant note names without visual clutter
+- **Octave numbers unaffected**: Always visible for navigation regardless of the new setting
+- **Smart enable/disable**: Checkbox greyed out when both white and black key names are off
 
 ### Changes in 6.0.2
 - **Documentation**: Updated README.md with new features and changelog
@@ -118,7 +124,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - Handles octave addition/removal (+/- buttons)
    - Three sustain state booleans (`sustain_button_toggled`, `sustain_pedal_active`, `shift_key_active`)
    - Property `is_sustain_active` - unified check for any sustain source
-   - Four note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`)
+   - Five note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`, `show_names_when_pressed`)
    - Keyboard event handlers for Shift key press/release
    - Enforces window resize constraints in `resizeEvent()`
    - Three-column layout: S button/+/- (left) | piano (center) | ⚙️/+/- (right)
@@ -215,6 +221,15 @@ PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
 MAIN WINDOW       - Application controller (PianoMIDIViewer class)
 ENTRY POINT       - main() function
 ```
+
+Key additions in 6.1.0:
+- `PianoMIDIViewer.show_names_when_pressed` - New setting to show note names only on active keys
+- `SettingsDialog.names_when_pressed_checkbox` - New checkbox control below accidentals dropdown
+- `SettingsDialog.toggle_names_when_pressed()` - Callback for the new checkbox
+- Modified `toggle_white_key_names()` and `toggle_black_key_names()` to enable/disable the new checkbox
+- Modified `_draw_white_key_text()` - Skips note names (not octave numbers) when key not active
+- Modified `_draw_black_key_text()` - Skips names when key not active
+- Extended `save_settings()` and `load_settings()` for the new setting
 
 Key additions in 6.0.1:
 - `calculate_font_size_for_height()` - Properly converts pixel height to font point size using font metrics
@@ -354,35 +369,13 @@ Mode is locked for entire drag:
 
 ## Future Features & Ideas
 
-### Show Note Names for Active Keys Only
-**Status**: Planned for future release
-
-**Concept**: Display note names/octave numbers only on keys that are currently active (pressed or sustained), hiding text on inactive keys.
-
-**Benefits**:
-- Dramatically reduces visual clutter on unpressed keys
-- Makes active note names highly visible and readable
-- Helps during performances/lessons by clearly showing what's being played
-- Maintains clean aesthetic when no keys are pressed
-
-**Design Challenges**:
-- Settings UI integration: How to combine with existing "Show Octave Numbers", "White Key Names", "Black Key Names" checkboxes?
-  - Option 1: Add a master "Show Only When Active" checkbox that modifies behavior of all three
-  - Option 2: Replace all three with a dropdown: "Never / Always / When Active"
-  - Option 3: Individual checkboxes for each: "Show [X] Names" + radio buttons (Always/Active Only)
-- Performance: Text rendering would need to update on every note on/off event (likely negligible impact)
-- Edge case: What about sustained notes when sustain is released? Show until they turn off?
-
-**Implementation Notes**:
-- Modify `_draw_white_key_text()` and `_draw_black_key_text()` to check if note is in `active_notes`, `sustained_notes`, or equals `mouse_held_note`
-- Add new settings property (e.g., `show_names_active_only`) to control this behavior
-- Update settings dialog UI to accommodate new option
+*No planned features at this time. Feature requests welcome via issue tracker.*
 
 ## Development Notes
 
 - No test suite currently exists
 - All UI strings are hardcoded (no i18n)
 - MIDI device connection errors print to console
-- Version number in docstring (currently 6.0.2)
+- Version number in docstring (currently 6.1.0)
 - Extensive inline comments for educational purposes and code continuity
 - Linux-focused (Windows build support removed)

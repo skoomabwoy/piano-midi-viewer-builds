@@ -2,7 +2,7 @@
 
 A virtual piano keyboard that displays MIDI input in real-time or allows highlighting notes with mouse clicks. Perfect for music education, online lessons, and creating video content.
 
-![Version](https://img.shields.io/badge/version-6.0.2-blue)
+![Version](https://img.shields.io/badge/version-6.1.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 
@@ -13,6 +13,7 @@ A virtual piano keyboard that displays MIDI input in real-time or allows highlig
 - 🔤 **Note names on keys** - Show C, D, E, F, G, A, B on white keys
 - 🔢 **Octave numbers** - Display octave numbers on all C keys
 - 🎼 **Black key accidentals** - Show sharps (♯), flats (♭), or both
+- 👁️ **Show names only when pressed** - Educational mode for focused learning
 - 🎨 **Customizable highlight color** with smart text contrast
 - ↔️ **Adjustable octave range (A0 to C8)**
 - 🎵 **Flexible sustain mode** (button, pedal, or Shift key)
@@ -144,6 +145,12 @@ When sustain is active:
 See [`CLAUDE.md`](CLAUDE.md) for detailed architecture documentation, code organization, and implementation notes.
 
 ## Changelog
+
+### 6.1.0 (2026-01-25)
+- **Show names only when pressed**: New toggle to display note names only on active keys
+- Educational focus: Helps students see only relevant note names without clutter
+- Octave numbers always visible for navigation (unaffected by this setting)
+- Checkbox auto-disables when both white and black key names are off
 
 ### 6.0.2 (2026-01-25)
 - Updated screenshots and documentation

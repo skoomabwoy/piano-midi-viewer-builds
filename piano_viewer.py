@@ -3,8 +3,15 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.0.2
+Version: 6.1.0
 License: GPL-3.0
+
+Changes in 6.1.0:
+- Show note names only when pressed: New toggle in Settings to display note
+  names only on active keys (pressed, sustained, or mouse-held)
+- Educational focus: Helps students focus on relevant note names without clutter
+- Octave numbers unaffected: Always visible for navigation regardless of setting
+- Checkbox automatically disabled when both white and black key names are off
 
 Changes in 6.0.1:
 - Fixed text rendering: Font size now correctly calculated using proper
@@ -560,6 +567,15 @@ class SettingsDialog(QDialog):
         notation_layout.addWidget(self.black_key_notation_dropdown)
         layout.addLayout(notation_layout)
 
+        # "Show only when pressed" checkbox
+        self.names_when_pressed_checkbox = QCheckBox("Show note names only when pressed")
+        self.names_when_pressed_checkbox.setChecked(self.main_window.show_names_when_pressed)
+        self.names_when_pressed_checkbox.stateChanged.connect(self.toggle_names_when_pressed)
+        # Enable only if at least one of white/black key names is on
+        names_enabled = self.main_window.show_white_key_names or self.main_window.show_black_key_names
+        self.names_when_pressed_checkbox.setEnabled(names_enabled)
+        layout.addWidget(self.names_when_pressed_checkbox)
+
         # INFO LINK
         layout.addStretch()
         info_label = QLabel()
@@ -647,6 +663,9 @@ class SettingsDialog(QDialog):
     def toggle_white_key_names(self, state):
         """Toggles white key name display."""
         self.main_window.show_white_key_names = (state == Qt.CheckState.Checked.value)
+        # Enable/disable "show only when pressed" based on whether any names are shown
+        names_enabled = self.main_window.show_white_key_names or self.main_window.show_black_key_names
+        self.names_when_pressed_checkbox.setEnabled(names_enabled)
         self.main_window.piano.update()
         self.main_window.save_settings()
 
@@ -657,6 +676,10 @@ class SettingsDialog(QDialog):
         # Enable/disable the notation dropdown
         self.black_key_notation_dropdown.setEnabled(self.main_window.show_black_key_names)
 
+        # Enable/disable "show only when pressed" based on whether any names are shown
+        names_enabled = self.main_window.show_white_key_names or self.main_window.show_black_key_names
+        self.names_when_pressed_checkbox.setEnabled(names_enabled)
+
         self.main_window.piano.update()
         self.main_window.save_settings()
 
@@ -664,6 +687,12 @@ class SettingsDialog(QDialog):
         """Called when black key notation type changes."""
         notation = self.black_key_notation_dropdown.currentData()
         self.main_window.black_key_notation = notation
+        self.main_window.piano.update()
+        self.main_window.save_settings()
+
+    def toggle_names_when_pressed(self, state):
+        """Toggles showing note names only when keys are pressed."""
+        self.main_window.show_names_when_pressed = (state == Qt.CheckState.Checked.value)
         self.main_window.piano.update()
         self.main_window.save_settings()
 
@@ -948,12 +977,14 @@ class PianoKeyboard(QWidget):
                 octave_baseline_y = key_bottom - (2 * text_gap) - (2 * descent) - ascent
 
                 # Draw note name (all white keys)
-                if note_name:
+                # Skip if "show only when pressed" is enabled and key is not active
+                show_name = not main_window.show_names_when_pressed or is_highlighted
+                if note_name and show_name:
                     text_width = font_metrics.horizontalAdvance(note_name)
                     text_x = key_center_x - text_width / 2
                     painter.drawText(int(text_x), int(letter_baseline_y), note_name)
 
-                # Draw octave number (C keys only)
+                # Draw octave number (C keys only) - always shown regardless of pressed state
                 if is_c_note:
                     octave_text = str(octave_num)
                     text_width = font_metrics.horizontalAdvance(octave_text)
@@ -962,6 +993,10 @@ class PianoKeyboard(QWidget):
 
             # CASE 2: Only note names enabled
             elif main_window.show_white_key_names:
+                # Skip if "show only when pressed" is enabled and key is not active
+                if main_window.show_names_when_pressed and not is_highlighted:
+                    continue
+
                 # Note letter at bottom with gap from edge
                 letter_baseline_y = key_bottom - text_gap - descent
 
@@ -1045,6 +1080,10 @@ class PianoKeyboard(QWidget):
             is_highlighted = (note in self.active_notes or
                              note in self.sustained_notes or
                              note == self.mouse_held_note)
+
+            # Skip if "show only when pressed" is enabled and key is not active
+            if main_window.show_names_when_pressed and not is_highlighted:
+                continue
 
             # Determine text color based on highlight state
             if is_highlighted:
@@ -1343,6 +1382,7 @@ class PianoMIDIViewer(QMainWindow):
         self.show_white_key_names = True  # Default: ON
         self.show_black_key_names = False # Default: OFF
         self.black_key_notation = "Flats"  # Default: Flats
+        self.show_names_when_pressed = False  # Default: OFF (show names on all keys)
 
         self.init_ui()
         self.setup_midi_polling()
@@ -1548,6 +1588,9 @@ class PianoMIDIViewer(QMainWindow):
                 if notation in ['Flats', 'Sharps', 'Both']:
                     self.black_key_notation = notation
 
+            if config.has_option('appearance', 'show_names_when_pressed'):
+                self.show_names_when_pressed = config.getboolean('appearance', 'show_names_when_pressed')
+
             # Load window geometry (size and position)
             # Using Qt's saveGeometry/restoreGeometry handles window manager issues better
             if config.has_option('window', 'geometry'):
@@ -1583,7 +1626,8 @@ class PianoMIDIViewer(QMainWindow):
             'show_octave_numbers': str(self.show_octave_numbers),
             'show_white_key_names': str(self.show_white_key_names),
             'show_black_key_names': str(self.show_black_key_names),
-            'black_key_notation': self.black_key_notation
+            'black_key_notation': self.black_key_notation,
+            'show_names_when_pressed': str(self.show_names_when_pressed)
         }
 
         # Window settings
@@ -2148,7 +2192,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 6.0.2")
+    print("Piano MIDI Viewer - Version 6.1.0")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
