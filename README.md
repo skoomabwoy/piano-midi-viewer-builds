@@ -2,7 +2,7 @@
 
 A virtual piano keyboard that displays MIDI input in real-time or allows highlighting notes with mouse clicks. Perfect for music education, online lessons, and creating video content.
 
-![Version](https://img.shields.io/badge/version-5.1.0-blue)
+![Version](https://img.shields.io/badge/version-6.0.2-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Python](https://img.shields.io/badge/python-3.8+-blue)
 
@@ -10,10 +10,13 @@ A virtual piano keyboard that displays MIDI input in real-time or allows highlig
 
 - 🎹 **Real-time MIDI input tracking**
 - 🖱️ **Mouse-based note highlighting**
-- 🎨 **Customizable highlight color**
+- 🔤 **Note names on keys** - Show C, D, E, F, G, A, B on white keys
+- 🔢 **Octave numbers** - Display octave numbers on all C keys
+- 🎼 **Black key accidentals** - Show sharps (♯), flats (♭), or both
+- 🎨 **Customizable highlight color** with smart text contrast
 - ↔️ **Adjustable octave range (A0 to C8)**
-- 🎵 **Flexible sustain mode**
-- 🪟 **Clean, minimal UI**
+- 🎵 **Flexible sustain mode** (button, pedal, or Shift key)
+- 🪟 **Clean, minimal UI** with embedded JetBrains Mono font
 
 ## Screenshots
 
@@ -23,6 +26,8 @@ A virtual piano keyboard that displays MIDI input in real-time or allows highlig
 
 *Default look with 3-octave keyboard*
 
+*White keys name notes and octave numbers are on*
+
 ### Customizable Colors & Octave Range
 
 ![Blue Highlight - 2 Octaves](screenshots/sustained-blue-2-octaves.png)
@@ -31,11 +36,15 @@ A virtual piano keyboard that displays MIDI input in real-time or allows highlig
 
 ![Red Highlight - 4 Octaves](screenshots/sustained-red-4-octaves.png)
 
-*Red highlight with expanded 4-octave range*
+*Red highlight on expanded 4-octave range*
+
+*Octave numbers are off, flat accidentals names are on*
 
 ![Teal Highlight - Stretched](screenshots/sustained-teal-stretched.png)
 
-*Window stretched vertically to its allowed limit (can be disabled in Settings)*
+*Teal highlight on 2-octave range*
+
+*White keys note names are off, sharp accidentals names are on*
 
 ### Settings Dialog
 
@@ -110,12 +119,6 @@ When sustain is active:
 
 ## Configuration
 
-### Resizing Limits
-
-Toggle resizing limits in Settings (⚙️):
-- **ON**: Maintains aspect ratio within reasonable limits (width 0.1-0.7× height, height 3-10× width)
-- **OFF**: Free resize (minimum key size still enforced)
-
 ### Keyboard Shortcuts
 
 - **Shift**: Temporary sustain activation
@@ -124,8 +127,9 @@ Toggle resizing limits in Settings (⚙️):
 
 ## Technical Details
 
-- **Single-file architecture**: Entire app is in `piano_viewer.py` (~1600 lines)
+- **Single-file architecture**: Entire app is in `piano_viewer.py` (~2100 lines)
 - **Framework**: PyQt6 for GUI, python-rtmidi for MIDI input
+- **Typography**: JetBrains Mono font embedded for consistent display
 - **MIDI range**: A0 to C8 (MIDI notes 21-108)
 - **Default display**: C3 to B5 (3 octaves)
 - **Polling interval**: 10ms (100Hz MIDI polling)
@@ -140,6 +144,25 @@ Toggle resizing limits in Settings (⚙️):
 See [`CLAUDE.md`](CLAUDE.md) for detailed architecture documentation, code organization, and implementation notes.
 
 ## Changelog
+
+### 6.0.2 (2026-01-25)
+- Updated screenshots and documentation
+
+### 6.0.1 (2026-01-25)
+- **Text rendering fix**: Font size now correctly calculated using proper pixel-to-point conversion
+- **Text positioning fix**: Accounts for font descent for consistent gaps between key edge, note letter, and octave number
+- Code cleanup and simplified text positioning logic
+
+### 6.0.0 (2026-01-25)
+- **Note names on keys**: Show C, D, E, F, G, A, B on white keys (toggleable)
+- **Octave numbers**: Display octave numbers on all C keys (replaces Middle C dot)
+- **Black key accidentals**: Show sharps (♯), flats (♭), or both enharmonic names
+- **Smart text contrast**: Text color automatically adapts based on highlight color brightness
+- **Embedded font**: JetBrains Mono for consistent, professional typography across platforms
+- **Adaptive layout**: Text automatically adjusts for different window sizes
+
+### 5.2.0 (2026-01-04)
+- **Info link**: Clickable link to project repository in settings dialog
 
 ### 5.1.0 (2026-01-04)
 - **Settings persistence**: All preferences now save automatically
