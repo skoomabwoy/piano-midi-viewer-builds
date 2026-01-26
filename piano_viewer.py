@@ -3,8 +3,13 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.2.0
+Version: 6.3.0
 License: GPL-3.0
+
+Changes in 6.3.0:
+- Linux standalone app: No Python installation required, just download and run
+- Optimized build: Reduced Linux binary size from 83 MB to 56 MB
+- Both Windows (.exe) and Linux binaries available in Releases
 
 Changes in 6.2.0:
 - Windows support: Standalone .exe available (built with PyInstaller)

@@ -2,9 +2,8 @@
 
 A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
 
-![Version](https://img.shields.io/badge/version-6.2.0-blue)
+![Version](https://img.shields.io/badge/version-6.3.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
-![Python](https://img.shields.io/badge/python-3.8+-blue)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 
 ## Features
@@ -43,15 +42,32 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 
 *MIDI device, colors, and display options*
 
-## Installation
+## Download
 
-### Windows
+Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and download the standalone app for your system:
 
-Download `PianoMIDIViewer.exe` from [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) — no installation required.
+| Platform | Download | Notes |
+|----------|----------|-------|
+| **Windows** | `PianoMIDIViewer.exe` | Double-click to run |
+| **Linux** | `PianoMIDIViewer` | Make executable, then run (see below) |
 
-### Linux
+**No installation required.** Just download and run.
 
-**Requirements:** Python 3.8+, MIDI device (optional)
+### Linux: First Run
+
+After downloading, make the file executable (one-time):
+
+```bash
+chmod +x PianoMIDIViewer
+./PianoMIDIViewer
+```
+
+Or right-click the file → Properties → Permissions → "Allow executing as program"
+
+<details>
+<summary><b>Alternative: Run from source</b></summary>
+
+If you prefer running from source (requires Python 3.8+):
 
 ```bash
 git clone https://codeberg.org/skoomabwoy/piano-midi-viewer.git
@@ -61,6 +77,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 python piano_viewer.py
 ```
+
+</details>
 
 ## Usage
 
@@ -88,6 +106,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**6.3.0** — Linux standalone app (no Python required)
 **6.2.0** — Windows standalone .exe
 **6.1.0** — Show labels only when pressed
 **6.0.0** — Key labels (note names, octaves, accidentals)

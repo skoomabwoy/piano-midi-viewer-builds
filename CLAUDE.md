@@ -8,7 +8,12 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.2.0**
+**Current Version: 6.3.0**
+
+### Changes in 6.3.0
+- **Linux standalone app**: No Python installation required, just download and run
+- **Optimized build**: Reduced Linux binary size from 83 MB to 56 MB (excluded duplicate ICU libs, unused Qt modules)
+- **Build configuration**: `PianoMIDIViewer.spec` added for reproducible PyInstaller builds
 
 ### Changes in 6.2.0
 - **Windows support**: Standalone `.exe` available via Releases (built with PyInstaller)

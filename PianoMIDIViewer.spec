@@ -1,0 +1,191 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""
+Optimized PyInstaller spec file for Piano MIDI Viewer (Linux)
+
+Optimizations applied:
+1. Exclude duplicate system ICU libraries (PyQt6 bundles its own)
+2. Exclude unnecessary Qt modules (PDF, WebEngine, Quick, QML, etc.)
+3. Exclude unnecessary Qt plugins (VNC, EGL embedded, etc.)
+4. Use UPX compression
+5. Strip debug symbols
+6. Remove non-English translations
+"""
+
+from PyInstaller.utils.hooks import collect_all
+
+# Collect rtmidi with all its dependencies
+rtmidi_datas, rtmidi_binaries, rtmidi_hiddenimports = collect_all('rtmidi')
+
+a = Analysis(
+    ['piano_viewer.py'],
+    pathex=[],
+    binaries=rtmidi_binaries,
+    datas=[
+        ('JetBrainsMono-Regular.ttf', '.'),
+    ] + rtmidi_datas,
+    hiddenimports=rtmidi_hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        # Exclude heavy/unnecessary Qt modules
+        'PyQt6.QtPdf',
+        'PyQt6.QtPdfWidgets',
+        'PyQt6.QtWebEngine',
+        'PyQt6.QtWebEngineCore',
+        'PyQt6.QtWebEngineWidgets',
+        'PyQt6.QtWebChannel',
+        'PyQt6.QtQuick',
+        'PyQt6.QtQuick3D',
+        'PyQt6.QtQml',
+        'PyQt6.QtQmlModels',
+        'PyQt6.QtDesigner',
+        'PyQt6.QtHelp',
+        'PyQt6.QtMultimedia',
+        'PyQt6.QtMultimediaWidgets',
+        'PyQt6.QtBluetooth',
+        'PyQt6.QtNfc',
+        'PyQt6.QtPositioning',
+        'PyQt6.QtRemoteObjects',
+        'PyQt6.QtSensors',
+        'PyQt6.QtSerialPort',
+        'PyQt6.QtSql',
+        'PyQt6.QtTest',
+        'PyQt6.QtXml',
+        'PyQt6.Qt3DCore',
+        'PyQt6.Qt3DRender',
+        'PyQt6.Qt3DInput',
+        'PyQt6.Qt3DLogic',
+        'PyQt6.Qt3DAnimation',
+        'PyQt6.Qt3DExtras',
+        'PyQt6.QtCharts',
+        'PyQt6.QtDataVisualization',
+        'PyQt6.QtNetworkAuth',
+        'PyQt6.QtOpenGL',
+        'PyQt6.QtOpenGLWidgets',
+        'PyQt6.QtSpatialAudio',
+        'PyQt6.QtTextToSpeech',
+        'PyQt6.QtSvgWidgets',
+        # Standard library modules not needed
+        'tkinter',
+        'unittest',
+        'pydoc',
+        'doctest',
+    ],
+    noarchive=False,
+    optimize=2,
+)
+
+# Filter out duplicate/unnecessary binaries
+def filter_binaries(binaries):
+    """Remove duplicate ICU libs and unnecessary Qt components."""
+    exclude_patterns = [
+        # System ICU - PyQt6 bundles its own (v73)
+        'libicudata.so.78',
+        'libicuuc.so.78',
+        'libicui18n.so.78',
+        # Unnecessary Qt libraries
+        'libQt6Pdf',
+        'libQt6Quick',
+        'libQt6Qml',
+        'libQt6Designer',
+        'libQt6Help',
+        'libQt6Multimedia',
+        'libQt6WebEngine',
+        'libQt6ShaderTools',
+        'libQt6Quick3D',
+        'libQt6QuickControls',
+        'libQt6QuickDialogs',
+        'libQt6QuickTemplates',
+        'libQt6OpenGL',  # We use software rendering
+        'libQt6EglFS',   # Embedded GL - not needed for desktop
+        'libavcodec',    # FFmpeg codecs
+        'libavformat',   # FFmpeg format
+        'libavutil',     # FFmpeg util
+        'libswresample', # FFmpeg audio
+        'libswscale',    # FFmpeg video scaling
+    ]
+
+    filtered = []
+    for item in binaries:
+        name = item[0] if isinstance(item, tuple) else item
+        if not any(pattern in name for pattern in exclude_patterns):
+            filtered.append(item)
+        else:
+            print(f"  [EXCLUDED] {name}")
+
+    return filtered
+
+# Filter out unnecessary Qt plugins
+def filter_qt_plugins(binaries):
+    """Remove Qt plugins we don't need."""
+    exclude_plugin_patterns = [
+        # VNC platform - not needed
+        'libqvnc.so',
+        # Vulkan display - not needed
+        'libqvkkhrdisplay.so',
+        # PDF image format plugin
+        'libqpdf.so',
+        # EGL device integrations for embedded systems
+        'egldeviceintegrations/',
+    ]
+
+    filtered = []
+    for item in binaries:
+        name = item[0] if isinstance(item, tuple) else item
+        if not any(pattern in name for pattern in exclude_plugin_patterns):
+            filtered.append(item)
+        else:
+            print(f"  [EXCLUDED] {name}")
+
+    return filtered
+
+print("\n" + "=" * 60)
+print("Filtering unnecessary binaries...")
+print("=" * 60)
+a.binaries = filter_binaries(a.binaries)
+a.binaries = filter_qt_plugins(a.binaries)
+
+# Remove non-English translation files to save space
+def filter_translations(datas):
+    """Keep only English translations."""
+    filtered = []
+    removed_count = 0
+    for item in datas:
+        name = item[0] if isinstance(item, tuple) else item
+        # Keep non-translation files and English translations
+        if '/translations/' not in name or '_en' in name or '_en.' in name:
+            filtered.append(item)
+        else:
+            removed_count += 1
+    print(f"  [EXCLUDED] {removed_count} non-English translation files")
+    return filtered
+
+a.datas = filter_translations(a.datas)
+print("=" * 60 + "\n")
+
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='PianoMIDIViewer',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=True,  # Strip debug symbols from binaries
+    upx=True,    # Use UPX compression
+    upx_exclude=[
+        # Don't compress these - can cause issues or slowdown
+        'libpython*.so*',
+    ],
+    runtime_tmpdir=None,
+    console=False,  # Windowed app, no console
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
