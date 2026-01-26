@@ -3,8 +3,14 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.3.0
+Version: 6.3.1
 License: GPL-3.0
+
+Changes in 6.3.1:
+- Cross-platform UI consistency: Buttons now look identical on Windows and Linux
+- SVG settings icon: Replaced emoji cogwheel with embedded SVG for reliable rendering
+- JetBrains Mono buttons: S, +, − buttons now use the bundled font
+- Better minus sign: Using proper minus character (−) for vertical centering
 
 Changes in 6.3.0:
 - Linux standalone app: No Python installation required, just download and run
@@ -169,6 +175,45 @@ def create_piano_icon():
     </svg>
     """
     pixmap = QPixmap(64, 64)
+    pixmap.loadFromData(svg_data.encode())
+    return QIcon(pixmap)
+
+
+def create_settings_icon(size=64, color="#666666"):
+    """
+    Creates a cogwheel/gear settings icon as a QIcon.
+
+    Uses SVG for consistent rendering across all platforms (Windows, Linux, macOS).
+    The icon is a 6-tooth gear with a clean, recognizable design.
+
+    Args:
+        size: Icon size in pixels (default 64)
+        color: Hex color for the gear (default dark gray)
+
+    Returns:
+        QIcon: The settings gear icon
+    """
+    # SVG cogwheel - 6 teeth, clean minimal design
+    # Outer ring with teeth + center hole cutout
+    svg_data = f"""
+    <svg width="{size}" height="{size}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <g fill="{color}">
+            <!-- Gear body with 6 teeth -->
+            <path d="
+                M43,8 L57,8 L57,18 C60,19 63,20 66,22 L73,13 L83,23 L74,32
+                C76,35 77,38 78,41 L92,41 L92,59 L78,59 C77,62 76,65 74,68
+                L83,77 L73,87 L66,78 C63,80 60,81 57,82 L57,92 L43,92 L43,82
+                C40,81 37,80 34,78 L27,87 L17,77 L26,68 C24,65 23,62 22,59
+                L8,59 L8,41 L22,41 C23,38 24,35 26,32 L17,23 L27,13 L34,22
+                C37,20 40,19 43,18 Z
+            "/>
+            <!-- Center hole (cut out with background color) -->
+            <circle cx="50" cy="50" r="16" fill="#f5f5f5"/>
+        </g>
+    </svg>
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
     pixmap.loadFromData(svg_data.encode())
     return QIcon(pixmap)
 
@@ -1460,8 +1505,10 @@ class PianoMIDIViewer(QMainWindow):
             }
         """
 
-        icon_font = QFont()
-        icon_font.setPixelSize(int(BUTTON_SIZE * ICON_SIZE_RATIO))
+        # Use JetBrains Mono for button labels (consistent across platforms)
+        button_font_family = LOADED_FONT_FAMILY if LOADED_FONT_FAMILY else "monospace"
+        button_font = QFont(button_font_family)
+        button_font.setPixelSize(int(BUTTON_SIZE * ICON_SIZE_RATIO))
 
         # LEFT SIDE
         left_container = QWidget()
@@ -1474,7 +1521,7 @@ class PianoMIDIViewer(QMainWindow):
         self.sustain_button = QPushButton("S")
         self.sustain_button.setToolTip("Sustain - Click to toggle, or hold Shift/Pedal")
         self.sustain_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.sustain_button.setFont(icon_font)
+        self.sustain_button.setFont(button_font)
         self.sustain_button.setStyleSheet(button_style)
         self.sustain_button.clicked.connect(self.toggle_sustain_button)
 
@@ -1484,14 +1531,15 @@ class PianoMIDIViewer(QMainWindow):
         self.left_plus_btn = QPushButton("+")
         self.left_plus_btn.setToolTip("Add octave on the left (lower notes)")
         self.left_plus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.left_plus_btn.setFont(icon_font)
+        self.left_plus_btn.setFont(button_font)
         self.left_plus_btn.setStyleSheet(button_style)
         self.left_plus_btn.clicked.connect(self.add_octave_left)
 
-        self.left_minus_btn = QPushButton("-")
+        # Use en-dash for minus (better vertical centering in JetBrains Mono)
+        self.left_minus_btn = QPushButton("−")
         self.left_minus_btn.setToolTip("Remove octave on the left")
         self.left_minus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.left_minus_btn.setFont(icon_font)
+        self.left_minus_btn.setFont(button_font)
         self.left_minus_btn.setStyleSheet(button_style)
         self.left_minus_btn.clicked.connect(self.remove_octave_left)
 
@@ -1509,10 +1557,12 @@ class PianoMIDIViewer(QMainWindow):
         right_layout.setContentsMargins(3, 0, 0, 0)
         right_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.settings_button = QPushButton("⚙️")
+        # Settings button uses SVG icon for consistent cross-platform rendering
+        self.settings_button = QPushButton()
         self.settings_button.setToolTip("Open Settings")
         self.settings_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.settings_button.setFont(icon_font)
+        self.settings_button.setIcon(create_settings_icon(BUTTON_SIZE, "#666666"))
+        self.settings_button.setIconSize(self.settings_button.size() * 0.7)
         self.settings_button.setStyleSheet(button_style)
         self.settings_button.clicked.connect(self.open_settings)
 
@@ -1522,14 +1572,15 @@ class PianoMIDIViewer(QMainWindow):
         self.right_plus_btn = QPushButton("+")
         self.right_plus_btn.setToolTip("Add octave on the right (higher notes)")
         self.right_plus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.right_plus_btn.setFont(icon_font)
+        self.right_plus_btn.setFont(button_font)
         self.right_plus_btn.setStyleSheet(button_style)
         self.right_plus_btn.clicked.connect(self.add_octave_right)
 
-        self.right_minus_btn = QPushButton("-")
+        # Use en-dash for minus (better vertical centering in JetBrains Mono)
+        self.right_minus_btn = QPushButton("−")
         self.right_minus_btn.setToolTip("Remove octave on the right")
         self.right_minus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.right_minus_btn.setFont(icon_font)
+        self.right_minus_btn.setFont(button_font)
         self.right_minus_btn.setStyleSheet(button_style)
         self.right_minus_btn.clicked.connect(self.remove_octave_right)
 

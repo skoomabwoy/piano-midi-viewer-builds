@@ -8,7 +8,13 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.3.0**
+**Current Version: 6.3.1**
+
+### Changes in 6.3.1
+- **Cross-platform UI consistency**: Buttons now render identically on Windows and Linux
+- **SVG settings icon**: Replaced Unicode emoji cogwheel (⚙️) with embedded SVG gear
+- **JetBrains Mono buttons**: S, +, − buttons now use the bundled font for consistent appearance
+- **Better minus character**: Using proper minus sign (−) instead of hyphen for vertical centering
 
 ### Changes in 6.3.0
 - **Linux standalone app**: No Python installation required, just download and run
@@ -211,11 +217,11 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
   - Both mode: 2-line or 4-line stack depending on width
 - Text margins: 4px minimum or 15% of black key width (whichever is larger)
 
-**Icon Generation**: Window and taskbar icon created at runtime
-- `create_piano_icon()` function (piano_viewer.py:82-99)
-- Generates QIcon from embedded SVG data
-- Shows piano keys in Arch Blue theme
+**Icon Generation**: All icons created at runtime from embedded SVG
+- `create_piano_icon()` - App icon (piano keys in Arch Blue)
+- `create_settings_icon()` - Cogwheel gear for settings button
 - No external icon files needed
+- Ensures identical appearance across Windows/Linux
 
 ## Code Organization
 
@@ -223,7 +229,7 @@ The file is organized in clearly marked sections with comment banners:
 
 ```
 CONSTANTS         - Sizing, colors, MIDI ranges, window margins
-APP ICON          - SVG-based piano icon generation (create_piano_icon)
+APP ICONS         - SVG-based icons (create_piano_icon, create_settings_icon)
 HELPER FUNCTIONS  - MIDI note utilities (is_black_key, count_white_keys, etc.)
 SETTINGS DIALOG   - Configuration UI (SettingsDialog class)
 PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)

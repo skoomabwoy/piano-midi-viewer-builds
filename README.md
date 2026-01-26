@@ -2,7 +2,7 @@
 
 A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
 
-![Version](https://img.shields.io/badge/version-6.3.0-blue)
+![Version](https://img.shields.io/badge/version-6.3.1-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 
@@ -106,6 +106,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**6.3.1** — Cross-platform UI consistency (SVG icons, JetBrains Mono buttons)
 **6.3.0** — Linux standalone app (no Python required)
 **6.2.0** — Windows standalone .exe
 **6.1.0** — Show labels only when pressed
