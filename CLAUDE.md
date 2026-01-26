@@ -8,7 +8,11 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.3.2**
+**Current Version: 6.3.3**
+
+### Changes in 6.3.3
+- **Adaptive button text**: S, +, − button text now changes color based on highlight luminance
+- **Consistent behavior**: Buttons now match note name behavior (black text on light backgrounds, white on dark)
 
 ### Changes in 6.3.2
 - **Octave range persistence**: Keyboard range (start_note, end_note) now saved to settings file
@@ -245,6 +249,10 @@ PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
 MAIN WINDOW       - Application controller (PianoMIDIViewer class)
 ENTRY POINT       - main() function
 ```
+
+Key additions in 6.3.3:
+- `update_sustain_button_visual()` - Now uses `get_text_color_for_highlight()` for adaptive text color
+- `apply_button_glow()` - Now uses `get_text_color_for_highlight()` for adaptive text color
 
 Key additions in 6.3.2:
 - Extended `save_settings()` to save keyboard range (start_note, end_note) in new `[keyboard]` section

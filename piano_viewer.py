@@ -3,8 +3,12 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.3.2
+Version: 6.3.3
 License: GPL-3.0
+
+Changes in 6.3.3:
+- Adaptive button text: S, +, − symbols now change color based on highlight luminance
+- Consistent with note names: light backgrounds get black text, dark backgrounds get white
 
 Changes in 6.3.2:
 - Octave range persistence: Keyboard range (start_note, end_note) now saved to settings
@@ -1767,13 +1771,15 @@ class PianoMIDIViewer(QMainWindow):
 
         The S button lights up in the highlight color whenever sustain
         is active from any source (button click, MIDI pedal, or Shift key).
+        Text color adapts based on highlight color luminance.
         """
         if self.is_sustain_active:
-            color = self.piano.highlight_color.name()
+            bg_color = self.piano.highlight_color.name()
+            text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
             self.sustain_button.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {color};
-                    color: white;
+                    background-color: {bg_color};
+                    color: {text_color};
                     font-weight: bold;
                     border: 2px solid #707070;
                     border-radius: 6px;
@@ -1996,13 +2002,15 @@ class PianoMIDIViewer(QMainWindow):
                     self.apply_button_glow(self.right_plus_btn, False)
 
     def apply_button_glow(self, button, glow):
-        """Applies or removes a glow effect on a button."""
+        """Applies or removes a glow effect on a button.
+        Text color adapts based on highlight color luminance."""
         if glow:
-            color = self.piano.highlight_color.name()
+            bg_color = self.piano.highlight_color.name()
+            text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
             button.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {color};
-                    color: white;
+                    background-color: {bg_color};
+                    color: {text_color};
                     font-weight: bold;
                     border: 2px solid #707070;
                     border-radius: 6px;
@@ -2284,7 +2292,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 6.3.2")
+    print("Piano MIDI Viewer - Version 6.3.3")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
