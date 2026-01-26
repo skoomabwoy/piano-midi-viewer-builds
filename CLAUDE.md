@@ -8,7 +8,14 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.3.1**
+**Current Version: 6.3.2**
+
+### Changes in 6.3.2
+- **Octave range persistence**: Keyboard range (start_note, end_note) now saved to settings file
+- **Window geometry restoration**: Size and position properly restored on startup
+- **OBS-friendly**: Perfect for video production - restart the app and it remembers your exact setup
+- **Enhanced visual contrast**: Darker background (150→120), crisper borders (120→85), deeper black keys (26→16) for sharper OBS capture
+- **Fixed minimum window size**: Now dynamically updates when octaves are added/removed, preventing UI overlap
 
 ### Changes in 6.3.1
 - **Cross-platform UI consistency**: Buttons now render identically on Windows and Linux
@@ -219,9 +226,11 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 
 **Icon Generation**: All icons created at runtime from embedded SVG
 - `create_piano_icon()` - App icon (piano keys in Arch Blue)
-- `create_settings_icon()` - Cogwheel gear for settings button
+- `create_settings_icon()` - Cogwheel gear for settings button (CC0 from SVG Repo)
 - No external icon files needed
 - Ensures identical appearance across Windows/Linux
+
+**Button Typography**: All button labels (S, +, −) use JetBrains Mono for cross-platform consistency
 
 ## Code Organization
 
@@ -236,6 +245,13 @@ PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
 MAIN WINDOW       - Application controller (PianoMIDIViewer class)
 ENTRY POINT       - main() function
 ```
+
+Key additions in 6.3.2:
+- Extended `save_settings()` to save keyboard range (start_note, end_note) in new `[keyboard]` section
+- Extended `load_settings()` to restore keyboard range before geometry restoration
+- Keyboard range validated on load: must be within MIDI_NOTE_MIN/MAX and at least 1 octave
+- `update_minimum_size()` - New method to recalculate minimum window size based on current octave range
+- All octave add/remove methods now call `update_minimum_size()` after changing the range
 
 Key additions in 6.1.0:
 - `PianoMIDIViewer.show_names_when_pressed` - New setting to show note names only on active keys
@@ -378,9 +394,9 @@ Mode is locked for entire drag:
 - **Button icons**: Font size is 70% of button size (ICON_SIZE_RATIO = 0.7)
 - **Layout margins**: Hardcoded at 5px (LAYOUT_MARGIN), don't scale with window
 - **Key corner radius**: 8% of key width with 4px minimum (KEY_CORNER_RADIUS_RATIO = 0.08)
-- **Keyboard canvas**: Grey background (150, 150, 150), 4px margin, 6px rounded corners
-- **White keys**: Off-white (245, 245, 245) with subtle shadow lines, dark borders when highlighted (60, 60, 60)
-- **Black keys**: Near-black (26, 26, 26) with black borders
+- **Keyboard canvas**: Grey background (120, 120, 120), 4px margin, 6px rounded corners
+- **White keys**: Off-white (252, 252, 252) with shadow lines (170), borders normal (85) / highlighted (25)
+- **Black keys**: Near-black (16, 16, 16) with black borders
 
 ## Future Features & Ideas
 

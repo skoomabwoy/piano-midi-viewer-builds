@@ -3,8 +3,15 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.3.1
+Version: 6.3.2
 License: GPL-3.0
+
+Changes in 6.3.2:
+- Octave range persistence: Keyboard range (start_note, end_note) now saved to settings
+- Window geometry: Size and position properly restored on startup
+- Perfect for OBS integration: Restart the app and it remembers your exact setup
+- Enhanced visual contrast: Darker background, crisper key borders, deeper shadows for better OBS capture
+- Fixed minimum window size: Now updates when octaves added/removed (prevents UI overlap)
 
 Changes in 6.3.1:
 - Cross-platform UI consistency: Buttons now look identical on Windows and Linux
@@ -91,7 +98,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap, Q
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
 
 # BACKGROUND COLOR
-BACKGROUND_COLOR = QColor(150, 150, 150)
+BACKGROUND_COLOR = QColor(120, 120, 120)  # Darker for better contrast with white keys
 
 # MIDI NOTE RANGE
 MIDI_NOTE_MIN = 21   # A0
@@ -103,7 +110,7 @@ DEFAULT_END_NOTE = 83    # B5
 
 # SINGLE WHITE KEY - Foundation of all sizing
 # Everything scales from white_key_width as the anchor
-INITIAL_KEY_WIDTH = 25  # pixels (tweakable)
+INITIAL_KEY_WIDTH = 32  # pixels (tweakable)
 
 # HEIGHT RATIO LIMITS
 # white_key_height = white_key_width × height_ratio
@@ -179,36 +186,27 @@ def create_piano_icon():
     return QIcon(pixmap)
 
 
-def create_settings_icon(size=64, color="#666666"):
+def create_settings_icon(size=64, color="#000000"):
     """
     Creates a cogwheel/gear settings icon as a QIcon.
 
     Uses SVG for consistent rendering across all platforms (Windows, Linux, macOS).
-    The icon is a 6-tooth gear with a clean, recognizable design.
+    Based on Creative Commons icon from SVG Repo.
 
     Args:
         size: Icon size in pixels (default 64)
-        color: Hex color for the gear (default dark gray)
+        color: Hex color for the gear (default black)
 
     Returns:
         QIcon: The settings gear icon
     """
-    # SVG cogwheel - 6 teeth, clean minimal design
-    # Outer ring with teeth + center hole cutout
+    # SVG cogwheel - clean design with 6 teeth and center hole
+    # Source: SVG Repo (Creative Commons)
     svg_data = f"""
-    <svg width="{size}" height="{size}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <g fill="{color}">
-            <!-- Gear body with 6 teeth -->
-            <path d="
-                M43,8 L57,8 L57,18 C60,19 63,20 66,22 L73,13 L83,23 L74,32
-                C76,35 77,38 78,41 L92,41 L92,59 L78,59 C77,62 76,65 74,68
-                L83,77 L73,87 L66,78 C63,80 60,81 57,82 L57,92 L43,92 L43,82
-                C40,81 37,80 34,78 L27,87 L17,77 L26,68 C24,65 23,62 22,59
-                L8,59 L8,41 L22,41 C23,38 24,35 26,32 L17,23 L27,13 L34,22
-                C37,20 40,19 43,18 Z
-            "/>
-            <!-- Center hole (cut out with background color) -->
-            <circle cx="50" cy="50" r="16" fill="#f5f5f5"/>
+    <svg width="{size}" height="{size}" viewBox="0 0 8.467 8.467" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(0,-288.533)" fill="{color}">
+            <path d="m 3.704,288.798 a 0.265,0.265 0 0 0 -0.251,0.181 l -0.269,0.806 c -0.108,0.038 -0.215,0.082 -0.318,0.132 l -0.76,-0.38 a 0.265,0.265 0 0 0 -0.305,0.05 l -0.748,0.748 a 0.265,0.265 0 0 0 -0.05,0.305 l 0.379,0.759 c -0.05,0.104 -0.094,0.211 -0.132,0.32 l -0.805,0.269 a 0.265,0.265 0 0 0 -0.181,0.251 v 1.058 a 0.265,0.265 0 0 0 0.181,0.251 l 0.808,0.269 c 0.038,0.108 0.082,0.213 0.131,0.316 l -0.381,0.762 a 0.265,0.265 0 0 0 0.05,0.305 l 0.748,0.749 a 0.265,0.265 0 0 0 0.305,0.05 l 0.76,-0.38 c 0.104,0.05 0.209,0.093 0.318,0.131 l 0.269,0.807 a 0.265,0.265 0 0 0 0.251,0.181 h 1.058 a 0.265,0.265 0 0 0 0.251,-0.181 l 0.269,-0.809 c 0.108,-0.038 0.213,-0.082 0.316,-0.131 l 0.762,0.381 a 0.265,0.265 0 0 0 0.305,-0.05 l 0.748,-0.749 a 0.265,0.265 0 0 0 0.05,-0.305 l -0.38,-0.76 c 0.05,-0.104 0.094,-0.21 0.132,-0.319 l 0.806,-0.269 a 0.265,0.265 0 0 0 0.181,-0.251 v -1.058 a 0.265,0.265 0 0 0 -0.181,-0.251 l -0.807,-0.269 c -0.038,-0.108 -0.082,-0.214 -0.132,-0.318 l 0.38,-0.761 a 0.265,0.265 0 0 0 -0.05,-0.305 l -0.748,-0.748 a 0.265,0.265 0 0 0 -0.305,-0.05 l -0.758,0.379 c -0.105,-0.05 -0.212,-0.094 -0.321,-0.132 l -0.268,-0.805 a 0.265,0.265 0 0 0 -0.251,-0.181 z m 0.191,0.529 h 0.677 l 0.245,0.737 a 0.265,0.265 0 0 0 0.176,0.17 c 0.172,0.051 0.339,0.12 0.497,0.205 a 0.265,0.265 0 0 0 0.243,0.004 l 0.694,-0.347 0.479,0.479 -0.348,0.697 a 0.265,0.265 0 0 0 0.003,0.244 c 0.085,0.157 0.154,0.322 0.205,0.493 a 0.265,0.265 0 0 0 0.169,0.175 l 0.739,0.246 v 0.677 l -0.738,0.246 a 0.265,0.265 0 0 0 -0.169,0.175 c -0.051,0.171 -0.12,0.337 -0.205,0.495 a 0.265,0.265 0 0 0 -0.003,0.244 l 0.347,0.695 -0.479,0.479 -0.698,-0.349 a 0.265,0.265 0 0 0 -0.244,0.004 c -0.157,0.084 -0.321,0.153 -0.491,0.204 a 0.265,0.265 0 0 0 -0.175,0.17 l -0.247,0.74 H 3.895 l -0.247,-0.739 a 0.265,0.265 0 0 0 -0.175,-0.17 c -0.171,-0.051 -0.337,-0.119 -0.494,-0.204 a 0.265,0.265 0 0 0 -0.243,-0.004 l -0.696,0.348 -0.479,-0.479 0.349,-0.698 a 0.265,0.265 0 0 0 -0.004,-0.244 c -0.084,-0.157 -0.153,-0.322 -0.205,-0.492 a 0.265,0.265 0 0 0 -0.169,-0.175 l -0.739,-0.246 v -0.677 l 0.737,-0.246 a 0.265,0.265 0 0 0 0.17,-0.175 c 0.051,-0.172 0.12,-0.338 0.205,-0.496 a 0.265,0.265 0 0 0 0.004,-0.244 l -0.347,-0.694 0.479,-0.479 0.696,0.348 a 0.265,0.265 0 0 0 0.244,-0.004 c 0.157,-0.085 0.323,-0.154 0.494,-0.205 a 0.265,0.265 0 0 0 0.175,-0.17 z"/>
+            <path d="m 4.232,290.914 c -1.02,0 -1.851,0.834 -1.851,1.854 0,1.019 0.831,1.851 1.851,1.851 1.02,0 1.854,-0.832 1.854,-1.851 0,-1.02 -0.834,-1.854 -1.854,-1.854 z m 0,0.53 c 0.734,0 1.324,0.59 1.324,1.324 0,0.734 -0.59,1.322 -1.324,1.322 -0.734,0 -1.322,-0.588 -1.322,-1.322 0,-0.734 0.588,-1.324 1.322,-1.324 z"/>
         </g>
     </svg>
     """
@@ -868,7 +866,7 @@ class PianoKeyboard(QWidget):
         is_highlighted = (midi_note in self.active_notes or
                          midi_note in self.sustained_notes or
                          midi_note == self.mouse_held_note)
-        fill_color = self.highlight_color if is_highlighted else QColor(245, 245, 245)
+        fill_color = self.highlight_color if is_highlighted else QColor(252, 252, 252)
 
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -879,7 +877,7 @@ class PianoKeyboard(QWidget):
 
         # Draw shadow lines on non-highlighted keys
         if not is_highlighted:
-            shadow_color = QColor(200, 200, 200)
+            shadow_color = QColor(170, 170, 170)
             painter.setPen(QPen(shadow_color, 1))
 
             painter.drawLine(
@@ -893,7 +891,7 @@ class PianoKeyboard(QWidget):
             )
 
         # Draw border - darker when highlighted for better visibility
-        border_color = QColor(60, 60, 60) if is_highlighted else QColor(120, 120, 120)
+        border_color = QColor(25, 25, 25) if is_highlighted else QColor(85, 85, 85)
         painter.setPen(QPen(border_color, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(
@@ -918,7 +916,7 @@ class PianoKeyboard(QWidget):
         is_highlighted = (midi_note in self.active_notes or
                          midi_note in self.sustained_notes or
                          midi_note == self.mouse_held_note)
-        fill_color = self.highlight_color if is_highlighted else QColor(26, 26, 26)
+        fill_color = self.highlight_color if is_highlighted else QColor(16, 16, 16)
 
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -1468,10 +1466,10 @@ class PianoMIDIViewer(QMainWindow):
         initial_width, initial_height = calculate_initial_window_size()
         self.resize(initial_width, initial_height)
 
-        # Set minimum size (for UI usability)
+        # Set minimum size (for UI usability) - uses defaults since piano not created yet
         num_white_keys = count_white_keys(DEFAULT_START_NOTE, DEFAULT_END_NOTE)
         min_key_width = PRACTICAL_MIN_KEY_WIDTH
-        min_key_height = min_key_width * MIN_HEIGHT_RATIO  # Minimum height at ratio 3
+        min_key_height = min_key_width * MIN_HEIGHT_RATIO
         min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
         min_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
         self.setMinimumSize(int(min_width), int(min_height))
@@ -1487,7 +1485,7 @@ class PianoMIDIViewer(QMainWindow):
         button_style = """
             QPushButton {
                 background-color: #f5f5f5;
-                border: 1px solid #b4b4b4;
+                border: 2px solid #707070;
                 border-radius: 6px;
                 padding: 0px;
                 color: #2a2a2a;
@@ -1561,7 +1559,7 @@ class PianoMIDIViewer(QMainWindow):
         self.settings_button = QPushButton()
         self.settings_button.setToolTip("Open Settings")
         self.settings_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.settings_button.setIcon(create_settings_icon(BUTTON_SIZE, "#666666"))
+        self.settings_button.setIcon(create_settings_icon(BUTTON_SIZE, "#000000"))
         self.settings_button.setIconSize(self.settings_button.size() * 0.7)
         self.settings_button.setStyleSheet(button_style)
         self.settings_button.clicked.connect(self.open_settings)
@@ -1607,6 +1605,7 @@ class PianoMIDIViewer(QMainWindow):
         - MIDI device selection
         - Highlight color
         - Note name and octave number display options
+        - Keyboard range (start_note and end_note)
         - Window size and position
 
         If the config file doesn't exist, default values are used.
@@ -1651,6 +1650,19 @@ class PianoMIDIViewer(QMainWindow):
             if config.has_option('appearance', 'show_names_when_pressed'):
                 self.show_names_when_pressed = config.getboolean('appearance', 'show_names_when_pressed')
 
+            # Load keyboard range (must be before geometry restoration)
+            if config.has_option('keyboard', 'start_note') and config.has_option('keyboard', 'end_note'):
+                start_note = config.getint('keyboard', 'start_note')
+                end_note = config.getint('keyboard', 'end_note')
+                # Validate the range
+                if (MIDI_NOTE_MIN <= start_note <= MIDI_NOTE_MAX and
+                    MIDI_NOTE_MIN <= end_note <= MIDI_NOTE_MAX and
+                    end_note >= start_note + 11):  # At least 1 octave
+                    self.piano.start_note = start_note
+                    self.piano.end_note = end_note
+                    self.update_button_states()
+                    self.update_minimum_size()
+
             # Load window geometry (size and position)
             # Using Qt's saveGeometry/restoreGeometry handles window manager issues better
             if config.has_option('window', 'geometry'):
@@ -1670,6 +1682,7 @@ class PianoMIDIViewer(QMainWindow):
         - Current MIDI device
         - Highlight color
         - Note name and octave number display options
+        - Keyboard range (start_note and end_note)
         - Window size and position
         """
         config_path = get_config_path()
@@ -1688,6 +1701,12 @@ class PianoMIDIViewer(QMainWindow):
             'show_black_key_names': str(self.show_black_key_names),
             'black_key_notation': self.black_key_notation,
             'show_names_when_pressed': str(self.show_names_when_pressed)
+        }
+
+        # Keyboard range settings
+        config['keyboard'] = {
+            'start_note': str(self.piano.start_note),
+            'end_note': str(self.piano.end_note)
         }
 
         # Window settings
@@ -1756,7 +1775,7 @@ class PianoMIDIViewer(QMainWindow):
                     background-color: {color};
                     color: white;
                     font-weight: bold;
-                    border: 1px solid #b4b4b4;
+                    border: 2px solid #707070;
                     border-radius: 6px;
                 }}
             """)
@@ -1764,7 +1783,7 @@ class PianoMIDIViewer(QMainWindow):
             self.sustain_button.setStyleSheet("""
                 QPushButton {
                     background-color: #f5f5f5;
-                    border: 1px solid #b4b4b4;
+                    border: 2px solid #707070;
                     border-radius: 6px;
                     color: #2a2a2a;
                     font-weight: bold;
@@ -1985,7 +2004,7 @@ class PianoMIDIViewer(QMainWindow):
                     background-color: {color};
                     color: white;
                     font-weight: bold;
-                    border: 1px solid #b4b4b4;
+                    border: 2px solid #707070;
                     border-radius: 6px;
                 }}
             """)
@@ -1993,7 +2012,7 @@ class PianoMIDIViewer(QMainWindow):
             button.setStyleSheet("""
                 QPushButton {
                     background-color: #f5f5f5;
-                    border: 1px solid #b4b4b4;
+                    border: 2px solid #707070;
                     border-radius: 6px;
                     color: #2a2a2a;
                     font-weight: bold;
@@ -2037,6 +2056,7 @@ class PianoMIDIViewer(QMainWindow):
 
             self.piano.update()
             self.update_button_states()
+            self.update_minimum_size()
 
     def remove_octave_left(self):
         """Removes an octave from the left."""
@@ -2073,6 +2093,7 @@ class PianoMIDIViewer(QMainWindow):
 
             self.piano.update()
             self.update_button_states()
+            self.update_minimum_size()
 
     def add_octave_right(self):
         """Adds an octave to the right (higher notes)."""
@@ -2109,6 +2130,7 @@ class PianoMIDIViewer(QMainWindow):
 
             self.piano.update()
             self.update_button_states()
+            self.update_minimum_size()
 
     def remove_octave_right(self):
         """Removes an octave from the right."""
@@ -2145,6 +2167,7 @@ class PianoMIDIViewer(QMainWindow):
 
             self.piano.update()
             self.update_button_states()
+            self.update_minimum_size()
 
     def update_button_states(self):
         """Updates the enabled/disabled state of octave control buttons."""
@@ -2152,6 +2175,15 @@ class PianoMIDIViewer(QMainWindow):
         self.left_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
         self.right_plus_btn.setEnabled(self.piano.end_note < MIDI_NOTE_MAX - 12)
         self.right_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
+
+    def update_minimum_size(self):
+        """Updates minimum window size based on current octave range."""
+        num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
+        min_key_width = PRACTICAL_MIN_KEY_WIDTH
+        min_key_height = min_key_width * MIN_HEIGHT_RATIO
+        min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
+        min_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
+        self.setMinimumSize(int(min_width), int(min_height))
 
     # WINDOW MANAGEMENT
 
@@ -2252,7 +2284,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 6.2.0")
+    print("Piano MIDI Viewer - Version 6.3.2")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")

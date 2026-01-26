@@ -18,23 +18,21 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 
 ## Screenshots
 
-### Default
+<img src="screenshots/default-interface.png" height="250">
 
-<img src="screenshots/default-interface.png" height="300">
+*Default look*
 
-### Examples
+<img src="screenshots/sustained-blue-2-octaves.png" height="250">
 
-<img src="screenshots/sustained-blue-2-octaves.png" height="300">
+*Arch Blue, 2 octaves, showing sharps*
 
-*Arch Blue (default), 2 octaves, showing sharps*
+<img src="screenshots/sustained-red-4-octaves.png" height="200">
 
-<img src="screenshots/sustained-red-4-octaves.png" height="250">
+*Red, 4 octaves, showing flats, labels only on active keys*
 
-*Red, 4 octaves, labels shown only when pressed*
+<img src="screenshots/sustained-teal.png" height="250">
 
-<img src="screenshots/sustained-teal.png" height="300">
-
-*Teal, 2 octaves, showing both sharps and flats*
+*Teal, showing both sharps and flats, no labels on white keys*
 
 ### Settings
 
