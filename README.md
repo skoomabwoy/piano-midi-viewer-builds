@@ -2,9 +2,9 @@
 
 A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
 
-![Version](https://img.shields.io/badge/version-6.3.3-blue)
+![Version](https://img.shields.io/badge/version-6.3.4-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
-![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
 ## Features
 
@@ -48,6 +48,7 @@ Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and
 |----------|----------|-------|
 | **Windows** | `PianoMIDIViewer.exe` | Double-click to run |
 | **Linux** | `PianoMIDIViewer` | Make executable, then run (see below) |
+| **macOS** | `PianoMIDIViewer.app.zip` | Unzip, then run (see below) |
 
 **No installation required.** Just download and run.
 
@@ -61,6 +62,10 @@ chmod +x PianoMIDIViewer
 ```
 
 Or right-click the file → Properties → Permissions → "Allow executing as program"
+
+### macOS: First Run
+
+After downloading, unzip and right-click the app → Open (required first time to bypass Gatekeeper).
 
 <details>
 <summary><b>Alternative: Run from source</b></summary>
@@ -104,6 +109,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**6.3.4** — macOS support, dynamic key gaps, cross-platform fixes
 **6.3.3** — Adaptive button text color (matches note name behavior)
 **6.3.2** — OBS integration (octave range & window geometry persistence, visual polish)
 **6.3.1** — Cross-platform UI consistency (SVG icons, JetBrains Mono buttons)

@@ -8,7 +8,14 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.3.3**
+**Current Version: 6.3.4**
+
+### Changes in 6.3.4
+- **macOS support**: Standalone `.app` bundle now available via Releases
+- **All major platforms**: Linux, Windows, and macOS standalone apps
+- **Dynamic key gaps**: Scale proportionally with key width (3%, clamped 1-5px per side)
+- **Shadow effects disabled at small sizes**: Improves text readability below 25px key width
+- **Fixed button overlap**: Minimum window height now enforces button requirements (Windows/macOS fix)
 
 ### Changes in 6.3.3
 - **Adaptive button text**: S, +, − button text now changes color based on highlight luminance
@@ -249,6 +256,13 @@ PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
 MAIN WINDOW       - Application controller (PianoMIDIViewer class)
 ENTRY POINT       - main() function
 ```
+
+Key additions in 6.3.4:
+- Constants: `KEY_GAP_RATIO`, `KEY_GAP_MIN`, `KEY_GAP_MAX`, `SHADOW_DISABLE_WIDTH`, `BUTTON_SPACING`, `MIN_BUTTON_AREA_HEIGHT`, `MIN_WINDOW_HEIGHT`
+- Dynamic key gap calculation in `_draw_white_key()` and `_get_note_at_position()`
+- Shadow rendering conditional on key width >= `SHADOW_DISABLE_WIDTH`
+- Minimum window height now uses `max(key_based_height, MIN_WINDOW_HEIGHT)`
+- `PianoMIDIViewer-macos.spec` - PyInstaller spec file for macOS builds
 
 Key additions in 6.3.3:
 - `update_sustain_button_visual()` - Now uses `get_text_color_for_highlight()` for adaptive text color

@@ -3,8 +3,14 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.3.3
+Version: 6.3.4
 License: GPL-3.0
+
+Changes in 6.3.4:
+- macOS support: Standalone .app bundle now available
+- Dynamic key gaps: Scale proportionally (3% of key width, clamped 1-5px)
+- Shadow effects disabled at small sizes: Improves readability below 25px key width
+- Fixed button overlap: Minimum window height now accounts for button requirements (Windows/macOS fix)
 
 Changes in 6.3.3:
 - Adaptive button text: S, +, − symbols now change color based on highlight luminance
@@ -128,7 +134,10 @@ INITIAL_KEY_HEIGHT = INITIAL_KEY_WIDTH * MAX_HEIGHT_RATIO  # = 150px
 PRACTICAL_MIN_KEY_WIDTH = 15  # pixels
 
 # VISUAL STYLING
-KEY_GAP = 2
+KEY_GAP_RATIO = 0.03            # key_gap = white_key_width × 0.03
+KEY_GAP_MIN = 1                 # minimum 1px gap
+KEY_GAP_MAX = 5                 # maximum 5px per side (10px visible gap between keys)
+SHADOW_DISABLE_WIDTH = 25       # disable shadow effects below this key width
 BLACK_KEY_HEIGHT_RATIO = 0.6    # black_key_height = white_key_height × 0.6
 BLACK_KEY_WIDTH_RATIO = 0.8     # black_key_width = white_key_width × 0.8
 KEY_CORNER_RADIUS_RATIO = 0.08
@@ -140,11 +149,14 @@ KEYBOARD_CANVAS_RADIUS = 6
 BUTTON_SIZE = 44
 ICON_SIZE_RATIO = 0.7
 BUTTON_AREA_WIDTH = 50
+BUTTON_SPACING = 5              # Spacing between buttons in layout
+MIN_BUTTON_AREA_HEIGHT = (BUTTON_SIZE * 3) + (BUTTON_SPACING * 2)  # 3 buttons + 2 gaps = 142px
 
 # LAYOUT MARGINS (hardcoded)
 LAYOUT_MARGIN = 5  # Main layout margins
 TOTAL_HORIZONTAL_MARGIN = (LAYOUT_MARGIN * 2) + (BUTTON_AREA_WIDTH * 2)  # = 110
 WINDOW_VERTICAL_MARGIN = 50  # Extra space for top/bottom window margins
+MIN_WINDOW_HEIGHT = MIN_BUTTON_AREA_HEIGHT + (LAYOUT_MARGIN * 2)  # Buttons + margins = 152px
 
 # MIDI POLLING
 MIDI_POLL_INTERVAL = 10
@@ -861,9 +873,12 @@ class PianoKeyboard(QWidget):
         white_index = get_white_key_index(midi_note, self.start_note)
         x = x_offset + (white_index * key_width)
 
-        rect_x = x + KEY_GAP
+        # Calculate dynamic gap based on key width (5%, clamped to 1-10px)
+        key_gap = min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(key_width * KEY_GAP_RATIO)))
+
+        rect_x = x + key_gap
         rect_y = y_offset
-        rect_width = key_width - KEY_GAP * 2
+        rect_width = key_width - key_gap * 2
         rect_height = height
 
         # Highlight if note is active from any source
@@ -879,8 +894,8 @@ class PianoKeyboard(QWidget):
             corner_radius, corner_radius
         )
 
-        # Draw shadow lines on non-highlighted keys
-        if not is_highlighted:
+        # Draw shadow lines on non-highlighted keys (disabled at small sizes for readability)
+        if not is_highlighted and key_width >= SHADOW_DISABLE_WIDTH:
             shadow_color = QColor(170, 170, 170)
             painter.setPen(QPen(shadow_color, 1))
 
@@ -1306,6 +1321,7 @@ class PianoKeyboard(QWidget):
         white_key_width = keyboard_width / num_white_keys
         black_key_width = white_key_width * BLACK_KEY_WIDTH_RATIO
         black_key_height = keyboard_height * BLACK_KEY_HEIGHT_RATIO
+        key_gap = min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(white_key_width * KEY_GAP_RATIO)))
 
         # Check black keys first (they're on top)
         for note in range(self.start_note, self.end_note + 1):
@@ -1324,7 +1340,7 @@ class PianoKeyboard(QWidget):
                 white_index = get_white_key_index(note, self.start_note)
                 key_x = keyboard_x + (white_index * white_key_width)
 
-                if key_x + KEY_GAP <= x <= key_x + white_key_width - KEY_GAP:
+                if key_x + key_gap <= x <= key_x + white_key_width - key_gap:
                     return note
 
         return None
@@ -1475,7 +1491,8 @@ class PianoMIDIViewer(QMainWindow):
         min_key_width = PRACTICAL_MIN_KEY_WIDTH
         min_key_height = min_key_width * MIN_HEIGHT_RATIO
         min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
-        min_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
+        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
+        min_height = max(key_based_height, MIN_WINDOW_HEIGHT)  # Ensure buttons fit
         self.setMinimumSize(int(min_width), int(min_height))
 
         central_widget = QWidget()
@@ -1516,7 +1533,7 @@ class PianoMIDIViewer(QMainWindow):
         left_container = QWidget()
         left_container.setFixedWidth(BUTTON_AREA_WIDTH)
         left_layout = QVBoxLayout(left_container)
-        left_layout.setSpacing(5)
+        left_layout.setSpacing(BUTTON_SPACING)
         left_layout.setContentsMargins(0, 0, 3, 0)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -1555,7 +1572,7 @@ class PianoMIDIViewer(QMainWindow):
         right_container = QWidget()
         right_container.setFixedWidth(BUTTON_AREA_WIDTH)
         right_layout = QVBoxLayout(right_container)
-        right_layout.setSpacing(5)
+        right_layout.setSpacing(BUTTON_SPACING)
         right_layout.setContentsMargins(3, 0, 0, 0)
         right_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -2190,7 +2207,8 @@ class PianoMIDIViewer(QMainWindow):
         min_key_width = PRACTICAL_MIN_KEY_WIDTH
         min_key_height = min_key_width * MIN_HEIGHT_RATIO
         min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
-        min_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
+        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
+        min_height = max(key_based_height, MIN_WINDOW_HEIGHT)  # Ensure buttons fit
         self.setMinimumSize(int(min_width), int(min_height))
 
     # WINDOW MANAGEMENT
@@ -2292,7 +2310,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 6.3.3")
+    print("Piano MIDI Viewer - Version 6.3.4")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
