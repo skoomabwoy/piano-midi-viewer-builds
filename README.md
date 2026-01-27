@@ -2,7 +2,7 @@
 
 A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
 
-![Version](https://img.shields.io/badge/version-6.3.4-blue)
+![Version](https://img.shields.io/badge/version-6.3.5-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -65,7 +65,13 @@ Or right-click the file → Properties → Permissions → "Allow executing as p
 
 ### macOS: First Run
 
-After downloading, unzip and right-click the app → Open (required first time to bypass Gatekeeper).
+After unzipping, remove the quarantine flag (required for unsigned apps):
+
+```bash
+xattr -cr /path/to/PianoMIDIViewer.app
+```
+
+Then right-click the app → Open (first time only).
 
 <details>
 <summary><b>Alternative: Run from source</b></summary>
@@ -109,6 +115,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**6.3.5** — macOS docs fix (xattr command for Gatekeeper)
 **6.3.4** — macOS support, dynamic key gaps, cross-platform fixes
 **6.3.3** — Adaptive button text color (matches note name behavior)
 **6.3.2** — OBS integration (octave range & window geometry persistence, visual polish)

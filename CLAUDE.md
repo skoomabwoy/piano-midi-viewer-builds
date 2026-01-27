@@ -8,7 +8,10 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.3.4**
+**Current Version: 6.3.5**
+
+### Changes in 6.3.5
+- **macOS docs**: Added `xattr -cr` command to README for Gatekeeper quarantine fix
 
 ### Changes in 6.3.4
 - **macOS support**: Standalone `.app` bundle now available via Releases

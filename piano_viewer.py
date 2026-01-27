@@ -3,8 +3,11 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.3.4
+Version: 6.3.5
 License: GPL-3.0
+
+Changes in 6.3.5:
+- macOS docs: Added xattr command to README for Gatekeeper "damaged app" fix
 
 Changes in 6.3.4:
 - macOS support: Standalone .app bundle now available
@@ -2310,7 +2313,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 6.3.4")
+    print("Piano MIDI Viewer - Version 6.3.5")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
