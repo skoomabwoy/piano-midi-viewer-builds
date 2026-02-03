@@ -2,7 +2,7 @@
 
 A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
 
-![Version](https://img.shields.io/badge/version-6.3.5-blue)
+![Version](https://img.shields.io/badge/version-7.0.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -10,10 +10,11 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 
 - 🎹 **MIDI input** — real-time key visualization
 - 🖱️ **Mouse support** — click and drag to highlight keys
+- ✏️ **Two modes** — Drawing (notes stay lit) and Playing (real-time only)
 - 🔠 **Key labels** — note names, octave numbers, sharps & flats
 - 👇 **Show on press** — display labels only on active keys
 - 🎨 **Custom colors** — with automatic text contrast
-- 🎵 **Sustain** — via pedal, Shift key, or S button
+- 🎵 **Sustain** — via pedal, Shift key, or Mode button
 - ↔️ **Octave range** — adjustable from A0 to C8
 
 ## Screenshots
@@ -24,21 +25,21 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 
 <img src="screenshots/sustained-blue-2-octaves.png" height="250">
 
-*Arch Blue, 2 octaves, showing sharps*
+*Playing mode (♪), Arch Blue, 2 octaves, showing sharps*
 
 <img src="screenshots/sustained-red-4-octaves.png" height="200">
 
-*Red, 4 octaves, showing flats, labels only on active keys*
+*Drawing mode (✎), red, 4 octaves, flats, labels only on active keys*
 
 <img src="screenshots/sustained-teal.png" height="250">
 
-*Teal, showing both sharps and flats, no labels on white keys*
+*Teal, both sharps and flats, no white key names*
 
 ### Settings
 
 <img src="screenshots/settings.png" height="400">
 
-*MIDI device, colors, and display options*
+*MIDI device, colors, display options, and mode selection*
 
 ## Download
 
@@ -94,7 +95,7 @@ python piano_viewer.py
 | Control | Action |
 |---------|--------|
 | **⚙️ Settings** | MIDI device, colors, display options |
-| **S button** | Toggle sustain (sticky) |
+| **Mode button (✎/♪)** | Drawing mode: toggle sustain. Playing mode: hold to sustain. Right-click to switch modes |
 | **+/− buttons** | Add/remove octaves |
 | **Click** | Highlight key (toggle with sustain) |
 | **Drag** | Glissando — paint or erase notes |
@@ -115,6 +116,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**7.0.0** — Drawing/Playing modes, Mode button with sustain control
 **6.3.5** — macOS docs fix (xattr command for Gatekeeper)
 **6.3.4** — macOS support, dynamic key gaps, cross-platform fixes
 **6.3.3** — Adaptive button text color (matches note name behavior)

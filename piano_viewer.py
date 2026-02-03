@@ -3,8 +3,19 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 6.3.5
+Version: 7.0.0
 License: GPL-3.0
+
+Changes in 7.0.0:
+- Two sustain modes: Drawing (for teaching) and Playing (for performance)
+- Drawing mode (✎): Notes stay highlighted, click to toggle, drag to paint/erase
+- Playing mode (♪): Notes highlight only while pressed, like a real piano
+- Mode button: Shows current mode icon, acts as sustain indicator in both modes
+- In Drawing mode: Click mode button to toggle sustain on/off
+- In Playing mode: Hold mode button to sustain (like a pedal)
+- Quick mode switch: Right-click mode button to toggle between modes
+- Settings checkbox: "Drawing mode" toggle (formerly "Sticky sustain")
+- Button text centering: Fixed vertical alignment of button icons
 
 Changes in 6.3.5:
 - macOS docs: Added xattr command to README for Gatekeeper "damaged app" fix
@@ -86,7 +97,7 @@ Changes in 5.0.1:
 - Gap clicks now snap to closest key for easier chord clicking
 - Highlighted white keys now have visible borders
 - Darker background grey for better white key contrast
-- S button and plus button glows update when highlight color changes
+- Mode button and plus button glows update when highlight color changes
 """
 
 import sys
@@ -99,7 +110,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
     QColorDialog, QCheckBox
 )
-from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QUrl
+from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QEvent
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap, QDesktopServices, QFontDatabase
 
 
@@ -150,7 +161,7 @@ KEYBOARD_CANVAS_RADIUS = 6
 
 # BUTTON SIZING (hardcoded, don't scale with window)
 BUTTON_SIZE = 44
-ICON_SIZE_RATIO = 0.7
+ICON_SIZE_RATIO = 0.9
 BUTTON_AREA_WIDTH = 50
 BUTTON_SPACING = 5              # Spacing between buttons in layout
 MIN_BUTTON_AREA_HEIGHT = (BUTTON_SIZE * 3) + (BUTTON_SPACING * 2)  # 3 buttons + 2 gaps = 142px
@@ -647,6 +658,19 @@ class SettingsDialog(QDialog):
         self.names_when_pressed_checkbox.setEnabled(names_enabled)
         layout.addWidget(self.names_when_pressed_checkbox)
 
+        # SEPARATOR
+        layout.addSpacing(10)
+
+        # DRAWING MODE CHECKBOX
+        self.sticky_sustain_checkbox = QCheckBox("Drawing mode")
+        self.sticky_sustain_checkbox.setToolTip(
+            "ON: Drawing mode (✎) - notes stay highlighted, click to toggle\n"
+            "OFF: Playing mode (♪) - notes highlight only while pressed"
+        )
+        self.sticky_sustain_checkbox.setChecked(self.main_window.sticky_sustain)
+        self.sticky_sustain_checkbox.stateChanged.connect(self.toggle_sticky_sustain)
+        layout.addWidget(self.sticky_sustain_checkbox)
+
         # INFO LINK
         layout.addStretch()
         info_label = QLabel()
@@ -765,6 +789,13 @@ class SettingsDialog(QDialog):
         """Toggles showing note names only when keys are pressed."""
         self.main_window.show_names_when_pressed = (state == Qt.CheckState.Checked.value)
         self.main_window.piano.update()
+        self.main_window.save_settings()
+
+    def toggle_sticky_sustain(self, state):
+        """Toggles between Drawing mode and Playing mode."""
+        self.main_window.sticky_sustain = (state == Qt.CheckState.Checked.value)
+        # Update the Mode button icon to reflect the mode
+        self.main_window.update_sustain_button_text()
         self.main_window.save_settings()
 
 
@@ -1352,8 +1383,9 @@ class PianoKeyboard(QWidget):
         """
         Handle mouse press on piano keys.
 
-        Determines glissando mode based on whether the initial note
-        is already highlighted (OFF mode) or empty (ON mode).
+        Behavior depends on mode:
+        - Drawing mode: Toggle notes in sustained_notes, glissando paints/erases
+        - Playing mode: Keys highlight only while mouse is held (no sustained_notes)
 
         If the user clicks on a gap between keys, we snap to the closest key.
         """
@@ -1364,12 +1396,13 @@ class PianoKeyboard(QWidget):
             note = self._find_closest_note_to_position(event.position().x(), event.position().y())
 
         if note is not None:
-            # Check if sustain is active
+            # Check if sustain is active and in Drawing mode
             main_window = self._get_main_window()
             sustain_active = main_window.is_sustain_active if main_window else False
+            drawing_mode = main_window.sticky_sustain if main_window else True
 
-            if sustain_active:
-                # Determine glissando mode based on initial note state
+            if sustain_active and drawing_mode:
+                # Drawing mode: Toggle sustained notes, enable glissando
                 if note in self.sustained_notes:
                     # Starting on highlighted note -> OFF glissando
                     self.glissando_mode = 'off'
@@ -1381,7 +1414,8 @@ class PianoKeyboard(QWidget):
                 self.mouse_held_note = note
                 self.update()
             else:
-                # No sustain: normal single-note behavior
+                # Playing mode or no sustain: normal single-note behavior
+                # Note is highlighted only while mouse is held
                 self.glissando_mode = None
                 self.mouse_held_note = note
                 self.update()
@@ -1390,14 +1424,11 @@ class PianoKeyboard(QWidget):
         """
         Handle mouse drag across piano keys (glissando).
 
-        Glissando behavior depends on the mode set at initial mouse press:
-        - ON mode: Dragging adds notes to sustained_notes (painting notes)
-        - OFF mode: Dragging removes notes from sustained_notes (erasing notes)
-        - No sustain: Just tracks the current note under cursor
+        Behavior depends on mode:
+        - Drawing mode with glissando_mode: Paint or erase sustained_notes
+        - Playing mode or no sustain: Just track current note under cursor
 
-        The mode doesn't change during a drag - if you start on an empty note,
-        you can only add notes during that drag. Similarly, starting on a highlighted
-        note means you can only remove notes.
+        The glissando_mode is only set in Drawing mode.
         """
         if self.mouse_held_note is not None:
             note = self._get_note_at_position(event.position().x(), event.position().y())
@@ -1409,14 +1440,14 @@ class PianoKeyboard(QWidget):
             if note != self.mouse_held_note:
                 # Mouse moved to a different key
                 if self.glissando_mode == 'on':
-                    # ON glissando: only turn notes ON (add to sustained if not already there)
+                    # ON glissando (Drawing mode): add notes to sustained
                     if note not in self.sustained_notes:
                         self.sustained_notes.add(note)
                 elif self.glissando_mode == 'off':
-                    # OFF glissando: only turn notes OFF (remove from sustained if present)
+                    # OFF glissando (Drawing mode): remove notes from sustained
                     if note in self.sustained_notes:
                         self.sustained_notes.discard(note)
-                # else: no sustain active, just track current note (no accumulation)
+                # else: Playing mode or no sustain - just track current note
 
                 self.mouse_held_note = note
                 self.update()
@@ -1448,7 +1479,7 @@ class PianoMIDIViewer(QMainWindow):
         self.midi_timer = None
 
         # Sustain state
-        self.sustain_button_toggled = False  # Sticky toggle via S button
+        self.sustain_button_toggled = False  # Mode button toggle (Drawing mode) or hold (Playing mode)
         self.sustain_pedal_active = False    # MIDI pedal held
         self.shift_key_active = False        # Shift key held
 
@@ -1458,6 +1489,11 @@ class PianoMIDIViewer(QMainWindow):
         self.show_black_key_names = False # Default: OFF
         self.black_key_notation = "Flats"  # Default: Flats
         self.show_names_when_pressed = False  # Default: OFF (show names on all keys)
+
+        # Mode setting (sticky_sustain is the internal variable name for compatibility)
+        # Drawing mode (True): Notes stay highlighted, click to toggle, drag to paint/erase
+        # Playing mode (False): Notes highlight only while pressed, sustain is just an indicator
+        self.sticky_sustain = True  # Default: Drawing mode
 
         self.init_ui()
         self.setup_midi_polling()
@@ -1469,7 +1505,7 @@ class PianoMIDIViewer(QMainWindow):
         Returns True if sustain is currently active from any source.
 
         Sustain can be activated by:
-        - Clicking the S button (sticky toggle)
+        - Mode button (toggle in Drawing mode, hold in Playing mode)
         - Holding the MIDI sustain pedal (CC 64)
         - Holding the Shift key
 
@@ -1506,12 +1542,15 @@ class PianoMIDIViewer(QMainWindow):
         main_layout.setContentsMargins(LAYOUT_MARGIN, LAYOUT_MARGIN, LAYOUT_MARGIN, LAYOUT_MARGIN)
 
         # Button styling
+        # Bottom padding compensates for font baseline alignment - without it,
+        # characters appear visually lower than center because fonts reserve
+        # space for descenders (g, y, p) that symbols like +, ✎, ♪ don't use
         button_style = """
             QPushButton {
                 background-color: #f5f5f5;
                 border: 2px solid #707070;
                 border-radius: 6px;
-                padding: 0px;
+                padding: 0px 0px 1px 0px;
                 color: #2a2a2a;
                 font-weight: bold;
             }
@@ -1540,12 +1579,14 @@ class PianoMIDIViewer(QMainWindow):
         left_layout.setContentsMargins(0, 0, 3, 0)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.sustain_button = QPushButton("S")
-        self.sustain_button.setToolTip("Sustain - Click to toggle, or hold Shift/Pedal")
+        # Mode button: shows current mode (✎ Drawing / ♪ Playing), indicates sustain state,
+        # and controls sustain (toggle in Drawing mode, hold in Playing mode)
+        self.sustain_button = QPushButton("✎")  # Default: Drawing mode
         self.sustain_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
         self.sustain_button.setFont(button_font)
         self.sustain_button.setStyleSheet(button_style)
-        self.sustain_button.clicked.connect(self.toggle_sustain_button)
+        # Handle all mouse events via event filter (right-click for mode, left for sustain)
+        self.sustain_button.installEventFilter(self)
 
         left_layout.addWidget(self.sustain_button, alignment=Qt.AlignmentFlag.AlignCenter)
         left_layout.addStretch()
@@ -1615,6 +1656,7 @@ class PianoMIDIViewer(QMainWindow):
         main_layout.addWidget(right_container)
 
         self.update_button_states()
+        self.update_sustain_button_text()  # Set initial tooltip based on mode
 
     def open_settings(self):
         """Opens the settings dialog."""
@@ -1629,6 +1671,7 @@ class PianoMIDIViewer(QMainWindow):
         - MIDI device selection
         - Highlight color
         - Note name and octave number display options
+        - Behavior settings (Drawing/Playing mode)
         - Keyboard range (start_note and end_note)
         - Window size and position
 
@@ -1674,6 +1717,11 @@ class PianoMIDIViewer(QMainWindow):
             if config.has_option('appearance', 'show_names_when_pressed'):
                 self.show_names_when_pressed = config.getboolean('appearance', 'show_names_when_pressed')
 
+            # Load sustain behavior setting
+            if config.has_option('behavior', 'sticky_sustain'):
+                self.sticky_sustain = config.getboolean('behavior', 'sticky_sustain')
+                self.update_sustain_button_text()
+
             # Load keyboard range (must be before geometry restoration)
             if config.has_option('keyboard', 'start_note') and config.has_option('keyboard', 'end_note'):
                 start_note = config.getint('keyboard', 'start_note')
@@ -1707,6 +1755,7 @@ class PianoMIDIViewer(QMainWindow):
         - Highlight color
         - Note name and octave number display options
         - Keyboard range (start_note and end_note)
+        - Behavior settings (Drawing/Playing mode)
         - Window size and position
         """
         config_path = get_config_path()
@@ -1733,6 +1782,11 @@ class PianoMIDIViewer(QMainWindow):
             'end_note': str(self.piano.end_note)
         }
 
+        # Behavior settings
+        config['behavior'] = {
+            'sticky_sustain': str(self.sticky_sustain)
+        }
+
         # Window settings
         # Use Qt's saveGeometry for better window manager compatibility
         geometry_bytes = self.saveGeometry()
@@ -1747,16 +1801,6 @@ class PianoMIDIViewer(QMainWindow):
                 config.write(f)
         except Exception as e:
             print(f"Error saving settings: {e}")
-
-    def toggle_sustain_button(self):
-        """Toggles the sustain button sticky state."""
-        self.sustain_button_toggled = not self.sustain_button_toggled
-
-        if not self.sustain_button_toggled:
-            # Turning off - clear all sustained notes
-            self.clear_all_sustained_notes()
-
-        self.update_sustain_button_visual()
 
     def clear_all_sustained_notes(self):
         """
@@ -1785,12 +1829,55 @@ class PianoMIDIViewer(QMainWindow):
 
         self.piano.update()
 
+    def update_sustain_button_text(self):
+        """
+        Updates the Mode button icon and tooltip based on current mode.
+
+        Drawing mode: Shows ✎ (pencil icon)
+        Playing mode: Shows ♪ (musical note icon)
+        """
+        if self.sticky_sustain:
+            self.sustain_button.setText("✎")  # U+270E Pencil - Drawing mode
+            self.sustain_button.setToolTip(
+                "DRAWING MODE (for teaching)\n"
+                "\n"
+                "Mode button functions:\n"
+                "• Shows current mode (✎ = Drawing)\n"
+                "• Lights up when sustain is active\n"
+                "• Click to toggle sustain on/off\n"
+                "\n"
+                "Behavior:\n"
+                "• Notes stay highlighted after release\n"
+                "• Click a highlighted note to turn it off\n"
+                "• Drag across keys to paint or erase\n"
+                "\n"
+                "Right-click to switch to Playing mode."
+            )
+        else:
+            self.sustain_button.setText("♪")  # U+266A Eighth note - Playing mode
+            self.sustain_button.setToolTip(
+                "PLAYING MODE (for performance)\n"
+                "\n"
+                "Mode button functions:\n"
+                "• Shows current mode (♪ = Playing)\n"
+                "• Lights up when sustain is active\n"
+                "• Hold to activate sustain (like a pedal)\n"
+                "\n"
+                "Behavior:\n"
+                "• Notes highlight only while pressed\n"
+                "• Sustain pedal/Shift work normally\n"
+                "• No sticky notes or painting\n"
+                "\n"
+                "Right-click to switch to Drawing mode."
+            )
+
     def update_sustain_button_visual(self):
         """
-        Updates the sustain button appearance based on state.
+        Updates the mode button appearance based on sustain state.
 
-        The S button lights up in the highlight color whenever sustain
+        The mode button lights up in the highlight color whenever sustain
         is active from any source (button click, MIDI pedal, or Shift key).
+        This provides a visual indicator of sustain state in both modes.
         Text color adapts based on highlight color luminance.
         """
         if self.is_sustain_active:
@@ -1803,6 +1890,7 @@ class PianoMIDIViewer(QMainWindow):
                     font-weight: bold;
                     border: 2px solid #707070;
                     border-radius: 6px;
+                    padding: 0px 0px 1px 0px;
                 }}
             """)
         else:
@@ -1811,6 +1899,7 @@ class PianoMIDIViewer(QMainWindow):
                     background-color: #f5f5f5;
                     border: 2px solid #707070;
                     border-radius: 6px;
+                    padding: 0px 0px 1px 0px;
                     color: #2a2a2a;
                     font-weight: bold;
                 }
@@ -1893,7 +1982,7 @@ class PianoMIDIViewer(QMainWindow):
                 if message is None:
                     break
 
-                midi_data, delta_time = message
+                midi_data, _ = message
                 self.process_midi_message(midi_data)
 
         except Exception as e:
@@ -1934,7 +2023,7 @@ class PianoMIDIViewer(QMainWindow):
                     # Pedal released - clear all sustained notes
                     self.clear_all_sustained_notes()
                 elif not was_active and self.sustain_pedal_active:
-                    # Pedal pressed - takeover from sticky toggle if active
+                    # Pedal pressed - takeover from Mode button toggle if active
                     if self.sustain_button_toggled:
                         self.sustain_button_toggled = False
 
@@ -1950,14 +2039,15 @@ class PianoMIDIViewer(QMainWindow):
         """
         Handles a Note On MIDI event.
 
-        If the note is within visible range and already sustained,
-        pressing it again toggles it off (allows error correction).
-        Otherwise, the note is added to active_notes.
+        Behavior depends on mode:
+        - Drawing mode: If note is already sustained, pressing it toggles it off
+        - Playing mode: Note is simply added to active notes (no toggle)
         """
         if self.piano.start_note <= note_number <= self.piano.end_note:
             # Note within visible range
-            if self.is_sustain_active and note_number in self.piano.sustained_notes:
-                # Toggle off: remove from sustained notes
+            if (self.sticky_sustain and self.is_sustain_active and
+                note_number in self.piano.sustained_notes):
+                # Drawing mode: Toggle off - remove from sustained notes
                 self.piano.sustained_notes.discard(note_number)
             else:
                 # Normal behavior: add to active notes
@@ -1966,31 +2056,51 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.update()
         elif note_number < self.piano.start_note:
             # Note below visible range
-            self.piano.active_notes_left.add(note_number)
-            if not self.piano.glow_left_plus:
-                self.piano.glow_left_plus = True
-                self.apply_button_glow(self.left_plus_btn, True)
+            if (self.sticky_sustain and self.is_sustain_active and
+                note_number in self.piano.sustained_notes_left):
+                # Drawing mode: Toggle off - remove from sustained notes
+                self.piano.sustained_notes_left.discard(note_number)
+                # Clear glow if no more notes held on the left
+                if not self.piano.active_notes_left and not self.piano.sustained_notes_left and self.piano.glow_left_plus:
+                    self.piano.glow_left_plus = False
+                    self.apply_button_glow(self.left_plus_btn, False)
+            else:
+                # Normal behavior: add to active notes
+                self.piano.active_notes_left.add(note_number)
+                if not self.piano.glow_left_plus:
+                    self.piano.glow_left_plus = True
+                    self.apply_button_glow(self.left_plus_btn, True)
         else:  # note_number > self.piano.end_note
             # Note above visible range
-            self.piano.active_notes_right.add(note_number)
-            if not self.piano.glow_right_plus:
-                self.piano.glow_right_plus = True
-                self.apply_button_glow(self.right_plus_btn, True)
+            if (self.sticky_sustain and self.is_sustain_active and
+                note_number in self.piano.sustained_notes_right):
+                # Drawing mode: Toggle off - remove from sustained notes
+                self.piano.sustained_notes_right.discard(note_number)
+                # Clear glow if no more notes held on the right
+                if not self.piano.active_notes_right and not self.piano.sustained_notes_right and self.piano.glow_right_plus:
+                    self.piano.glow_right_plus = False
+                    self.apply_button_glow(self.right_plus_btn, False)
+            else:
+                # Normal behavior: add to active notes
+                self.piano.active_notes_right.add(note_number)
+                if not self.piano.glow_right_plus:
+                    self.piano.glow_right_plus = True
+                    self.apply_button_glow(self.right_plus_btn, True)
 
     def handle_note_off(self, note_number):
         """
         Handles a Note Off MIDI event.
 
-        When sustain is active, notes are moved to sustained_notes instead
-        of being released immediately. This applies to both visible and
-        out-of-range notes.
+        Behavior depends on mode:
+        - Drawing mode: Released notes move to sustained_notes (stay highlighted)
+        - Playing mode: Notes are immediately released (sustain is just an indicator)
         """
         # Handle notes within visible range
         if note_number in self.piano.active_notes:
             self.piano.active_notes.discard(note_number)
 
-            if self.is_sustain_active:
-                # Move to sustained notes instead of releasing
+            if self.sticky_sustain and self.is_sustain_active:
+                # Drawing mode: Move to sustained notes instead of releasing
                 self.piano.sustained_notes.add(note_number)
 
             self.piano.update()
@@ -1999,8 +2109,8 @@ class PianoMIDIViewer(QMainWindow):
         if note_number in self.piano.active_notes_left:
             self.piano.active_notes_left.discard(note_number)
 
-            if self.is_sustain_active:
-                # Move to sustained notes instead of releasing
+            if self.sticky_sustain and self.is_sustain_active:
+                # Drawing mode: Move to sustained notes instead of releasing
                 self.piano.sustained_notes_left.add(note_number)
             else:
                 # Only clear glow if no more left notes are held (active or sustained)
@@ -2012,8 +2122,8 @@ class PianoMIDIViewer(QMainWindow):
         if note_number in self.piano.active_notes_right:
             self.piano.active_notes_right.discard(note_number)
 
-            if self.is_sustain_active:
-                # Move to sustained notes instead of releasing
+            if self.sticky_sustain and self.is_sustain_active:
+                # Drawing mode: Move to sustained notes instead of releasing
                 self.piano.sustained_notes_right.add(note_number)
             else:
                 # Only clear glow if no more right notes are held (active or sustained)
@@ -2034,6 +2144,7 @@ class PianoMIDIViewer(QMainWindow):
                     font-weight: bold;
                     border: 2px solid #707070;
                     border-radius: 6px;
+                    padding: 0px 0px 1px 0px;
                 }}
             """)
         else:
@@ -2042,6 +2153,7 @@ class PianoMIDIViewer(QMainWindow):
                     background-color: #f5f5f5;
                     border: 2px solid #707070;
                     border-radius: 6px;
+                    padding: 0px 0px 1px 0px;
                     color: #2a2a2a;
                     font-weight: bold;
                 }
@@ -2267,13 +2379,72 @@ class PianoMIDIViewer(QMainWindow):
         finally:
             self._in_resize_event = False
 
+    def eventFilter(self, obj, event):
+        """
+        Event filter for the mode button.
+
+        The mode button has three functions:
+        1. Shows current mode icon (✎ Drawing / ♪ Playing)
+        2. Lights up when sustain is active (indicator in both modes)
+        3. Controls sustain (toggle in Drawing mode, hold in Playing mode)
+
+        Handles:
+        - Right-click: Toggle between Drawing and Playing modes
+        - Left click: In Drawing mode, toggles sustain on/off
+        - Left press/release: In Playing mode, acts like a pedal (lit while held)
+        """
+        if obj == self.sustain_button:
+            # Right-click: Toggle between Drawing and Playing modes
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.RightButton:
+                    was_drawing = self.sticky_sustain
+                    self.sticky_sustain = not self.sticky_sustain
+
+                    # When switching from Drawing to Playing, clear all sustain state
+                    if was_drawing and not self.sticky_sustain:
+                        self.sustain_button_toggled = False
+                        self.clear_all_sustained_notes()
+                        self.update_sustain_button_visual()
+
+                    self.update_sustain_button_text()
+                    self.save_settings()
+                    return True  # Event handled
+
+                elif event.button() == Qt.MouseButton.LeftButton:
+                    if self.sticky_sustain:
+                        # Drawing mode: Toggle sustain on click (handle on release for clean UX)
+                        pass  # Let it fall through, handle on release
+                    else:
+                        # Playing mode: Activate sustain while pressed (pedal behavior)
+                        self.sustain_button_toggled = True
+                        self.update_sustain_button_visual()
+                        return True  # Event handled
+
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    if self.sticky_sustain:
+                        # Drawing mode: Toggle sustain on/off
+                        self.sustain_button_toggled = not self.sustain_button_toggled
+                        if not self.sustain_button_toggled:
+                            self.clear_all_sustained_notes()
+                        self.update_sustain_button_visual()
+                        return True  # Event handled
+                    else:
+                        # Playing mode: Deactivate sustain on release
+                        self.sustain_button_toggled = False
+                        self.clear_all_sustained_notes()
+                        self.update_sustain_button_visual()
+                        return True  # Event handled
+
+        return super().eventFilter(obj, event)
+
     def keyPressEvent(self, event):
         """Handle keyboard key press events."""
         if event.key() == Qt.Key.Key_Shift and not event.isAutoRepeat():
             if not self.shift_key_active:
                 # Shift key pressed
                 if self.sustain_button_toggled:
-                    # Takeover: turn off sticky toggle
+                    # Takeover: turn off Mode button toggle
                     self.sustain_button_toggled = False
 
                 self.shift_key_active = True
@@ -2313,7 +2484,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 6.3.5")
+    print("Piano MIDI Viewer - Version 7.0.0")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")

@@ -8,7 +8,18 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
 
-**Current Version: 6.3.5**
+**Current Version: 7.0.0**
+
+### Changes in 7.0.0
+- **Two modes**: Drawing mode (for teaching) and Playing mode (for performance)
+- **Drawing mode (✎)**: Notes stay highlighted, click to toggle, drag to paint/erase
+- **Playing mode (♪)**: Notes highlight only while pressed, like a real piano
+- **Mode button**: Shows current mode icon, acts as sustain indicator, controls sustain
+- **Mode button behavior**: Click to toggle (Drawing) or hold like pedal (Playing)
+- **Quick mode switch**: Right-click mode button to toggle between modes
+- **Detailed tooltips**: Hover over mode button for full explanation
+- **Settings checkbox**: "Drawing mode" toggle in Settings dialog
+- **Button text centering**: Fixed vertical alignment of button icons (baseline compensation)
 
 ### Changes in 6.3.5
 - **macOS docs**: Added `xattr -cr` command to README for Gatekeeper quarantine fix
@@ -95,7 +106,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 - **Gap click tolerance**: Clicking between keys now snaps to the closest key (easier chord clicking during lessons)
 - **Highlighted key borders**: White keys now have visible dark borders when highlighted, matching black key appearance
 - **Visual improvements**: Darker background grey (150, 150, 150) for better white key contrast
-- **Color sync fix**: S button and plus button glows now update immediately when highlight color changes
+- **Color sync fix**: Mode button and plus button glows now update immediately when highlight color changes
 
 ## Running the Application
 
@@ -161,9 +172,10 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - Three sustain state booleans (`sustain_button_toggled`, `sustain_pedal_active`, `shift_key_active`)
    - Property `is_sustain_active` - unified check for any sustain source
    - Five note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`, `show_names_when_pressed`)
+   - **NEW in 6.4:** `sticky_sustain` - Mode setting (True=Drawing mode, False=Playing mode)
    - Keyboard event handlers for Shift key press/release
    - Enforces window resize constraints in `resizeEvent()`
-   - Three-column layout: S button/+/- (left) | piano (center) | ⚙️/+/- (right)
+   - Three-column layout: Mode button/+/- (left) | piano (center) | ⚙️/+/- (right)
 
 3. **`SettingsDialog` (QDialog)** - Configuration interface
    - MIDI device selection with refresh button
@@ -172,6 +184,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - **NEW in 6.0:** White Key Names checkbox (default: ON)
    - **NEW in 6.0:** Black Key Names checkbox (default: OFF)
    - **NEW in 6.0:** Black key notation dropdown (♭ Flats / ♯ Sharps / Both)
+   - **NEW in 6.4:** Drawing mode checkbox (default: ON) - controls sustain behavior mode
    - Project info link (opens browser to Codeberg repository)
 
 4. **Helper functions** - MIDI note calculations and text rendering
@@ -267,6 +280,19 @@ Key additions in 6.3.4:
 - Minimum window height now uses `max(key_based_height, MIN_WINDOW_HEIGHT)`
 - `PianoMIDIViewer-macos.spec` - PyInstaller spec file for macOS builds
 
+Key additions in 7.0.0:
+- `PianoMIDIViewer.sticky_sustain` - Boolean setting for mode (True=Drawing, False=Playing)
+- `PianoMIDIViewer.update_sustain_button_text()` - Updates Mode button icon (✎/♪) and tooltip based on mode
+- `PianoMIDIViewer.eventFilter()` - Handles Mode button mouse events (right-click=mode switch, left=sustain)
+- `SettingsDialog.sticky_sustain_checkbox` - "Drawing mode" checkbox control in Settings
+- `SettingsDialog.toggle_sticky_sustain()` - Callback for the checkbox
+- Removed `toggle_sustain_button()` - Replaced by eventFilter for full mouse control
+- Modified `handle_note_on()` - Only toggles off sustained notes in Drawing mode (including out-of-range notes)
+- Modified `handle_note_off()` - Only moves notes to sustained_notes in Drawing mode
+- Modified `PianoKeyboard.mousePressEvent()` - Checks mode for toggle behavior
+- Extended `save_settings()` and `load_settings()` with new `[behavior]` section
+- Playing mode: Mode button acts like a pedal (lit while held, not toggle)
+
 Key additions in 6.3.3:
 - `update_sustain_button_visual()` - Now uses `get_text_color_for_highlight()` for adaptive text color
 - `apply_button_glow()` - Now uses `get_text_color_for_highlight()` for adaptive text color
@@ -312,7 +338,7 @@ Key additions in 5.0.0:
 - `PianoMIDIViewer.is_sustain_active` - Property for unified sustain check
 - `PianoMIDIViewer.keyPressEvent/ReleaseEvent()` - Shift key handling
 - `PianoMIDIViewer.clear_all_sustained_notes()` - Clears all sustain sets
-- `PianoMIDIViewer.update_sustain_button_visual()` - S button appearance
+- `PianoMIDIViewer.update_sustain_button_visual()` - Mode button appearance
 
 Key additions in 5.2.0:
 - Import of `QUrl` and `QDesktopServices` from PyQt6 for URL handling
@@ -369,21 +395,37 @@ When adding/removing octaves:
 - `sustained_notes` - Notes held by sustain (visible range)
 - `sustained_notes_left/right` - Sustained notes outside visible range
 
-**Sustain System:**
-Three ways to activate sustain (OR logic):
-- Click S button (sticky toggle)
+**Mode Button (NEW in 7.0.0):**
+The Mode button (left side of window) has three functions:
+1. **Shows current mode icon** - ✎ (pencil) for Drawing mode, ♪ (note) for Playing mode
+2. **Sustain indicator** - Lights up when sustain is active (both modes)
+3. **Sustain control** - Toggle sustain on/off (Drawing mode) or hold-to-activate (Playing mode)
+
+Right-click the Mode button to switch between modes.
+
+**Sustain Sources (OR logic):**
+- Click/hold Mode button
 - Hold MIDI sustain pedal (CC 64 >= 64)
 - Hold Shift key
 
-When sustain is active:
-- Note Off events move notes to `sustained_notes` instead of clearing them
+**Two modes (NEW in 7.0.0):**
+
+*Drawing Mode (✎, default):* For teaching/marking notes
+- Note Off events move notes to `sustained_notes` (stay highlighted)
 - Pressing a sustained note again toggles it off (error correction)
+- Glissando paints/erases notes in `sustained_notes`
 - Out-of-range sustained notes tracked invisibly
 - Releasing sustain clears all sustained notes
 
+*Playing Mode (♪):* For playing/demonstration
+- Notes highlight only while pressed (like a real piano)
+- Sustain indicator lights up but doesn't affect note behavior
+- No toggle behavior - pressing a key multiple times just re-triggers
+- Keys immediately un-highlight when released
+
 **Takeover behavior:**
-- Pressing pedal/Shift while S is toggled → S turns off, control transfers
-- Clicking S while holding pedal/Shift → S toggles on (makes it sticky)
+- Pressing pedal/Shift while Mode button is toggled → Mode button turns off, control transfers
+- Clicking Mode button while holding pedal/Shift → Mode button toggles on (makes it sticky)
 
 **Out-of-range indicators:**
 - When notes are played outside the visible range, the corresponding + button glows
@@ -394,9 +436,10 @@ When sustain is active:
 
 **Click behavior:**
 - Without sustain: Click highlights note, release clears it
-- With sustain: Click toggles note on/off (stays highlighted until clicked again or sustain released)
+- With sustain in Drawing mode: Click toggles note on/off (stays highlighted until clicked again or sustain released)
+- With sustain in Playing mode: Same as without sustain (highlights only while held)
 
-**Glissando (drag) behavior:**
+**Glissando (drag) behavior (Drawing mode only):**
 Determined by initial click:
 - Start on **empty note** → ON glissando (drag paints notes)
 - Start on **highlighted note** → OFF glissando (drag erases notes)
@@ -405,6 +448,7 @@ Mode is locked for entire drag:
 - ON glissando: Only adds notes, ignores already-highlighted notes
 - OFF glissando: Only removes notes, ignores already-empty notes
 - Grey background gaps ignored (glissando continues across them)
+- In Playing mode: No glissando mode set, just tracks current note
 
 **Hit detection (5.0.1 enhancement):**
 - Black keys checked first (drawn on top, so take priority)
