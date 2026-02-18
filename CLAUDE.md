@@ -8,7 +8,11 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.1.0**
+**Current Version: 8.1.1**
+
+### Changes in 8.1.1
+- **S button**: Removed hover/pressed visual feedback — now a true non-interactive indicator
+- Removed `button_style` from sustain button setup; `update_sustain_button_visual()` called at `init_ui()` end to apply non-interactive stylesheet on startup
 
 ### Changes in 8.1.0
 - **Note highlight behavior**: Notes only highlight while physically pressed — sustain pedal no longer keeps notes lit

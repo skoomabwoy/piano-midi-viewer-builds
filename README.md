@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and video lessons.
 
-![Version](https://img.shields.io/badge/version-8.1.0-blue)
+![Version](https://img.shields.io/badge/version-8.1.1-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -110,6 +110,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.1.1** — S button is now a pure indicator (no visual feedback when clicked)
 **8.1.0** — Notes highlight only while actively pressed; S button is now a sustain pedal indicator only; pencil tool out-of-range marks now glow the + buttons
 **8.0.0** — UX rework: pencil tool, custom drawn cursors (pencil + eraser)
 **7.0.0** — Drawing/Playing modes, Mode button with sustain control
