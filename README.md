@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and video lessons.
 
-![Version](https://img.shields.io/badge/version-8.0.0-blue)
+![Version](https://img.shields.io/badge/version-8.1.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -14,7 +14,7 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 - 🔠 **Key labels** — show or hide note names, octave numbers, sharps and flats
 - 👇 **Show on press** — only show labels on keys that you are currently pressing
 - 🎨 **Custom colors** — pick any highlight color; text adjusts automatically so it's always easy to read
-- 🎵 **Sustain** — keep notes highlighted after you let go; click the S button, hold Shift on your computer keyboard, or use your piano's sustain pedal
+- 🎵 **Sustain indicator** — the S button lights up when your MIDI sustain pedal is held
 - ↔️ **Octave range** — use the + and − buttons to show more or fewer octaves (from A0 up to C8)
 
 ## Screenshots
@@ -100,7 +100,7 @@ python piano_viewer.py
 
 | | |
 |-|-|
-| Architecture | Single file (`piano_viewer.py`, ~2600 lines) |
+| Architecture | Single file (`piano_viewer.py`, ~2300 lines) |
 | Framework | PyQt6, python-rtmidi |
 | Font | JetBrains Mono (embedded) |
 | MIDI range | A0–C8 (notes 21–108) |
@@ -110,7 +110,8 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
-**8.0.0** — UX rework: pencil tool, independent sustain, custom drawn cursors (pencil + eraser)
+**8.1.0** — Notes highlight only while actively pressed; S button is now a sustain pedal indicator only; pencil tool out-of-range marks now glow the + buttons
+**8.0.0** — UX rework: pencil tool, custom drawn cursors (pencil + eraser)
 **7.0.0** — Drawing/Playing modes, Mode button with sustain control
 **6.3.5** — macOS docs fix (xattr command for Gatekeeper)
 **6.3.4** — macOS support, dynamic key gaps, cross-platform fixes

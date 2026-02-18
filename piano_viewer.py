@@ -3,113 +3,8 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 8.0.0
+Version: 8.1.0
 License: GPL-3.0
-
-Changes in 8.0.0:
-- UX rework: Eliminated confusing mode system (Drawing/Playing)
-- Default behavior: Keys highlight while pressed, sustain works independently
-- Pencil tool: Separate drawing tool with dedicated button (left side)
-- Pencil button: Click to enter/exit drawing, Esc to exit, marks cleared on exit
-- Sustain button: Moved to right side, always simple toggle (no hold-to-activate)
-- Sustain now works in default playing state (was restricted to Drawing mode)
-- Button layout: Pencil (left), Settings + Sustain + octaves (right)
-- Button size: Reduced from 44px to 36px to fit 4 buttons per side
-- Removed: Mode switching, right-click behavior, Drawing mode checkbox in Settings
-- Removed: [behavior] section from settings persistence
-
-Changes in 7.0.0:
-- Two sustain modes: Drawing (for teaching) and Playing (for performance)
-- Drawing mode (✎): Notes stay highlighted, click to toggle, drag to paint/erase
-- Playing mode (♪): Notes highlight only while pressed, like a real piano
-- Mode button: Shows current mode icon, acts as sustain indicator in both modes
-- In Drawing mode: Click mode button to toggle sustain on/off
-- In Playing mode: Hold mode button to sustain (like a pedal)
-- Quick mode switch: Right-click mode button to toggle between modes
-- Settings checkbox: "Drawing mode" toggle (formerly "Sticky sustain")
-- Button text centering: Fixed vertical alignment of button icons
-
-Changes in 6.3.5:
-- macOS docs: Added xattr command to README for Gatekeeper "damaged app" fix
-
-Changes in 6.3.4:
-- macOS support: Standalone .app bundle now available
-- Dynamic key gaps: Scale proportionally (3% of key width, clamped 1-5px)
-- Shadow effects disabled at small sizes: Improves readability below 25px key width
-- Fixed button overlap: Minimum window height now accounts for button requirements (Windows/macOS fix)
-
-Changes in 6.3.3:
-- Adaptive button text: S, +, − symbols now change color based on highlight luminance
-- Consistent with note names: light backgrounds get black text, dark backgrounds get white
-
-Changes in 6.3.2:
-- Octave range persistence: Keyboard range (start_note, end_note) now saved to settings
-- Window geometry: Size and position properly restored on startup
-- Perfect for OBS integration: Restart the app and it remembers your exact setup
-- Enhanced visual contrast: Darker background, crisper key borders, deeper shadows for better OBS capture
-- Fixed minimum window size: Now updates when octaves added/removed (prevents UI overlap)
-
-Changes in 6.3.1:
-- Cross-platform UI consistency: Buttons now look identical on Windows and Linux
-- SVG settings icon: Replaced emoji cogwheel with embedded SVG for reliable rendering
-- JetBrains Mono buttons: S, +, − buttons now use the bundled font
-- Better minus sign: Using proper minus character (−) for vertical centering
-
-Changes in 6.3.0:
-- Linux standalone app: No Python installation required, just download and run
-- Optimized build: Reduced Linux binary size from 83 MB to 56 MB
-- Both Windows (.exe) and Linux binaries available in Releases
-
-Changes in 6.2.0:
-- Windows support: Standalone .exe available (built with PyInstaller)
-- Cross-platform: Now runs on both Linux and Windows
-
-Changes in 6.1.0:
-- Show note names only when pressed: New toggle in Settings to display note
-  names only on active keys (pressed, sustained, or mouse-held)
-- Educational focus: Helps students focus on relevant note names without clutter
-- Octave numbers unaffected: Always visible for navigation regardless of setting
-- Checkbox automatically disabled when both white and black key names are off
-
-Changes in 6.0.1:
-- Fixed text rendering: Font size now correctly calculated using proper
-  pixel-to-point conversion (was treating pixels as points, causing overflow)
-- Fixed text positioning: Now accounts for font descent, ensuring consistent
-  gaps between key edge, note letter, and octave number
-- Simplified text positioning code for all three display cases
-
-Major Features in 6.0.0:
-- Note names and octave numbers: Customizable display of musical notation
-- Octave numbers on all C keys (replaces single Middle C dot)
-- White key names (C, D, E, F, G, A, B) with dynamic positioning
-- Black key names with flats, sharps, or both enharmonic equivalents
-- Adaptive layout: Text stacks vertically on narrow keys
-- Smart contrast: Text color adapts to highlight color brightness
-- JetBrains Mono font embedded for consistent, readable typography
-
-Major Features in 5.0.0:
-- MIDI sustain pedal support (CC 64)
-- Mouse click support with glissando (drag to paint/erase notes)
-- Shift key acts as sustain pedal
-- Sustain button (S) with sticky toggle and visual indicator
-- Out-of-range sustained notes tracked invisibly
-- Toggle sustained notes off by clicking/playing them again
-
-Changes in 5.2.0:
-- Info link: Added clickable link to project repository in settings dialog
-
-Changes in 5.1.0:
-- Settings persistence: All preferences now save automatically
-- MIDI device selection remembered between sessions
-- Highlight color preference saved
-- Window size and position restored on startup
-- Resize limits preference persisted
-
-Changes in 5.0.1:
-- Gap clicks now snap to closest key for easier chord clicking
-- Highlighted white keys now have visible borders
-- Darker background grey for better white key contrast
-- Mode button and plus button glows update when highlight color changes
 """
 
 import sys
@@ -123,7 +18,7 @@ from PyQt6.QtWidgets import (
     QColorDialog, QCheckBox
 )
 from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QIcon, QPixmap, QDesktopServices, QFontDatabase, QCursor
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIcon, QPixmap, QDesktopServices, QFontDatabase, QCursor
 
 
 # ============================================================================
@@ -517,8 +412,6 @@ def calculate_font_size_for_width(target_width, num_chars, font_family):
     Returns:
         int: Font size in points, or 0 if below MIN_FONT_SIZE
     """
-    from PyQt6.QtGui import QFont, QFontMetrics
-
     # Measure character width at a reference size
     reference_size = 20  # Use 20pt as reference for better precision
     reference_font = QFont(font_family, reference_size)
@@ -556,8 +449,6 @@ def calculate_font_size_for_height(target_height, font_family):
     Returns:
         int: Font size in points, or 0 if below MIN_FONT_SIZE
     """
-    from PyQt6.QtGui import QFont, QFontMetrics
-
     # Measure full character height at a reference size
     reference_size = 20  # Use 20pt as reference for better precision
     reference_font = QFont(font_family, reference_size)
@@ -885,15 +776,7 @@ class SettingsDialog(QDialog):
 # ============================================================================
 
 class PianoKeyboard(QWidget):
-    """
-    Custom widget that draws a piano keyboard.
-
-    This widget handles:
-    - Rendering white and black keys with visual styling
-    - Tracking and highlighting active notes from multiple sources
-    - Mouse interaction for clicking and dragging notes
-    - Displaying Middle C indicator
-    """
+    """Custom widget that draws a piano keyboard."""
 
     def __init__(self):
         super().__init__()
@@ -907,9 +790,6 @@ class PianoKeyboard(QWidget):
         self.active_notes = set()           # MIDI notes currently being pressed (visible range)
         self.active_notes_left = set()      # MIDI notes being pressed below visible range
         self.active_notes_right = set()     # MIDI notes being pressed above visible range
-        self.sustained_notes = set()        # Notes held by sustain (visible range)
-        self.sustained_notes_left = set()   # Notes sustained below visible range
-        self.sustained_notes_right = set()  # Notes sustained above visible range
 
         # Drawn notes (pencil tool marks, separate from playing)
         self.drawn_notes = set()         # Notes marked by the pencil tool (visible range only)
@@ -992,7 +872,7 @@ class PianoKeyboard(QWidget):
         white_index = get_white_key_index(midi_note, self.start_note)
         x = x_offset + (white_index * key_width)
 
-        # Calculate dynamic gap based on key width (5%, clamped to 1-10px)
+        # Calculate dynamic gap based on key width (3%, clamped 1-5px per side)
         key_gap = min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(key_width * KEY_GAP_RATIO)))
 
         rect_x = x + key_gap
@@ -1000,9 +880,8 @@ class PianoKeyboard(QWidget):
         rect_width = key_width - key_gap * 2
         rect_height = height
 
-        # Highlight if note is active from any source (playing, sustained, drawn, or mouse)
+        # Highlight if note is active (pressed, drawn, or mouse-held)
         is_highlighted = (midi_note in self.active_notes or
-                         midi_note in self.sustained_notes or
                          midi_note in self.drawn_notes or
                          (midi_note == self.mouse_held_note and self.glissando_mode != 'off'))
         fill_color = self.highlight_color if is_highlighted else QColor(252, 252, 252)
@@ -1051,9 +930,8 @@ class PianoKeyboard(QWidget):
         rect_width = black_key_width
         rect_height = black_key_height
 
-        # Highlight if note is active from any source (playing, sustained, drawn, or mouse)
+        # Highlight if note is active (pressed, drawn, or mouse-held)
         is_highlighted = (midi_note in self.active_notes or
-                         midi_note in self.sustained_notes or
                          midi_note in self.drawn_notes or
                          (midi_note == self.mouse_held_note and self.glissando_mode != 'off'))
         fill_color = self.highlight_color if is_highlighted else QColor(16, 16, 16)
@@ -1133,7 +1011,6 @@ class PianoKeyboard(QWidget):
 
             # Check if key is highlighted
             is_highlighted = (note in self.active_notes or
-                             note in self.sustained_notes or
                              note in self.drawn_notes or
                              (note == self.mouse_held_note and self.glissando_mode != 'off'))
 
@@ -1170,7 +1047,7 @@ class PianoKeyboard(QWidget):
                 octave_baseline_y = key_bottom - (2 * text_gap) - (2 * descent) - ascent
 
                 # Draw note name (all white keys)
-                # Skip if "show only when pressed" is enabled and key is not active
+                # Skip note name (not octave number) if "show only when pressed" and key is not active
                 show_name = not main_window.show_names_when_pressed or is_highlighted
                 if note_name and show_name:
                     text_width = font_metrics.horizontalAdvance(note_name)
@@ -1271,7 +1148,6 @@ class PianoKeyboard(QWidget):
 
             # Check if key is highlighted
             is_highlighted = (note in self.active_notes or
-                             note in self.sustained_notes or
                              note in self.drawn_notes or
                              (note == self.mouse_held_note and self.glissando_mode != 'off'))
 
@@ -1331,15 +1207,7 @@ class PianoKeyboard(QWidget):
                 painter.drawText(int(text_x), int(sharp_baseline_y), name)
 
     def _get_main_window(self):
-        """
-        Gets the parent PianoMIDIViewer instance.
-
-        This helper method walks up the widget hierarchy to find the main window.
-        Used by mouse event handlers to check sustain state.
-
-        Returns:
-            PianoMIDIViewer instance, or None if not found
-        """
+        """Returns the parent PianoMIDIViewer instance, or None."""
         parent = self.parent()
         while parent and not isinstance(parent, PianoMIDIViewer):
             parent = parent.parent()
@@ -1472,11 +1340,9 @@ class PianoKeyboard(QWidget):
         """
         Handle mouse press on piano keys.
 
-        Behavior depends on pencil state:
-        - Pencil active: Left click draws, right click erases
-        - Playing: Left click highlights while held, sustain toggle if sustained
-
-        If the user clicks on a gap between keys, we snap to the closest key.
+        Pencil active: left click draws, right click erases.
+        Playing: left click highlights the key while held.
+        Gap clicks snap to the closest key.
         """
         note = self._get_note_at_position(event.position().x(), event.position().y())
 
@@ -1507,17 +1373,9 @@ class PianoKeyboard(QWidget):
                 self.update()
 
             elif event.button() == Qt.MouseButton.LeftButton:
-                # Playing mode (left click only)
-                sustain_active = main_window.is_sustain_active if main_window else False
-
-                if sustain_active and note in self.sustained_notes:
-                    # Toggle off sustained note (error correction)
-                    self.sustained_notes.discard(note)
-                    self.mouse_held_note = note
-                else:
-                    self.active_notes.add(note)
-                    self.mouse_held_note = note
-
+                # Playing mode (left click only): highlight the note while held
+                self.active_notes.add(note)
+                self.mouse_held_note = note
                 self.glissando_mode = None
                 self.update()
 
@@ -1568,12 +1426,9 @@ class PianoKeyboard(QWidget):
                     self.setCursor(create_pencil_cursor())
 
             else:
-                # Playing: remove from active_notes (or move to sustained)
+                # Playing: remove from active_notes
                 if self.mouse_held_note in self.active_notes:
                     self.active_notes.discard(self.mouse_held_note)
-                    sustain_active = main_window.is_sustain_active if main_window else False
-                    if sustain_active:
-                        self.sustained_notes.add(self.mouse_held_note)
 
             self.mouse_held_note = None
             self.glissando_mode = None
@@ -1595,10 +1450,8 @@ class PianoMIDIViewer(QMainWindow):
         self.current_midi_device = None
         self.midi_timer = None
 
-        # Sustain state
-        self.sustain_button_toggled = False  # Sustain button toggle
-        self.sustain_pedal_active = False    # MIDI pedal held
-        self.shift_key_active = False        # Shift key held
+        # Sustain state — tracked purely for the S indicator
+        self.sustain_pedal_active = False    # MIDI sustain pedal held (CC 64)
 
         # Pencil tool state (drawing is independent from playing)
         self.pencil_active = False  # Whether pencil tool is currently active
@@ -1613,23 +1466,6 @@ class PianoMIDIViewer(QMainWindow):
         self.init_ui()
         self.setup_midi_polling()
         self.load_settings()  # Load saved settings after UI is initialized
-
-    @property
-    def is_sustain_active(self):
-        """
-        Returns True if sustain is currently active from any source.
-
-        Sustain can be activated by:
-        - Sustain button "S" (toggle)
-        - Holding the MIDI sustain pedal (CC 64)
-        - Holding the Shift key
-
-        Returns:
-            bool: True if any sustain mode is active
-        """
-        return (self.sustain_button_toggled or
-                self.sustain_pedal_active or
-                self.shift_key_active)
 
     def init_ui(self):
         """Sets up the user interface."""
@@ -1744,13 +1580,12 @@ class PianoMIDIViewer(QMainWindow):
         self.settings_button.setStyleSheet(button_style)
         self.settings_button.clicked.connect(self.open_settings)
 
-        # Sustain button: simple toggle for sustain on/off
+        # Sustain button: indicator only (lights up when sustain pedal is held)
         self.sustain_button = QPushButton("S")
-        self.sustain_button.setToolTip("Sustain — keep notes highlighted after you let go")
+        self.sustain_button.setToolTip("Sustain pedal indicator — lights up when your sustain pedal is held")
         self.sustain_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
         self.sustain_button.setFont(button_font)
         self.sustain_button.setStyleSheet(button_style)
-        self.sustain_button.clicked.connect(self.toggle_sustain_button)
 
         right_layout.addWidget(self.settings_button, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.sustain_button, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -1913,33 +1748,6 @@ class PianoMIDIViewer(QMainWindow):
         except Exception as e:
             print(f"Error saving settings: {e}")
 
-    def clear_all_sustained_notes(self):
-        """
-        Clears all sustained notes (visible and out-of-range) and updates glows.
-
-        This is called when:
-        - Sustain button is toggled off
-        - MIDI sustain pedal is released
-        - Shift key is released
-
-        It clears all three sustained note sets and updates the plus button
-        glows if there are no actively pressed notes remaining.
-        """
-        self.piano.sustained_notes.clear()
-        self.piano.sustained_notes_left.clear()
-        self.piano.sustained_notes_right.clear()
-
-        # Update plus button glows (only clear if no active notes remain)
-        if not self.piano.active_notes_left and self.piano.glow_left_plus:
-            self.piano.glow_left_plus = False
-            self.apply_button_glow(self.left_plus_btn, False)
-
-        if not self.piano.active_notes_right and self.piano.glow_right_plus:
-            self.piano.glow_right_plus = False
-            self.apply_button_glow(self.right_plus_btn, False)
-
-        self.piano.update()
-
     def toggle_pencil(self):
         """
         Toggles the pencil drawing tool on/off.
@@ -1952,15 +1760,19 @@ class PianoMIDIViewer(QMainWindow):
             self.pencil_active = False
             self.piano.drawn_notes.clear()
             self.piano.setCursor(Qt.CursorShape.ArrowCursor)
+            # Clear any glows that were lit due to out-of-range drawn notes
+            if self.piano.glow_left_plus:
+                self.piano.glow_left_plus = False
+                self.apply_button_glow(self.left_plus_btn, False)
+            if self.piano.glow_right_plus:
+                self.piano.glow_right_plus = False
+                self.apply_button_glow(self.right_plus_btn, False)
         else:
             # Activate pencil - clear playing state first
             self.pencil_active = True
             self.piano.active_notes.clear()
             self.piano.active_notes_left.clear()
             self.piano.active_notes_right.clear()
-            self.piano.sustained_notes.clear()
-            self.piano.sustained_notes_left.clear()
-            self.piano.sustained_notes_right.clear()
             self.piano.mouse_held_note = None
             self.piano.glissando_mode = None
 
@@ -2005,27 +1817,14 @@ class PianoMIDIViewer(QMainWindow):
                 }
             """)
 
-    def toggle_sustain_button(self):
-        """
-        Toggles sustain on/off via the sustain button.
-
-        Simple toggle: click to activate, click again to deactivate.
-        When deactivating, clears all sustained notes.
-        """
-        self.sustain_button_toggled = not self.sustain_button_toggled
-        if not self.sustain_button_toggled:
-            self.clear_all_sustained_notes()
-        self.update_sustain_button_visual()
-
     def update_sustain_button_visual(self):
         """
-        Updates the sustain button appearance based on sustain state.
+        Updates the sustain button appearance based on the MIDI sustain pedal state.
 
-        The sustain button lights up in the highlight color whenever sustain
-        is active from any source (button click, MIDI pedal, or Shift key).
+        Lights up in the highlight color when the pedal is held, unlit otherwise.
         Text color adapts based on highlight color luminance.
         """
-        if self.is_sustain_active:
+        if self.sustain_pedal_active:
             bg_color = self.piano.highlight_color.name()
             text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
             self.sustain_button.setStyleSheet(f"""
@@ -2161,17 +1960,7 @@ class PianoMIDIViewer(QMainWindow):
             controller_value = data2
 
             if controller_number == 64:  # Sustain pedal
-                was_active = self.sustain_pedal_active
                 self.sustain_pedal_active = (controller_value >= 64)
-
-                if was_active and not self.sustain_pedal_active:
-                    # Pedal released - clear all sustained notes
-                    self.clear_all_sustained_notes()
-                elif not was_active and self.sustain_pedal_active:
-                    # Pedal pressed - takeover from sustain button toggle if active
-                    if self.sustain_button_toggled:
-                        self.sustain_button_toggled = False
-
                 self.update_sustain_button_visual()
 
         # Note On/Off messages
@@ -2186,7 +1975,7 @@ class PianoMIDIViewer(QMainWindow):
 
         Behavior depends on pencil state:
         - Pencil active: toggle in drawn_notes (only visible range)
-        - Playing (default): add to active_notes, toggle off sustained notes
+        - Playing (default): add to active_notes
         """
         if self.pencil_active:
             # Drawing: toggle in drawn_notes (only visible range)
@@ -2199,15 +1988,9 @@ class PianoMIDIViewer(QMainWindow):
             # Out-of-range notes ignored in drawing mode
             return
 
-        # Playing mode
+        # Playing mode: highlight the note while it is physically pressed
         if self.piano.start_note <= note_number <= self.piano.end_note:
-            # Note within visible range
-            if self.is_sustain_active and note_number in self.piano.sustained_notes:
-                # Error correction: toggle off sustained note
-                self.piano.sustained_notes.discard(note_number)
-            else:
-                self.piano.active_notes.add(note_number)
-
+            self.piano.active_notes.add(note_number)
             self.piano.update()
         elif note_number < self.piano.start_note:
             # Note below visible range
@@ -2228,7 +2011,7 @@ class PianoMIDIViewer(QMainWindow):
 
         Behavior depends on pencil state:
         - Pencil active: ignore Note Off entirely (marks persist)
-        - Playing (default): remove from active_notes, move to sustained if sustain active
+        - Playing (default): remove from active_notes (note goes dark immediately)
         """
         if self.pencil_active:
             # Drawing: ignore Note Off entirely
@@ -2237,38 +2020,21 @@ class PianoMIDIViewer(QMainWindow):
         # Handle notes within visible range
         if note_number in self.piano.active_notes:
             self.piano.active_notes.discard(note_number)
-
-            if self.is_sustain_active:
-                # Sustain holds the note
-                self.piano.sustained_notes.add(note_number)
-
             self.piano.update()
 
         # Handle notes outside visible range (left)
         if note_number in self.piano.active_notes_left:
             self.piano.active_notes_left.discard(note_number)
-
-            if self.is_sustain_active:
-                # Sustain holds the note
-                self.piano.sustained_notes_left.add(note_number)
-            else:
-                # Only clear glow if no more left notes are held (active or sustained)
-                if not self.piano.active_notes_left and not self.piano.sustained_notes_left and self.piano.glow_left_plus:
-                    self.piano.glow_left_plus = False
-                    self.apply_button_glow(self.left_plus_btn, False)
+            if not self.piano.active_notes_left and self.piano.glow_left_plus:
+                self.piano.glow_left_plus = False
+                self.apply_button_glow(self.left_plus_btn, False)
 
         # Handle notes outside visible range (right)
         if note_number in self.piano.active_notes_right:
             self.piano.active_notes_right.discard(note_number)
-
-            if self.is_sustain_active:
-                # Sustain holds the note
-                self.piano.sustained_notes_right.add(note_number)
-            else:
-                # Only clear glow if no more right notes are held (active or sustained)
-                if not self.piano.active_notes_right and not self.piano.sustained_notes_right and self.piano.glow_right_plus:
-                    self.piano.glow_right_plus = False
-                    self.apply_button_glow(self.right_plus_btn, False)
+            if not self.piano.active_notes_right and self.piano.glow_right_plus:
+                self.piano.glow_right_plus = False
+                self.apply_button_glow(self.right_plus_btn, False)
 
     def apply_button_glow(self, button, glow):
         """Applies or removes a glow effect on a button.
@@ -2313,15 +2079,9 @@ class PianoMIDIViewer(QMainWindow):
             # Update range
             self.piano.start_note = new_start
 
-            # Move sustained notes that are now in range
-            notes_to_move = [n for n in self.piano.sustained_notes_left
-                           if self.piano.start_note <= n <= self.piano.end_note]
-            for note in notes_to_move:
-                self.piano.sustained_notes_left.discard(note)
-                self.piano.sustained_notes.add(note)
-
-            # Update left glow if no more sustained notes left
-            if not self.piano.active_notes_left and not self.piano.sustained_notes_left and self.piano.glow_left_plus:
+            # Update left glow if no more notes (active or drawn) remain outside
+            drawn_left = any(n < self.piano.start_note for n in self.piano.drawn_notes)
+            if not self.piano.active_notes_left and not drawn_left and self.piano.glow_left_plus:
                 self.piano.glow_left_plus = False
                 self.apply_button_glow(self.left_plus_btn, False)
 
@@ -2350,15 +2110,9 @@ class PianoMIDIViewer(QMainWindow):
             # Update range
             self.piano.start_note = new_start
 
-            # Move sustained notes that are now out of range
-            notes_to_move = [n for n in self.piano.sustained_notes
-                           if n < self.piano.start_note]
-            for note in notes_to_move:
-                self.piano.sustained_notes.discard(note)
-                self.piano.sustained_notes_left.add(note)
-
-            # Turn on glow if we have sustained notes left
-            if (self.piano.sustained_notes_left or self.piano.active_notes_left) and not self.piano.glow_left_plus:
+            # Turn on glow if active or drawn notes are now outside the left boundary
+            drawn_left = any(n < self.piano.start_note for n in self.piano.drawn_notes)
+            if (self.piano.active_notes_left or drawn_left) and not self.piano.glow_left_plus:
                 self.piano.glow_left_plus = True
                 self.apply_button_glow(self.left_plus_btn, True)
 
@@ -2387,15 +2141,9 @@ class PianoMIDIViewer(QMainWindow):
             # Update range
             self.piano.end_note = new_end
 
-            # Move sustained notes that are now in range
-            notes_to_move = [n for n in self.piano.sustained_notes_right
-                           if self.piano.start_note <= n <= self.piano.end_note]
-            for note in notes_to_move:
-                self.piano.sustained_notes_right.discard(note)
-                self.piano.sustained_notes.add(note)
-
-            # Update right glow if no more sustained notes right
-            if not self.piano.active_notes_right and not self.piano.sustained_notes_right and self.piano.glow_right_plus:
+            # Update right glow if no more notes (active or drawn) remain outside
+            drawn_right = any(n > self.piano.end_note for n in self.piano.drawn_notes)
+            if not self.piano.active_notes_right and not drawn_right and self.piano.glow_right_plus:
                 self.piano.glow_right_plus = False
                 self.apply_button_glow(self.right_plus_btn, False)
 
@@ -2424,15 +2172,9 @@ class PianoMIDIViewer(QMainWindow):
             # Update range
             self.piano.end_note = new_end
 
-            # Move sustained notes that are now out of range
-            notes_to_move = [n for n in self.piano.sustained_notes
-                           if n > self.piano.end_note]
-            for note in notes_to_move:
-                self.piano.sustained_notes.discard(note)
-                self.piano.sustained_notes_right.add(note)
-
-            # Turn on glow if we have sustained notes right
-            if (self.piano.sustained_notes_right or self.piano.active_notes_right) and not self.piano.glow_right_plus:
+            # Turn on glow if active or drawn notes are now outside the right boundary
+            drawn_right = any(n > self.piano.end_note for n in self.piano.drawn_notes)
+            if (self.piano.active_notes_right or drawn_right) and not self.piano.glow_right_plus:
                 self.piano.glow_right_plus = True
                 self.apply_button_glow(self.right_plus_btn, True)
 
@@ -2523,25 +2265,6 @@ class PianoMIDIViewer(QMainWindow):
         # Esc exits pencil drawing tool
         if event.key() == Qt.Key.Key_Escape and self.pencil_active:
             self.toggle_pencil()
-            return
-
-        if event.key() == Qt.Key.Key_Shift and not event.isAutoRepeat():
-            if not self.shift_key_active:
-                # Shift key pressed - takeover from sustain button if active
-                if self.sustain_button_toggled:
-                    self.sustain_button_toggled = False
-
-                self.shift_key_active = True
-                self.update_sustain_button_visual()
-
-    def keyReleaseEvent(self, event):
-        """Handle keyboard key release events."""
-        if event.key() == Qt.Key.Key_Shift and not event.isAutoRepeat():
-            if self.shift_key_active:
-                self.shift_key_active = False
-                # Clear all sustained notes when shift released
-                self.clear_all_sustained_notes()
-                self.update_sustain_button_visual()
 
     def closeEvent(self, event):
         """Called when the window is closed. Clean up MIDI resources."""
@@ -2568,7 +2291,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 8.0.0")
+    print("Piano MIDI Viewer - Version 8.1.0")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")

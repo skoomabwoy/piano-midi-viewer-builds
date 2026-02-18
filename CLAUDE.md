@@ -6,9 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. It's designed for music education and online lessons via OBS.
 
-**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2600 lines).
+**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.0.0**
+**Current Version: 8.1.0**
+
+### Changes in 8.1.0
+- **Note highlight behavior**: Notes only highlight while physically pressed — sustain pedal no longer keeps notes lit
+- **S button**: Now a pure indicator — lights up when MIDI sustain pedal (CC 64) is held, not clickable
+- **Removed**: `sustained_notes`, `sustained_notes_left`, `sustained_notes_right` sets
+- **Removed**: `sustain_button_toggled`, `shift_key_active`, `is_sustain_active`, `toggle_sustain_button()`, `clear_all_sustained_notes()`
+- **Removed**: Shift key as sustain source, `keyReleaseEvent()`
+- **Removed**: Sustain note migration in octave add/remove methods
+- **Pencil + octave range**: Shrinking range now glows the + button if drawn notes fall outside; expanding clears it; deactivating pencil clears glows
+- **Import cleanup**: `QFontMetrics` moved to top-level import (was re-imported on every text render)
+- **Code cleanup**: Removed 100-line version changelog from module docstring, fixed stale comments
 
 ### Changes in 8.0.0
 - **UX rework**: Eliminated confusing mode system (Drawing/Playing) entirely
@@ -102,13 +113,9 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 - **Settings persistence**: All display preferences saved to config file
 
 ### Major Features (5.0.0)
-- **MIDI sustain pedal support**: Recognizes CC 64 messages to sustain notes
+- **MIDI sustain pedal support**: Recognizes CC 64 messages (indicator only as of 8.1.0)
 - **Mouse interaction**: Click keys to toggle them on/off, drag for glissando
-- **Shift key as sustain**: Hold Shift to sustain notes clicked with mouse
-- **Sustain button (S)**: Toggle sustain on/off with visual indicator
 - **Smart glissando**: ON mode (paint notes) or OFF mode (erase notes) determined by initial click
-- **Out-of-range sustain**: Notes sustained outside visible range stay highlighted when octave expanded
-- **Error correction**: Click/play sustained notes again to toggle them off
 
 ### Changes in 5.2.0
 - **Info link**: Clickable link to project repository in settings dialog (https://codeberg.org/skoomabwoy/piano-midi-viewer)
@@ -171,12 +178,10 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 
 1. **`PianoKeyboard` (QWidget)** - Custom widget that renders the piano keyboard
    - Draws white and black keys using QPainter
-   - Maintains seven note tracking sets:
+   - Maintains four note tracking sets:
      - `active_notes` - MIDI notes currently pressed (visible range)
      - `active_notes_left/right` - MIDI notes pressed outside visible range
-     - `sustained_notes` - Notes held by sustain (visible range)
-     - `sustained_notes_left/right` - Sustained notes outside visible range
-     - **NEW in 8.0:** `drawn_notes` - Notes marked by pencil tool (visible range only)
+     - `drawn_notes` - Notes marked by pencil tool (visible range only)
    - Mouse interaction tracking (`mouse_held_note`, `glissando_mode`)
    - Handles visual styling (colors, dimensions, rounded corners)
    - Renders note names and octave numbers with adaptive layout
@@ -188,11 +193,10 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - Manages MIDI connection and polling via QTimer
    - Controls keyboard note range (start_note, end_note)
    - Handles octave addition/removal (+/- buttons)
-   - Three sustain state booleans (`sustain_button_toggled`, `sustain_pedal_active`, `shift_key_active`)
-   - Property `is_sustain_active` - unified check for any sustain source
-   - **NEW in 8.0:** `pencil_active` - whether pencil drawing tool is active
+   - `sustain_pedal_active` - tracks CC 64 pedal state for the S indicator
+   - `pencil_active` - whether pencil drawing tool is active
    - Five note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`, `show_names_when_pressed`)
-   - Keyboard event handlers for Shift key and Esc key
+   - Keyboard event handler for Esc key (exits pencil tool)
    - Enforces window resize constraints in `resizeEvent()`
    - Three-column layout: ✎/+/- (left) | piano (center) | ⚙️/S/+/- (right)
 
@@ -376,10 +380,7 @@ Key additions in 5.0.0:
 - `PianoKeyboard._get_main_window()` - Helper to access parent window
 - `PianoKeyboard._get_note_at_position()` - Hit detection for mouse
 - `PianoKeyboard.mousePressEvent/MoveEvent/ReleaseEvent()` - Mouse interaction
-- `PianoMIDIViewer.is_sustain_active` - Property for unified sustain check
-- `PianoMIDIViewer.keyPressEvent/ReleaseEvent()` - Shift key handling
-- `PianoMIDIViewer.clear_all_sustained_notes()` - Clears all sustain sets
-- `PianoMIDIViewer.update_sustain_button_visual()` - Mode button appearance
+- `PianoMIDIViewer.update_sustain_button_visual()` - S button indicator appearance
 
 Key additions in 5.2.0:
 - Import of `QUrl` and `QDesktopServices` from PyQt6 for URL handling
@@ -430,14 +431,12 @@ When adding/removing octaves:
 - Note Off: Status byte 0x80, or 0x90 with velocity = 0
 - Control Change: Status byte 0xB0 (for sustain pedal, CC 64)
 
-**Seven note tracking sets:**
+**Four note tracking sets:**
 - `active_notes` - MIDI notes currently pressed (visible range)
 - `active_notes_left/right` - Notes pressed outside visible range
-- `sustained_notes` - Notes held by sustain (visible range)
-- `sustained_notes_left/right` - Sustained notes outside visible range
-- `drawn_notes` - Notes marked by pencil tool (visible range only, no left/right)
+- `drawn_notes` - Notes marked by pencil tool (visible range only)
 
-**Pencil Tool (NEW in 8.0.0):**
+**Pencil Tool:**
 The pencil button (left side, SVG icon) activates a drawing tool independent from playing:
 - Click pencil button to enter/exit drawing mode
 - Press Esc to exit drawing mode
@@ -449,36 +448,23 @@ The pencil button (left side, SVG icon) activates a drawing tool independent fro
 - MIDI Note Off is ignored (marks persist)
 - Exiting clears all drawn marks and playing state
 
-**Sustain Button (NEW in 8.0.0):**
-The sustain button "S" (right side, under settings) is a simple toggle:
-- Click to activate, click again to deactivate
-- Lights up when sustain is active from any source
-- No hold-to-activate, no mode-dependent behavior
-
-**Sustain Sources (OR logic):**
-- Click sustain button "S"
-- Hold MIDI sustain pedal (CC 64 >= 64)
-- Hold Shift key
+**Sustain Indicator (S button):**
+- S button is a read-only indicator — not clickable
+- Lights up when MIDI sustain pedal (CC 64 >= 64) is held
+- Does not affect note highlighting
 
 **Playing Behavior (default, no pencil):**
-- Notes highlight while pressed, unhighlight on release
-- When sustain active: released notes move to `sustained_notes` (stay highlighted)
-- Pressing a sustained note again toggles it off (error correction)
-- Releasing sustain clears all sustained notes
-
-**Takeover behavior:**
-- Pressing pedal/Shift while sustain button is toggled → sustain button turns off, control transfers
+- Notes highlight only while physically pressed, go dark immediately on release
+- Mouse click highlights a key while held, clears on release
 
 **Out-of-range indicators:**
 - When notes are played outside the visible range, the corresponding + button glows
-- Glow persists for sustained notes (even when key released)
-- When octave expanded, sustained notes appear highlighted
+- In pencil mode: shrinking the range glows the + button if drawn notes fall outside; deactivating pencil clears the glow
 
 ### Mouse Interaction
 
 **Click behavior (playing, no pencil):**
-- Without sustain: Click highlights note, release clears it (or moves to sustained if sustain active)
-- With sustain: Click sustained note to toggle it off (error correction)
+- Click highlights note while held, clears on release
 
 **Click behavior (pencil active):**
 - Left click: adds note to `drawn_notes`, sets `glissando_mode = 'on'`
