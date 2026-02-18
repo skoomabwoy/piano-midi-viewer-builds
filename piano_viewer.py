@@ -1585,7 +1585,7 @@ class PianoMIDIViewer(QMainWindow):
         self.sustain_button.setToolTip("Sustain pedal indicator — lights up when your sustain pedal is held")
         self.sustain_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
         self.sustain_button.setFont(button_font)
-        self.sustain_button.setStyleSheet(button_style)
+        self.sustain_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         right_layout.addWidget(self.settings_button, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.sustain_button, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -1615,6 +1615,7 @@ class PianoMIDIViewer(QMainWindow):
         main_layout.addWidget(right_container)
 
         self.update_button_states()
+        self.update_sustain_button_visual()
 
     def open_settings(self):
         """Opens the settings dialog."""
