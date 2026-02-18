@@ -242,7 +242,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
   - Control Change (0xB0) for sustain pedal (CC 64)
 - Updates note sets and triggers repaints
 - Out-of-range notes trigger button glow effects
-- Sustain pedal (CC 64 >= 64) moves released notes to sustained sets
+- Sustain pedal (CC 64 >= 64) sets `sustain_pedal_active` and updates S indicator (no note migration)
 
 **Dynamic Range**: Keyboard supports 3-7 octave display
 - Default: 3 octaves (C3-B5, MIDI 48-83)
@@ -319,7 +319,7 @@ Key changes in 8.0.0:
 - `PianoMIDIViewer.pencil_active` - Whether pencil tool is active
 - `PianoMIDIViewer.toggle_pencil()` - Enters/exits pencil drawing tool
 - `PianoMIDIViewer.update_pencil_button_visual()` - Updates pencil button icon color and lit/unlit state
-- `PianoMIDIViewer.toggle_sustain_button()` - Simple sustain toggle (replaces complex eventFilter)
+- `PianoMIDIViewer.toggle_sustain_button()` - Simple sustain toggle (replaces complex eventFilter) — **removed in 8.1.0**
 - `create_pencil_cursor()` - SVG-rendered pencil cursor (uses `PENCIL_SVG`, `CURSOR_OUTLINE_COLOR`, `CURSOR_FILL_COLOR`)
 - `create_eraser_cursor()` - SVG-rendered eraser cursor (uses `ERASER_SVG`, `CURSOR_OUTLINE_COLOR`, `CURSOR_FILL_COLOR`)
 - `create_pencil_icon()` - SVG pencil icon for button with color parameter (transparent fill, colored outline)
@@ -332,8 +332,8 @@ Key changes in 8.0.0:
 - Removed: Drawing mode checkbox from SettingsDialog, `[behavior]` settings section
 - Removed: `QPolygonF`, `QPointF` imports (QPainter-drawn cursors replaced by SVG)
 - `BUTTON_SIZE` reduced from 44 to 36, `MIN_BUTTON_AREA_HEIGHT` now 4 buttons + 3 gaps
-- Modified `handle_note_on()` - Pencil mode toggles drawn_notes, playing mode has sustain error correction
-- Modified `handle_note_off()` - Pencil mode ignores Note Off, playing mode always sustains when active
+- Modified `handle_note_on()` - Pencil mode toggles drawn_notes, playing mode adds to active_notes
+- Modified `handle_note_off()` - Pencil mode ignores Note Off, playing mode removes from active_notes
 - Modified mouse events - Left click draws, right click erases (replaces detect-initial-target logic)
 - Highlight check now includes `drawn_notes` in all rendering methods, guarded for erase mode
 - Button layout: pencil icon (left top), sustain "S" (right under settings)
