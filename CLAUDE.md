@@ -6,9 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. It's designed for music education and online lessons via OBS.
 
-**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2100 lines).
+**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2600 lines).
 
-**Current Version: 7.0.0**
+**Current Version: 8.0.0**
+
+### Changes in 8.0.0
+- **UX rework**: Eliminated confusing mode system (Drawing/Playing) entirely
+- **Default behavior**: Keys highlight while pressed, sustain works independently
+- **Pencil tool**: Separate drawing tool with dedicated button on the left side
+- **Pencil button**: SVG icon (not text glyph), click to enter/exit drawing, Esc to exit, marks cleared on exit
+- **Custom cursors**: SVG-based pencil and eraser cursors rendered via `_render_svg_to_pixmap()`
+- **Cursor colors**: Configurable via `CURSOR_OUTLINE_COLOR` and `CURSOR_FILL_COLOR` constants
+- **Left/right click**: Left click draws (pencil cursor), right click erases (eraser cursor)
+- **Erase mode**: Keys under cursor do not highlight during erase (guarded by `glissando_mode != 'off'`)
+- **Drawn notes**: Separate `drawn_notes` set in PianoKeyboard, independent from playing
+- **Sustain moved**: Sustain button "S" now on right side under settings
+- **Sustain always toggle**: Simple click to toggle, no hold-to-activate, no mode-dependent behavior
+- **Sustain works in playing**: Sustain now moves released notes to sustained_notes (was restricted to Drawing mode)
+- **Button layout**: Pencil + octaves (left), Settings + Sustain + octaves (right)
+- **Button size**: Reduced from 44px to 36px to fit 4 buttons per column
+- **Removed**: Mode switching, eventFilter, Drawing mode checkbox, [behavior] settings section
+- **Removed**: QPainter-drawn cursors, QPolygonF/QPointF, ERASER_CURSOR_DELAY, _eraser_cursor_timer, _eraser_cursor_shown
 
 ### Changes in 7.0.0
 - **Two modes**: Drawing mode (for teaching) and Playing mode (for performance)
@@ -153,11 +171,12 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 
 1. **`PianoKeyboard` (QWidget)** - Custom widget that renders the piano keyboard
    - Draws white and black keys using QPainter
-   - Maintains six note tracking sets:
+   - Maintains seven note tracking sets:
      - `active_notes` - MIDI notes currently pressed (visible range)
      - `active_notes_left/right` - MIDI notes pressed outside visible range
      - `sustained_notes` - Notes held by sustain (visible range)
      - `sustained_notes_left/right` - Sustained notes outside visible range
+     - **NEW in 8.0:** `drawn_notes` - Notes marked by pencil tool (visible range only)
    - Mouse interaction tracking (`mouse_held_note`, `glissando_mode`)
    - Handles visual styling (colors, dimensions, rounded corners)
    - Renders note names and octave numbers with adaptive layout
@@ -171,20 +190,19 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - Handles octave addition/removal (+/- buttons)
    - Three sustain state booleans (`sustain_button_toggled`, `sustain_pedal_active`, `shift_key_active`)
    - Property `is_sustain_active` - unified check for any sustain source
+   - **NEW in 8.0:** `pencil_active` - whether pencil drawing tool is active
    - Five note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`, `show_names_when_pressed`)
-   - **NEW in 6.4:** `sticky_sustain` - Mode setting (True=Drawing mode, False=Playing mode)
-   - Keyboard event handlers for Shift key press/release
+   - Keyboard event handlers for Shift key and Esc key
    - Enforces window resize constraints in `resizeEvent()`
-   - Three-column layout: Mode button/+/- (left) | piano (center) | ⚙️/+/- (right)
+   - Three-column layout: ✎/+/- (left) | piano (center) | ⚙️/S/+/- (right)
 
 3. **`SettingsDialog` (QDialog)** - Configuration interface
    - MIDI device selection with refresh button
    - Highlight color picker (QColorDialog)
-   - **NEW in 6.0:** Show Octave Numbers checkbox (default: ON)
-   - **NEW in 6.0:** White Key Names checkbox (default: ON)
-   - **NEW in 6.0:** Black Key Names checkbox (default: OFF)
-   - **NEW in 6.0:** Black key notation dropdown (♭ Flats / ♯ Sharps / Both)
-   - **NEW in 6.4:** Drawing mode checkbox (default: ON) - controls sustain behavior mode
+   - Show Octave Numbers checkbox (default: ON)
+   - White Key Names checkbox (default: ON)
+   - Black Key Names checkbox (default: OFF)
+   - Black key notation dropdown (♭ Flats / ♯ Sharps / Both)
    - Project info link (opens browser to Codeberg repository)
 
 4. **Helper functions** - MIDI note calculations and text rendering
@@ -254,8 +272,15 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 **Icon Generation**: All icons created at runtime from embedded SVG
 - `create_piano_icon()` - App icon (piano keys in Arch Blue)
 - `create_settings_icon()` - Cogwheel gear for settings button (CC0 from SVG Repo)
-- No external icon files needed
-- Ensures identical appearance across Windows/Linux
+- `create_pencil_cursor()` - SVG pencil cursor, white fill + colored outline, tip at bottom-left
+- `create_eraser_cursor()` - SVG eraser cursor, white fill + colored outline, edge at bottom-left
+- `create_pencil_icon()` - SVG pencil icon for button (transparent fill, color-aware outline)
+- `_render_svg_to_pixmap()` - Shared SVG-to-QPixmap renderer (injects width/height, uses loadFromData)
+- `PENCIL_SVG`, `ERASER_SVG` - Embedded SVG string constants (source files: `pencil.svg`, `eraser.svg`)
+- Cursor SVGs use two-layer approach: white fill path (opaque interior) + black detail path on top
+- Button icon strips white fill (`fill="none"`) for transparent background on button
+- No external icon files needed at runtime (SVGs embedded as strings)
+- Ensures identical appearance across all platforms
 
 **Button Typography**: All button labels (S, +, −) use JetBrains Mono for cross-platform consistency
 
@@ -264,8 +289,8 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 The file is organized in clearly marked sections with comment banners:
 
 ```
-CONSTANTS         - Sizing, colors, MIDI ranges, window margins
-APP ICONS         - SVG-based icons (create_piano_icon, create_settings_icon)
+CONSTANTS         - Sizing, colors, MIDI ranges, window margins, cursor sizing/colors
+APP ICONS         - SVG-based icons and cursors (piano, settings, pencil, eraser)
 HELPER FUNCTIONS  - MIDI note utilities (is_black_key, count_white_keys, etc.)
 SETTINGS DIALOG   - Configuration UI (SettingsDialog class)
 PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
@@ -280,18 +305,34 @@ Key additions in 6.3.4:
 - Minimum window height now uses `max(key_based_height, MIN_WINDOW_HEIGHT)`
 - `PianoMIDIViewer-macos.spec` - PyInstaller spec file for macOS builds
 
-Key additions in 7.0.0:
-- `PianoMIDIViewer.sticky_sustain` - Boolean setting for mode (True=Drawing, False=Playing)
-- `PianoMIDIViewer.update_sustain_button_text()` - Updates Mode button icon (✎/♪) and tooltip based on mode
-- `PianoMIDIViewer.eventFilter()` - Handles Mode button mouse events (right-click=mode switch, left=sustain)
-- `SettingsDialog.sticky_sustain_checkbox` - "Drawing mode" checkbox control in Settings
-- `SettingsDialog.toggle_sticky_sustain()` - Callback for the checkbox
-- Removed `toggle_sustain_button()` - Replaced by eventFilter for full mouse control
-- Modified `handle_note_on()` - Only toggles off sustained notes in Drawing mode (including out-of-range notes)
-- Modified `handle_note_off()` - Only moves notes to sustained_notes in Drawing mode
-- Modified `PianoKeyboard.mousePressEvent()` - Checks mode for toggle behavior
-- Extended `save_settings()` and `load_settings()` with new `[behavior]` section
-- Playing mode: Mode button acts like a pedal (lit while held, not toggle)
+Key changes in 8.0.0:
+- `PianoKeyboard.drawn_notes` - New set for pencil tool marks (visible range only)
+- `PianoKeyboard` - `setContextMenuPolicy(PreventContextMenu)` to block right-click menu
+- `PianoMIDIViewer.pencil_active` - Whether pencil tool is active
+- `PianoMIDIViewer.toggle_pencil()` - Enters/exits pencil drawing tool
+- `PianoMIDIViewer.update_pencil_button_visual()` - Updates pencil button icon color and lit/unlit state
+- `PianoMIDIViewer.toggle_sustain_button()` - Simple sustain toggle (replaces complex eventFilter)
+- `create_pencil_cursor()` - SVG-rendered pencil cursor (uses `PENCIL_SVG`, `CURSOR_OUTLINE_COLOR`, `CURSOR_FILL_COLOR`)
+- `create_eraser_cursor()` - SVG-rendered eraser cursor (uses `ERASER_SVG`, `CURSOR_OUTLINE_COLOR`, `CURSOR_FILL_COLOR`)
+- `create_pencil_icon()` - SVG pencil icon for button with color parameter (transparent fill, colored outline)
+- `_render_svg_to_pixmap()` - Shared helper to render SVG string to QPixmap at given size
+- `PENCIL_SVG` - Embedded pencil SVG constant (source: `pencil.svg` from SVG Repo)
+- `ERASER_SVG` - Embedded eraser SVG constant (source: `eraser.svg` from SVG Repo)
+- Constants: `CURSOR_SIZE` (24), `CURSOR_OUTLINE_COLOR` ('#707070'), `CURSOR_FILL_COLOR` ('#ffffff')
+- Removed: `sticky_sustain`, `update_sustain_button_text()`, `eventFilter()`, `toggle_sticky_sustain()`
+- Removed: `_eraser_cursor_shown`, `_eraser_cursor_timer`, `_show_eraser_cursor()`, `ERASER_CURSOR_DELAY`
+- Removed: Drawing mode checkbox from SettingsDialog, `[behavior]` settings section
+- Removed: `QPolygonF`, `QPointF` imports (QPainter-drawn cursors replaced by SVG)
+- `BUTTON_SIZE` reduced from 44 to 36, `MIN_BUTTON_AREA_HEIGHT` now 4 buttons + 3 gaps
+- Modified `handle_note_on()` - Pencil mode toggles drawn_notes, playing mode has sustain error correction
+- Modified `handle_note_off()` - Pencil mode ignores Note Off, playing mode always sustains when active
+- Modified mouse events - Left click draws, right click erases (replaces detect-initial-target logic)
+- Highlight check now includes `drawn_notes` in all rendering methods, guarded for erase mode
+- Button layout: pencil icon (left top), sustain "S" (right under settings)
+
+Key additions in 7.0.0 (superseded by 8.0.0):
+- Mode system (Drawing/Playing) — removed in 8.0.0
+- eventFilter for mode button — removed in 8.0.0
 
 Key additions in 6.3.3:
 - `update_sustain_button_visual()` - Now uses `get_text_color_for_highlight()` for adaptive text color
@@ -389,43 +430,44 @@ When adding/removing octaves:
 - Note Off: Status byte 0x80, or 0x90 with velocity = 0
 - Control Change: Status byte 0xB0 (for sustain pedal, CC 64)
 
-**Six note tracking sets:**
+**Seven note tracking sets:**
 - `active_notes` - MIDI notes currently pressed (visible range)
 - `active_notes_left/right` - Notes pressed outside visible range
 - `sustained_notes` - Notes held by sustain (visible range)
 - `sustained_notes_left/right` - Sustained notes outside visible range
+- `drawn_notes` - Notes marked by pencil tool (visible range only, no left/right)
 
-**Mode Button (NEW in 7.0.0):**
-The Mode button (left side of window) has three functions:
-1. **Shows current mode icon** - ✎ (pencil) for Drawing mode, ♪ (note) for Playing mode
-2. **Sustain indicator** - Lights up when sustain is active (both modes)
-3. **Sustain control** - Toggle sustain on/off (Drawing mode) or hold-to-activate (Playing mode)
+**Pencil Tool (NEW in 8.0.0):**
+The pencil button (left side, SVG icon) activates a drawing tool independent from playing:
+- Click pencil button to enter/exit drawing mode
+- Press Esc to exit drawing mode
+- Cursor changes to pencil cursor when active
+- Left click/drag draws notes, right click/drag erases notes
+- Eraser cursor shown during right-click erase, restores to pencil on release
+- Keys under cursor do NOT highlight during erase (guarded by `glissando_mode != 'off'`)
+- MIDI Note On toggles notes in `drawn_notes` (visible range only)
+- MIDI Note Off is ignored (marks persist)
+- Exiting clears all drawn marks and playing state
 
-Right-click the Mode button to switch between modes.
+**Sustain Button (NEW in 8.0.0):**
+The sustain button "S" (right side, under settings) is a simple toggle:
+- Click to activate, click again to deactivate
+- Lights up when sustain is active from any source
+- No hold-to-activate, no mode-dependent behavior
 
 **Sustain Sources (OR logic):**
-- Click/hold Mode button
+- Click sustain button "S"
 - Hold MIDI sustain pedal (CC 64 >= 64)
 - Hold Shift key
 
-**Two modes (NEW in 7.0.0):**
-
-*Drawing Mode (✎, default):* For teaching/marking notes
-- Note Off events move notes to `sustained_notes` (stay highlighted)
+**Playing Behavior (default, no pencil):**
+- Notes highlight while pressed, unhighlight on release
+- When sustain active: released notes move to `sustained_notes` (stay highlighted)
 - Pressing a sustained note again toggles it off (error correction)
-- Glissando paints/erases notes in `sustained_notes`
-- Out-of-range sustained notes tracked invisibly
 - Releasing sustain clears all sustained notes
 
-*Playing Mode (♪):* For playing/demonstration
-- Notes highlight only while pressed (like a real piano)
-- Sustain indicator lights up but doesn't affect note behavior
-- No toggle behavior - pressing a key multiple times just re-triggers
-- Keys immediately un-highlight when released
-
 **Takeover behavior:**
-- Pressing pedal/Shift while Mode button is toggled → Mode button turns off, control transfers
-- Clicking Mode button while holding pedal/Shift → Mode button toggles on (makes it sticky)
+- Pressing pedal/Shift while sustain button is toggled → sustain button turns off, control transfers
 
 **Out-of-range indicators:**
 - When notes are played outside the visible range, the corresponding + button glows
@@ -434,21 +476,30 @@ Right-click the Mode button to switch between modes.
 
 ### Mouse Interaction
 
-**Click behavior:**
-- Without sustain: Click highlights note, release clears it
-- With sustain in Drawing mode: Click toggles note on/off (stays highlighted until clicked again or sustain released)
-- With sustain in Playing mode: Same as without sustain (highlights only while held)
+**Click behavior (playing, no pencil):**
+- Without sustain: Click highlights note, release clears it (or moves to sustained if sustain active)
+- With sustain: Click sustained note to toggle it off (error correction)
 
-**Glissando (drag) behavior (Drawing mode only):**
-Determined by initial click:
-- Start on **empty note** → ON glissando (drag paints notes)
-- Start on **highlighted note** → OFF glissando (drag erases notes)
+**Click behavior (pencil active):**
+- Left click: adds note to `drawn_notes`, sets `glissando_mode = 'on'`
+- Right click: removes note from `drawn_notes`, sets `glissando_mode = 'off'`, shows eraser cursor
+- Other mouse buttons ignored
 
-Mode is locked for entire drag:
-- ON glissando: Only adds notes, ignores already-highlighted notes
-- OFF glissando: Only removes notes, ignores already-empty notes
+**Glissando (drag) behavior (pencil tool):**
+Determined by mouse button:
+- **Left drag** → ON glissando (paints notes, pencil cursor stays)
+- **Right drag** → OFF glissando (erases notes, eraser cursor shown)
+
+Mode is locked for entire drag (determined by initial button press):
+- ON glissando: Only adds notes to `drawn_notes`
+- OFF glissando: Only removes notes from `drawn_notes`
 - Grey background gaps ignored (glissando continues across them)
-- In Playing mode: No glissando mode set, just tracks current note
+- In playing mode (no pencil): left drag moves active note to new key
+
+**Eraser cursor behavior:**
+- Right mouse button press: cursor immediately switches to eraser
+- Right mouse button release: cursor restores to pencil
+- No delay timer, no hold-to-show logic
 
 **Hit detection (5.0.1 enhancement):**
 - Black keys checked first (drawn on top, so take priority)
@@ -459,8 +510,10 @@ Mode is locked for entire drag:
 ## Styling Conventions
 
 - **Arch Blue** default highlight: `#5094d4` (QColor(80, 148, 212))
-- **Button size**: Fixed 44px (BUTTON_SIZE constant)
-- **Button icons**: Font size is 70% of button size (ICON_SIZE_RATIO = 0.7)
+- **Button size**: Fixed 36px (BUTTON_SIZE constant, reduced from 44px in 8.0.0)
+- **Button icons**: Font size is 90% of button size (ICON_SIZE_RATIO = 0.9); pencil button uses SVG icon at 70% of button size
+- **Cursor outline**: `CURSOR_OUTLINE_COLOR` (`#707070`) — matches button border color
+- **Cursor fill**: `CURSOR_FILL_COLOR` (`#ffffff`) — opaque white interior so cursors are visible on black keys
 - **Layout margins**: Hardcoded at 5px (LAYOUT_MARGIN), don't scale with window
 - **Key corner radius**: 8% of key width with 4px minimum (KEY_CORNER_RADIUS_RATIO = 0.08)
 - **Keyboard canvas**: Grey background (120, 120, 120), 4px margin, 6px rounded corners
@@ -476,6 +529,6 @@ Mode is locked for entire drag:
 - No test suite currently exists
 - All UI strings are hardcoded (no i18n)
 - MIDI device connection errors print to console
-- Version number in docstring (currently 6.2.0)
+- Version number in docstring (currently 8.0.0)
 - Extensive inline comments for educational purposes and code continuity
 - Cross-platform: Linux (run from source) and Windows (standalone .exe)

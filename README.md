@@ -1,21 +1,21 @@
 # Piano MIDI Viewer
 
-A virtual piano keyboard that displays MIDI input in real-time. Built for music education, online lessons, and video content.
+A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and video lessons.
 
-![Version](https://img.shields.io/badge/version-7.0.0-blue)
+![Version](https://img.shields.io/badge/version-8.0.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
 ## Features
 
-- 🎹 **MIDI input** — real-time key visualization
-- 🖱️ **Mouse support** — click and drag to highlight keys
-- ✏️ **Two modes** — Drawing (notes stay lit) and Playing (real-time only)
-- 🔠 **Key labels** — note names, octave numbers, sharps & flats
-- 👇 **Show on press** — display labels only on active keys
-- 🎨 **Custom colors** — with automatic text contrast
-- 🎵 **Sustain** — via pedal, Shift key, or Mode button
-- ↔️ **Octave range** — adjustable from A0 to C8
+- 🎹 **MIDI input** — connect your digital piano or MIDI keyboard and see which keys you press in real time
+- 🖱️ **Mouse support** — click on any key to highlight it, drag across keys to glide
+- ✏️ **Pencil tool** — toggle the pencil tool to start marking keys; left-click to mark, right-click to erase, press Esc to exit
+- 🔠 **Key labels** — show or hide note names, octave numbers, sharps and flats
+- 👇 **Show on press** — only show labels on keys that you are currently pressing
+- 🎨 **Custom colors** — pick any highlight color; text adjusts automatically so it's always easy to read
+- 🎵 **Sustain** — keep notes highlighted after you let go; click the S button, hold Shift on your computer keyboard, or use your piano's sustain pedal
+- ↔️ **Octave range** — use the + and − buttons to show more or fewer octaves (from A0 up to C8)
 
 ## Screenshots
 
@@ -25,11 +25,11 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 
 <img src="screenshots/sustained-blue-2-octaves.png" height="250">
 
-*Playing mode (♪), Arch Blue, 2 octaves, showing sharps*
+*Arch Blue, 2 octaves, showing sharps*
 
-<img src="screenshots/sustained-red-4-octaves.png" height="200">
+<img src="screenshots/pencil-tool-red-4-octaves.png" height="200">
 
-*Drawing mode (✎), red, 4 octaves, flats, labels only on active keys*
+*Red, pencil tool active, 4 octaves, flats, labels only on pressed keys*
 
 <img src="screenshots/sustained-teal.png" height="250">
 
@@ -39,45 +39,51 @@ A virtual piano keyboard that displays MIDI input in real-time. Built for music 
 
 <img src="screenshots/settings.png" height="400">
 
-*MIDI device, colors, display options, and mode selection*
+*MIDI device, colors, and display options*
 
 ## Download
 
-Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and download the standalone app for your system:
+Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and download the app for your system. **No installation needed** — just download and run.
 
-| Platform | Download | Notes |
-|----------|----------|-------|
-| **Windows** | `PianoMIDIViewer.exe` | Double-click to run |
-| **Linux** | `PianoMIDIViewer` | Make executable, then run (see below) |
-| **macOS** | `PianoMIDIViewer.app.zip` | Unzip, then run (see below) |
+### Windows
 
-**No installation required.** Just download and run.
+1. Download **PianoMIDIViewer.exe**
+2. Double-click the file to open it
 
-### Linux: First Run
+> If Windows shows a "Windows protected your PC" warning, click **More info** → **Run anyway**. This happens because the app is not signed with a Microsoft certificate — but it is still safe to run.
 
-After downloading, make the file executable (one-time):
+### macOS
 
+1. Download **PianoMIDIViewer.app.zip**
+2. Double-click the zip file to unzip it
+3. Right-click **PianoMIDIViewer.app** and choose **Open**
+
+> If macOS shows a warning that the app "can't be opened", follow these extra steps (only needed once):
+>
+> 4. Open **Terminal** (press `Cmd + Space`, type `Terminal`, press Enter)
+> 5. Type "xattr -cr " (with a space at the end), then **drag the PianoMIDIViewer.app icon into the Terminal window** — this will add a path to the folder with the app
+> 6. Press Enter
+> 7. Now right-click the app again and choose **Open**
+>
+> This happens because the app is not signed with an Apple certificate — but it is still safe to run.
+
+
+### Linux
+
+1. Download **PianoMIDIViewer**
+2. Right-click the file → Properties → Permissions → check **"Allow executing as program"**
+3. Double-click the file to open it
+
+Or if you prefer the terminal:
 ```bash
 chmod +x PianoMIDIViewer
 ./PianoMIDIViewer
 ```
 
-Or right-click the file → Properties → Permissions → "Allow executing as program"
-
-### macOS: First Run
-
-After unzipping, remove the quarantine flag (required for unsigned apps):
-
-```bash
-xattr -cr /path/to/PianoMIDIViewer.app
-```
-
-Then right-click the app → Open (first time only).
-
 <details>
-<summary><b>Alternative: Run from source</b></summary>
+<summary><b>Alternative: Run from source (for power users)</b></summary>
 
-If you prefer running from source (requires Python 3.8+):
+Requires Python 3.8+:
 
 ```bash
 git clone https://codeberg.org/skoomabwoy/piano-midi-viewer.git
@@ -90,23 +96,11 @@ python piano_viewer.py
 
 </details>
 
-## Usage
-
-| Control | Action |
-|---------|--------|
-| **⚙️ Settings** | MIDI device, colors, display options |
-| **Mode button (✎/♪)** | Drawing mode: toggle sustain. Playing mode: hold to sustain. Right-click to switch modes |
-| **+/− buttons** | Add/remove octaves |
-| **Click** | Highlight key (toggle with sustain) |
-| **Drag** | Glissando — paint or erase notes |
-| **Shift** | Hold for temporary sustain |
-| **MIDI pedal** | Sustain (CC 64) |
-
 ## Technical Details
 
 | | |
 |-|-|
-| Architecture | Single file (`piano_viewer.py`, ~2100 lines) |
+| Architecture | Single file (`piano_viewer.py`, ~2600 lines) |
 | Framework | PyQt6, python-rtmidi |
 | Font | JetBrains Mono (embedded) |
 | MIDI range | A0–C8 (notes 21–108) |
@@ -116,6 +110,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.0.0** — UX rework: pencil tool, independent sustain, custom drawn cursors (pencil + eraser)
 **7.0.0** — Drawing/Playing modes, Mode button with sustain control
 **6.3.5** — macOS docs fix (xattr command for Gatekeeper)
 **6.3.4** — macOS support, dynamic key gaps, cross-platform fixes
