@@ -8,7 +8,19 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.2.2**
+**Current Version: 8.3.0**
+
+### Changes in 8.3.0
+- **Persistent MIDI scanner**: Single `rtmidi.MidiIn()` instance reused for all port listing — eliminates ALSA sequencer handle leaks
+- **ALSA leak fix**: Removed all temporary `rtmidi.MidiIn()` creation from `scan_midi_devices()`, `get_midi_devices()`, `setup_device_scanning()`
+- **Connect-before-disconnect**: `connect_midi_device()` verifies new device exists before closing old connection — failed connections no longer leave the app disconnected
+- **Return value**: `connect_midi_device()` returns `True`/`False` for callers to react to failures
+- **Dropdown auto-refresh**: Failed connection triggers `populate_midi_devices()` to remove stale entries
+- **Dropdown revert**: On failed connection, dropdown reverts to the currently working device
+- **MIDI status in Settings**: "Device not found" shown in red next to "MIDI Input Device:" label (auto-clears after 3s)
+- **Non-modal Settings**: Changed from `dialog.exec()` to `dialog.show()` — MIDI input keeps working while Settings is open
+- **Settings singleton**: Prevents opening multiple Settings windows (raises existing if visible)
+- **Signal blocking**: `populate_midi_devices()` uses `blockSignals()` to prevent unwanted reconnection during list rebuild
 
 ### Changes in 8.2.2
 - **Restart fix for compiled builds**: `restart_app()` now handles PyInstaller frozen binaries correctly

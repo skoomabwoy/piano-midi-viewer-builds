@@ -30,7 +30,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # ============================================================================
 
 # VERSION
-VERSION = "8.2.2"
+VERSION = "8.3.0"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -676,7 +676,14 @@ class SettingsDialog(QDialog):
         layout.setSpacing(15)
 
         # MIDI INPUT
+        midi_header = QHBoxLayout()
         midi_label = QLabel("MIDI Input Device:")
+        self.midi_status = QLabel("")
+        self.midi_status.setStyleSheet("color: #cc3333;")
+        midi_header.addWidget(midi_label)
+        midi_header.addStretch()
+        midi_header.addWidget(self.midi_status)
+
         midi_layout = QHBoxLayout()
 
         self.midi_dropdown = QComboBox()
@@ -691,7 +698,7 @@ class SettingsDialog(QDialog):
         midi_layout.addWidget(self.midi_dropdown, 1)
         midi_layout.addWidget(refresh_btn)
 
-        layout.addWidget(midi_label)
+        layout.addLayout(midi_header)
         layout.addLayout(midi_layout)
 
         # HIGHLIGHT COLOR
@@ -829,6 +836,7 @@ class SettingsDialog(QDialog):
 
     def populate_midi_devices(self):
         """Scans for available MIDI input devices."""
+        self.midi_dropdown.blockSignals(True)
         self.midi_dropdown.clear()
         devices = self.main_window.get_midi_devices()
 
@@ -842,6 +850,7 @@ class SettingsDialog(QDialog):
             index = self.midi_dropdown.findText(self.main_window.current_midi_device)
             if index >= 0:
                 self.midi_dropdown.setCurrentIndex(index)
+        self.midi_dropdown.blockSignals(False)
 
     def refresh_midi_devices(self):
         """Rescans for MIDI devices."""
@@ -850,8 +859,14 @@ class SettingsDialog(QDialog):
     def midi_device_changed(self, index):
         """Called when user selects a different MIDI device."""
         device_name = self.midi_dropdown.currentText()
-        if device_name != "No MIDI devices found":
-            self.main_window.connect_midi_device(device_name)
+        if device_name and device_name != "No MIDI devices found":
+            if self.main_window.connect_midi_device(device_name):
+                self.midi_status.setText("")
+            else:
+                # Connection failed — show status, revert dropdown, refresh list
+                self.midi_status.setText("Device not found")
+                QTimer.singleShot(3000, lambda: self.midi_status.setText(""))
+                self.populate_midi_devices()
 
     def choose_color(self):
         """Opens color picker dialog."""
@@ -1656,6 +1671,7 @@ class PianoMIDIViewer(QMainWindow):
 
         self._in_resize_event = False  # Guard against recursion
         self.midi_in = None
+        self.midi_scanner = None  # Persistent MidiIn for port listing (never opens a port)
         self.current_midi_device = None
         self.midi_timer = None
         self.known_midi_devices = []
@@ -1823,9 +1839,12 @@ class PianoMIDIViewer(QMainWindow):
         self.update_sustain_button_visual()
 
     def open_settings(self):
-        """Opens the settings dialog."""
-        dialog = SettingsDialog(self)
-        dialog.exec()
+        """Opens the settings dialog (non-modal so MIDI keeps working)."""
+        if hasattr(self, '_settings_dialog') and self._settings_dialog.isVisible():
+            self._settings_dialog.raise_()
+            return
+        self._settings_dialog = SettingsDialog(self)
+        self._settings_dialog.show()
 
     def load_settings(self):
         """
@@ -2043,49 +2062,48 @@ class PianoMIDIViewer(QMainWindow):
     # MIDI FUNCTIONALITY
 
     def get_midi_devices(self):
-        """Scans for available MIDI input devices."""
+        """Returns list of available MIDI input devices using persistent scanner."""
         try:
-            midi_in = rtmidi.MidiIn()
-            ports = midi_in.get_ports()
-            del midi_in
-            return ports
+            if not self.midi_scanner:
+                self.midi_scanner = rtmidi.MidiIn()
+            return self.midi_scanner.get_ports()
         except Exception as e:
             print(f"Error scanning MIDI devices: {e}")
             return []
 
     def connect_midi_device(self, device_name):
-        """Connects to the specified MIDI input device."""
+        """Connects to the specified MIDI input device.
+        Returns True on success, False on failure."""
+        # Check availability using the persistent scanner
+        ports = self.get_midi_devices()
+        if device_name not in ports:
+            print(f"Device not found: {device_name}")
+            self.show_status_message(f"Not found: {device_name}")
+            return False
+
+        try:
+            new_midi_in = rtmidi.MidiIn()
+            port_index = ports.index(device_name)
+            new_midi_in.open_port(port_index)
+        except Exception as e:
+            print(f"Error connecting to MIDI device: {e}")
+            self.show_status_message(f"Connection failed: {device_name}")
+            return False
+
+        # New connection succeeded — now close the old one
         if self.midi_in:
             try:
                 self.midi_in.close_port()
             except Exception:
-                # Ignore errors when closing old port (device may already be disconnected)
                 pass
             del self.midi_in
-            self.midi_in = None
 
-        try:
-            self.midi_in = rtmidi.MidiIn()
-            ports = self.midi_in.get_ports()
-
-            if device_name in ports:
-                port_index = ports.index(device_name)
-                self.midi_in.open_port(port_index)
-                self.current_midi_device = device_name
-                self.known_midi_devices = list(ports)
-                print(f"Connected to MIDI device: {device_name}")
-                self.show_status_message(f"Connected: {device_name}")
-                self.save_settings()  # Save MIDI device preference
-            else:
-                print(f"Device not found: {device_name}")
-                del self.midi_in
-                self.midi_in = None
-
-        except Exception as e:
-            print(f"Error connecting to MIDI device: {e}")
-            if self.midi_in:
-                del self.midi_in
-            self.midi_in = None
+        self.midi_in = new_midi_in
+        self.current_midi_device = device_name
+        print(f"Connected to MIDI device: {device_name}")
+        self.show_status_message(f"Connected: {device_name}")
+        self.save_settings()
+        return True
 
     def setup_midi_polling(self):
         """Sets up a timer to poll for MIDI messages."""
@@ -2095,28 +2113,25 @@ class PianoMIDIViewer(QMainWindow):
 
     def setup_device_scanning(self):
         """Sets up a timer to periodically scan for MIDI device changes."""
+        # Snapshot current ports so the first scan doesn't treat them as new
+        self.known_midi_devices = self.get_midi_devices()
         self.device_scan_timer = QTimer()
         self.device_scan_timer.timeout.connect(self.scan_midi_devices)
         self.device_scan_timer.start(MIDI_SCAN_INTERVAL)
 
     def scan_midi_devices(self):
         """Checks for MIDI device changes (hot-plug detection)."""
-        try:
-            midi_in = rtmidi.MidiIn()
-            current_ports = midi_in.get_ports()
-            del midi_in
-        except Exception:
-            return
+        current_ports = self.get_midi_devices()
 
         previous = set(self.known_midi_devices)
         current = set(current_ports)
+        self.known_midi_devices = list(current_ports)
 
         if current == previous:
             return
 
         appeared = current - previous
         disappeared = previous - current
-        self.known_midi_devices = list(current_ports)
 
         # Device we were using vanished — handle disconnect
         if self.current_midi_device and self.current_midi_device in disappeared:
@@ -2554,9 +2569,11 @@ class PianoMIDIViewer(QMainWindow):
             try:
                 self.midi_in.close_port()
             except Exception:
-                # Ignore errors when closing MIDI port on shutdown
                 pass
             del self.midi_in
+
+        if self.midi_scanner:
+            del self.midi_scanner
 
         event.accept()
 
