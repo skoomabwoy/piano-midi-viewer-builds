@@ -8,7 +8,13 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.2.1**
+**Current Version: 8.2.2**
+
+### Changes in 8.2.2
+- **Restart fix for compiled builds**: `restart_app()` now handles PyInstaller frozen binaries correctly
+- Detects `sys.frozen` to use the binary path directly instead of `sys.executable` + script args
+- Clears `_MEIPASS2` and `_PYI_ARCHIVE_FILE` env vars so the child process extracts its own temp directory
+- Sets `cwd` to the binary's directory for `--onedir` bundle compatibility
 
 ### Changes in 8.2.1
 - **Settings dialog**: Removed all `scaled()` calls — Settings now renders at native size regardless of UI scale

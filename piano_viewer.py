@@ -30,7 +30,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # ============================================================================
 
 # VERSION
-VERSION = "8.2.1"
+VERSION = "8.2.2"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -899,7 +899,20 @@ class SettingsDialog(QDialog):
         self.main_window.save_settings()
         kwargs = {"creationflags": subprocess.DETACHED_PROCESS} if sys.platform == "win32" else {"start_new_session": True}
         devnull = subprocess.DEVNULL
-        subprocess.Popen([sys.executable] + sys.argv, stdin=devnull, stdout=devnull, stderr=devnull, **kwargs)
+        if getattr(sys, "frozen", False):
+            exe = os.path.abspath(sys.executable)
+            cmd = [exe] + sys.argv[1:]
+            kwargs["cwd"] = os.path.dirname(exe)
+            # Clear PyInstaller env vars so the child process extracts
+            # its own temp directory instead of reusing the parent's
+            # (which gets cleaned up when the parent exits).
+            env = os.environ.copy()
+            env.pop("_MEIPASS2", None)
+            env.pop("_PYI_ARCHIVE_FILE", None)
+            kwargs["env"] = env
+        else:
+            cmd = [sys.executable] + sys.argv
+        subprocess.Popen(cmd, stdin=devnull, stdout=devnull, stderr=devnull, **kwargs)
         QApplication.instance().quit()
 
     def toggle_octave_numbers(self, state):
