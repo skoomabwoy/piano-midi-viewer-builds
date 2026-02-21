@@ -101,6 +101,11 @@ jobs:
       - name: Build macOS ARM app bundle
         run: pyinstaller PianoMIDIViewer-macos.spec
 
+      - name: Clean up dangling symlinks from excluded frameworks
+        run: |
+          find dist/PianoMIDIViewer.app -type l ! -exec test -e {} \; -delete
+          find dist/PianoMIDIViewer.app -type d -empty -delete
+
       - name: Archive app bundle (preserves symlinks and permissions)
         run: tar -czf arm64-app.tar.gz -C dist PianoMIDIViewer.app
 
@@ -142,6 +147,11 @@ jobs:
 
       - name: Build macOS Intel app bundle
         run: pyinstaller PianoMIDIViewer-macos.spec
+
+      - name: Clean up dangling symlinks from excluded frameworks
+        run: |
+          find dist/PianoMIDIViewer.app -type l ! -exec test -e {} \; -delete
+          find dist/PianoMIDIViewer.app -type d -empty -delete
 
       - name: Archive app bundle (preserves symlinks and permissions)
         run: tar -czf x86_64-app.tar.gz -C dist PianoMIDIViewer.app
