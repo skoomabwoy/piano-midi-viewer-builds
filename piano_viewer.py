@@ -30,7 +30,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # ============================================================================
 
 # VERSION
-VERSION = "8.1.3"
+VERSION = "8.2.0"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -107,6 +107,8 @@ def min_window_height():
 
 # MIDI POLLING
 MIDI_POLL_INTERVAL = 10
+MIDI_SCAN_INTERVAL = 3000     # milliseconds between device scans (hot-plug detection)
+STATUS_MESSAGE_DURATION = 3000  # milliseconds before status message auto-hides
 
 # NOTE NAMES AND TEXT RENDERING
 NOTE_NAMES_WHITE = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
@@ -1647,6 +1649,9 @@ class PianoMIDIViewer(QMainWindow):
         self.midi_in = None
         self.current_midi_device = None
         self.midi_timer = None
+        self.known_midi_devices = []
+        self.device_scan_timer = None
+        self.status_hide_timer = None
 
         # Sustain state — tracked purely for the S indicator
         self.sustain_pedal_active = False    # MIDI sustain pedal held (CC 64)
@@ -1666,6 +1671,7 @@ class PianoMIDIViewer(QMainWindow):
 
         self.init_ui()
         self.setup_midi_polling()
+        self.setup_device_scanning()
         self.load_settings()  # Load saved settings after UI is initialized
 
     def init_ui(self):
@@ -1789,6 +1795,15 @@ class PianoMIDIViewer(QMainWindow):
 
         right_layout.addWidget(self.right_plus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.right_minus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # Status overlay for MIDI connection notifications (parented to piano, floats on top)
+        self.status_label = QLabel("", self.piano)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet(
+            "background-color: #404040; color: #ffffff;"
+            "padding: 6px 16px; border-radius: 8px;"
+        )
+        self.status_label.setVisible(False)
 
         # ASSEMBLE
         main_layout.addWidget(left_container)
@@ -2048,7 +2063,9 @@ class PianoMIDIViewer(QMainWindow):
                 port_index = ports.index(device_name)
                 self.midi_in.open_port(port_index)
                 self.current_midi_device = device_name
+                self.known_midi_devices = list(ports)
                 print(f"Connected to MIDI device: {device_name}")
+                self.show_status_message(f"Connected: {device_name}")
                 self.save_settings()  # Save MIDI device preference
             else:
                 print(f"Device not found: {device_name}")
@@ -2067,6 +2084,112 @@ class PianoMIDIViewer(QMainWindow):
         self.midi_timer.timeout.connect(self.poll_midi_messages)
         self.midi_timer.start(MIDI_POLL_INTERVAL)
 
+    def setup_device_scanning(self):
+        """Sets up a timer to periodically scan for MIDI device changes."""
+        self.device_scan_timer = QTimer()
+        self.device_scan_timer.timeout.connect(self.scan_midi_devices)
+        self.device_scan_timer.start(MIDI_SCAN_INTERVAL)
+
+    def scan_midi_devices(self):
+        """Checks for MIDI device changes (hot-plug detection)."""
+        try:
+            midi_in = rtmidi.MidiIn()
+            current_ports = midi_in.get_ports()
+            del midi_in
+        except Exception:
+            return
+
+        previous = set(self.known_midi_devices)
+        current = set(current_ports)
+
+        if current == previous:
+            return
+
+        appeared = current - previous
+        disappeared = previous - current
+        self.known_midi_devices = list(current_ports)
+
+        # Device we were using vanished — handle disconnect
+        if self.current_midi_device and self.current_midi_device in disappeared:
+            self.handle_midi_disconnect()
+
+        # Auto-connect: if we have no connection and a new device appeared, connect to it
+        if not self.midi_in and appeared:
+            # Prefer reconnecting to previously saved device if it reappeared
+            if self.current_midi_device in appeared:
+                self.connect_midi_device(self.current_midi_device)
+            else:
+                # Connect to the first new device
+                self.connect_midi_device(list(appeared)[0])
+
+    def handle_midi_disconnect(self):
+        """Handles a MIDI device disconnection gracefully."""
+        device_name = self.current_midi_device or "Unknown device"
+
+        # Clean up the MIDI connection
+        if self.midi_in:
+            try:
+                self.midi_in.close_port()
+            except Exception:
+                pass
+            del self.midi_in
+            self.midi_in = None
+
+        # Don't clear current_midi_device — keep it for auto-reconnect
+        # self.current_midi_device stays set so scan_midi_devices can reconnect
+
+        # Clear all active notes so keys don't stay lit
+        self.piano.active_notes.clear()
+        self.piano.active_notes_left.clear()
+        self.piano.active_notes_right.clear()
+
+        # Reset button glows
+        if self.piano.glow_left_plus:
+            self.piano.glow_left_plus = False
+            self.apply_button_glow(self.left_plus_btn, False)
+        if self.piano.glow_right_plus:
+            self.piano.glow_right_plus = False
+            self.apply_button_glow(self.right_plus_btn, False)
+
+        # Reset sustain indicator
+        if self.sustain_pedal_active:
+            self.sustain_pedal_active = False
+            self.update_sustain_button_visual()
+
+        self.piano.update()
+        self.show_status_message(f"Disconnected: {device_name}")
+
+    def show_status_message(self, text):
+        """Shows a temporary overlay notification centered on the piano."""
+        # Match font size to note labels (based on current key width)
+        num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
+        if num_white > 0:
+            white_key_width = self.piano.width() / num_white
+            font_size = max(8, int(white_key_width / 2.0))
+        else:
+            font_size = 13
+        self.status_label.setStyleSheet(
+            f"background-color: #404040; color: #ffffff;"
+            f"font-size: {font_size}px; padding: 6px 16px; border-radius: 8px;"
+        )
+        self.status_label.setText(text)
+        self.status_label.adjustSize()
+        # Center horizontally, place near the bottom of the piano
+        x = (self.piano.width() - self.status_label.width()) // 2
+        y = self.piano.height() - self.status_label.height() - 12
+        self.status_label.move(max(0, x), max(0, y))
+        self.status_label.setVisible(True)
+        self.status_label.raise_()
+
+        # Cancel any existing hide timer
+        if self.status_hide_timer:
+            self.status_hide_timer.stop()
+
+        self.status_hide_timer = QTimer()
+        self.status_hide_timer.setSingleShot(True)
+        self.status_hide_timer.timeout.connect(lambda: self.status_label.setVisible(False))
+        self.status_hide_timer.start(STATUS_MESSAGE_DURATION)
+
     def poll_midi_messages(self):
         """Checks for new MIDI messages and processes them."""
         if not self.midi_in:
@@ -2084,6 +2207,7 @@ class PianoMIDIViewer(QMainWindow):
 
         except Exception as e:
             print(f"Error polling MIDI: {e}")
+            self.handle_midi_disconnect()
 
     def process_midi_message(self, midi_data):
         """
@@ -2413,6 +2537,9 @@ class PianoMIDIViewer(QMainWindow):
 
         if self.midi_timer:
             self.midi_timer.stop()
+
+        if self.device_scan_timer:
+            self.device_scan_timer.stop()
 
         if self.midi_in:
             try:
