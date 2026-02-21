@@ -8,7 +8,36 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.1.1**
+**Current Version: 8.2.1**
+
+### Changes in 8.2.1
+- **Settings dialog**: Removed all `scaled()` calls — Settings now renders at native size regardless of UI scale
+- **Update button**: Fixed width to prevent layout blink when checking for updates
+- **Restart button**: Moved inline to UI Scale row (between label and dropdown)
+- **Version label**: Doubles as update result (shows "Up to date" temporarily, then reverts to version)
+
+### Changes in 8.2.0
+- **MIDI hot-plug detection**: Automatic device scanning every 3 seconds
+- **Auto-reconnect**: Previously used device reconnects automatically when plugged back in
+- **Graceful disconnect**: Keys go dark, sustain resets, button glows clear on device unplug
+- **Toast notification**: Overlay on piano canvas shows connect/disconnect messages (auto-hides after 3s)
+- **Hardened polling**: `poll_midi_messages()` triggers disconnect handling on exceptions
+- **VERSION constant**: Single source of truth for version string (replaces hardcoded strings)
+- **Version display**: Version number shown in Settings dialog
+- **Check for Updates**: Button in Settings checks Codeberg API for newer releases
+- **Restart button**: "Restart to apply" button for UI scale changes (replaces text hint)
+
+### Changes in 8.1.3
+- **VERSION constant**: Single source of truth for version (was added here, consolidated in 8.2.0)
+- **Version label and update checker**: Added to Settings dialog
+- **Restart button**: For applying UI scale changes without manual restart
+
+### Changes in 8.1.2
+- **UI scaling**: 25–200% scale with `scaled()` helper and `make_button_style()` consolidation
+- **P keyboard shortcut**: Toggle pencil tool on/off (guarded by `not event.modifiers()`)
+- **GitHub Actions CI**: Manual-only trigger (`workflow_dispatch`), no auto-build on push
+- **Custom app icon**: `icon.svg` for Windows (.ico) and macOS (.icns) builds
+- **macOS build fix**: Switched from `--onefile` to `--onedir` for proper universal2 lipo support
 
 ### Changes in 8.1.1
 - **S button**: Removed hover/pressed visual feedback — now a true non-interactive indicator

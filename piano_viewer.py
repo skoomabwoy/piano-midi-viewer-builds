@@ -30,7 +30,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # ============================================================================
 
 # VERSION
-VERSION = "8.2.0"
+VERSION = "8.2.1"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -666,14 +666,14 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
-        self.setMinimumWidth(scaled(300))
+        self.setMinimumWidth(300)
         self.main_window = parent
         self.init_ui()
 
     def init_ui(self):
         """Creates all the controls in the settings dialog."""
         layout = QVBoxLayout()
-        layout.setSpacing(scaled(15))
+        layout.setSpacing(15)
 
         # MIDI INPUT
         midi_label = QLabel("MIDI Input Device:")
@@ -685,7 +685,7 @@ class SettingsDialog(QDialog):
 
         refresh_btn = QPushButton("🔄")
         refresh_btn.setToolTip("Refresh MIDI device list")
-        refresh_btn.setFixedSize(scaled(30), scaled(30))
+        refresh_btn.setFixedSize(30, 30)
         refresh_btn.clicked.connect(self.refresh_midi_devices)
 
         midi_layout.addWidget(self.midi_dropdown, 1)
@@ -699,7 +699,7 @@ class SettingsDialog(QDialog):
         color_label = QLabel("Highlight Color")
 
         self.color_preview = QPushButton()
-        self.color_preview.setFixedSize(scaled(30), scaled(30))
+        self.color_preview.setFixedSize(30, 30)
         self.color_preview.clicked.connect(self.choose_color)
         self.update_color_preview(self.main_window.piano.highlight_color)
 
@@ -725,19 +725,19 @@ class SettingsDialog(QDialog):
 
         self.scale_dropdown.currentIndexChanged.connect(self.scale_changed)
 
-        scale_layout.addWidget(scale_label)
-        scale_layout.addStretch()
-        scale_layout.addWidget(self.scale_dropdown)
-        layout.addLayout(scale_layout)
-
-        # Restart button (only shown when scale differs from current)
+        # Restart button (inserted between label and dropdown when scale changes)
         self.restart_button = QPushButton("Restart to apply")
         self.restart_button.setVisible(False)
         self.restart_button.clicked.connect(self.restart_app)
-        layout.addWidget(self.restart_button)
+
+        scale_layout.addWidget(scale_label)
+        scale_layout.addStretch()
+        scale_layout.addWidget(self.restart_button)
+        scale_layout.addWidget(self.scale_dropdown)
+        layout.addLayout(scale_layout)
 
         # SEPARATOR
-        layout.addSpacing(scaled(10))
+        layout.addSpacing(10)
 
         # SHOW OCTAVE NUMBERS CHECKBOX
         self.octave_numbers_checkbox = QCheckBox("Show Octave Numbers")
@@ -762,7 +762,7 @@ class SettingsDialog(QDialog):
 
         # BLACK KEY NOTATION DROPDOWN
         notation_layout = QHBoxLayout()
-        notation_layout.setContentsMargins(scaled(20), 0, 0, 0)  # Indent to show it's related to black keys
+        notation_layout.setContentsMargins(20, 0, 0, 0)  # Indent to show it's related to black keys
 
         self.black_key_notation_dropdown = QComboBox()
         self.black_key_notation_dropdown.addItem("♭ Flats", "Flats")
@@ -795,21 +795,17 @@ class SettingsDialog(QDialog):
         # VERSION + CHECK FOR UPDATES
         layout.addStretch()
         version_row = QHBoxLayout()
-        version_label = QLabel(f"Version {VERSION}")
-        version_label.setStyleSheet("color: #888;")
-        version_row.addWidget(version_label)
+        self.version_label = QLabel(f"Version {VERSION}")
+        self.version_label.setTextFormat(Qt.TextFormat.RichText)
+        self.version_label.setOpenExternalLinks(True)
+        self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        version_row.addWidget(self.version_label)
         version_row.addStretch()
         self.update_button = QPushButton("Check for Updates")
+        self.update_button.setFixedWidth(self.update_button.sizeHint().width())
         self.update_button.clicked.connect(self.check_for_updates)
         version_row.addWidget(self.update_button)
         layout.addLayout(version_row)
-
-        self.update_result = QLabel("")
-        self.update_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.update_result.setTextFormat(Qt.TextFormat.RichText)
-        self.update_result.setOpenExternalLinks(True)
-        self.update_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        layout.addWidget(self.update_result)
 
         # INFO LINK
         info_label = QLabel()
@@ -827,14 +823,9 @@ class SettingsDialog(QDialog):
         layout.addWidget(close_button)
         self.setLayout(layout)
 
-        # Size dialog with hints visible so space is pre-allocated,
-        # then hide them — prevents layout shifts when they appear later
-        self.restart_button.setVisible(True)
-        self.update_result.setText("Version 00.00.00 available")
+        self.restart_button.setVisible(self.main_window.pending_ui_scale != UI_SCALE_FACTOR)
         self.adjustSize()
         self.setFixedSize(self.size())
-        self.restart_button.setVisible(self.main_window.pending_ui_scale != UI_SCALE_FACTOR)
-        self.update_result.setText("")
 
     def populate_midi_devices(self):
         """Scans for available MIDI input devices."""
@@ -890,7 +881,7 @@ class SettingsDialog(QDialog):
 
     def update_color_preview(self, color):
         """Updates the color preview button."""
-        radius = scaled(15)
+        radius = 15
         self.color_preview.setStyleSheet(
             f"background-color: {color.name()}; border: 1px solid #999; border-radius: {radius}px;"
         )
@@ -954,10 +945,9 @@ class SettingsDialog(QDialog):
         self.main_window.save_settings()
 
     def check_for_updates(self):
-        """Checks GitHub for a newer release in a background thread."""
+        """Checks Codeberg for a newer release in a background thread."""
         self.update_button.setEnabled(False)
         self.update_button.setText("Checking...")
-        self.update_result.setText("")
         self._update_checker = UpdateChecker()
         self._update_checker.result.connect(self._on_update_result)
         self._update_checker.start()
@@ -967,9 +957,15 @@ class SettingsDialog(QDialog):
         self.update_button.setEnabled(True)
         self.update_button.setText("Check for Updates")
         if url:
-            self.update_result.setText(f'<a href="{url}" style="color: #5094d4;">{text}</a>')
+            self.version_label.setText(f'<a href="{url}" style="color: #5094d4;">{text}</a>')
         else:
-            self.update_result.setText(f'<span style="color: #888;">{text}</span>')
+            self.version_label.setText(text)
+            # Revert to version number after a few seconds
+            QTimer.singleShot(STATUS_MESSAGE_DURATION, self._restore_version_label)
+
+    def _restore_version_label(self):
+        """Restores the version label to show the version number."""
+        self.version_label.setText(f"Version {VERSION}")
 
 
 # ============================================================================

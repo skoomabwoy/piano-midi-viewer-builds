@@ -2,13 +2,13 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and streamers.
 
-![Version](https://img.shields.io/badge/version-8.1.2-blue)
+![Version](https://img.shields.io/badge/version-8.2.1-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
 ## Features
 
-- 🎹 **MIDI input** — connect your digital piano or MIDI keyboard and see which keys you press in real time
+- 🎹 **MIDI input** — connect your digital piano or MIDI keyboard and see which keys you press in real time; devices are detected automatically when plugged in
 - 🖱️ **Mouse support** — click on any key to highlight it, drag across keys to glide
 - ✏️ **Pencil tool** — press P or toggle the pencil tool to start marking keys; left-click to mark, right-click to erase, press Esc to exit
 - 🔠 **Key labels** — show or hide note names, octave numbers, sharps and flats
@@ -110,6 +110,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.2.1** — MIDI hot-plug detection, auto-reconnect, version display and update checker in Settings
 **8.1.2** — UI scaling (25–200%), P shortcut for pencil tool
 **8.1.1** — S button is now a pure indicator (no visual feedback when clicked)
 **8.1.0** — Notes highlight only while actively pressed; S button is now a sustain pedal indicator only; pencil tool out-of-range marks now glow the + buttons
