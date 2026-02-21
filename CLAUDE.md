@@ -512,7 +512,24 @@ Mode is locked for entire drag (determined by initial button press):
 
 ## Future Features & Ideas
 
-*No planned features at this time. Feature requests welcome via issue tracker.*
+### Accessibility (next priority)
+- **Keyboard shortcuts**: Add shortcuts for common actions (toggle pencil, open settings, add/remove octave)
+- **High contrast mode**: Thicker key borders, bolder outlines on active keys for low vision users and OBS at low resolutions
+- **Color blind safe presets**: Preset highlight colors optimized for protanopia, deuteranopia, tritanopia — dropdown alongside custom color picker
+- **Screen reader labels**: Basic QAccessible labeling (e.g., "pencil tool button, toggle", "sustain indicator, active")
+- **Minimum font size setting**: User-configurable floor for note name text size (currently hidden below 8pt)
+
+### User-facing improvements
+- **MIDI device hot-plug detection**: Periodic check (every 2-3 seconds) to auto-detect connections/disconnections with brief notification
+- **Graceful disconnect handling**: Clean recovery when USB MIDI device is unplugged mid-session
+- **Color themes/presets**: Built-in themes (classic, dark mode for OBS, pastel for kids) — each theme = highlight color + background + key colors
+- **Export drawn notes as image**: "Save as PNG" for teachers using pencil tool to mark notes
+- **Velocity visualization**: Show key press intensity via color opacity or brightness
+
+### Developer/maintenance
+- **Logging**: Replace print() with Python logging module for user-reportable debug output
+- **Settings migration**: Version field in settings file with migration logic for new settings across versions
+- **Error reporting dialog**: User-facing "something went wrong" dialog with copy-to-clipboard instead of silent console errors
 
 ## Development Notes
 

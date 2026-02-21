@@ -71,18 +71,32 @@ CURSOR_SIZE = 24                # pixel size of custom cursor pixmap (try 24-40)
 CURSOR_OUTLINE_COLOR = '#010101'  # outline color for both cursors (try #707070, #a0a0a0, #c0c0c0)
 CURSOR_FILL_COLOR = '#ffffff'     # interior fill color for both cursors
 
-# BUTTON SIZING (hardcoded, don't scale with window)
+# UI SCALE (loaded from settings before window creation)
+UI_SCALE_FACTOR = 1.0  # Set in main() from saved settings
+
+def scaled(px):
+    """Scale a pixel value by the current UI scale factor."""
+    return round(px * UI_SCALE_FACTOR)
+
+# BUTTON SIZING (base values, scaled at runtime via scaled())
 BUTTON_SIZE = 36
 ICON_SIZE_RATIO = 0.9
 BUTTON_AREA_WIDTH = 50
 BUTTON_SPACING = 5              # Spacing between buttons in layout
-MIN_BUTTON_AREA_HEIGHT = (BUTTON_SIZE * 4) + (BUTTON_SPACING * 3)  # 4 buttons + 3 gaps = 159px
 
-# LAYOUT MARGINS (hardcoded)
+# LAYOUT MARGINS (base values, scaled at runtime via scaled())
 LAYOUT_MARGIN = 5  # Main layout margins
-TOTAL_HORIZONTAL_MARGIN = (LAYOUT_MARGIN * 2) + (BUTTON_AREA_WIDTH * 2)  # = 110
 WINDOW_VERTICAL_MARGIN = 50  # Extra space for top/bottom window margins
-MIN_WINDOW_HEIGHT = MIN_BUTTON_AREA_HEIGHT + (LAYOUT_MARGIN * 2)  # Buttons + margins = 152px
+
+# Derived layout values — must be functions because they depend on scaled()
+def total_horizontal_margin():
+    return scaled(LAYOUT_MARGIN) * 2 + scaled(BUTTON_AREA_WIDTH) * 2
+
+def min_button_area_height():
+    return scaled(BUTTON_SIZE) * 4 + scaled(BUTTON_SPACING) * 3
+
+def min_window_height():
+    return min_button_area_height() + scaled(LAYOUT_MARGIN) * 2
 
 # MIDI POLLING
 MIDI_POLL_INTERVAL = 10
@@ -204,7 +218,7 @@ def create_pencil_cursor():
     Returns:
         QCursor with hotspot at the pencil tip (bottom-left)
     """
-    size = CURSOR_SIZE
+    size = max(16, scaled(CURSOR_SIZE))
     svg = PENCIL_SVG.replace('#ffffff', CURSOR_FILL_COLOR).replace('#000000', CURSOR_OUTLINE_COLOR)
     pixmap = _render_svg_to_pixmap(svg, size)
     # Hotspot at the pencil tip — bottom-left of the SVG (approx 2/512, 462/512)
@@ -218,14 +232,14 @@ def create_eraser_cursor():
     Returns:
         QCursor with hotspot at bottom-left erasing edge
     """
-    size = CURSOR_SIZE
+    size = max(16, scaled(CURSOR_SIZE))
     svg = ERASER_SVG.replace('#ffffff', CURSOR_FILL_COLOR).replace('#000000', CURSOR_OUTLINE_COLOR)
     pixmap = _render_svg_to_pixmap(svg, size)
     # Hotspot at the erasing edge — bottom-left area (approx 18/203, 191/203)
     return QCursor(pixmap, max(0, int(size * 0.09)), int(size * 0.94))
 
 
-def create_pencil_icon(size=BUTTON_SIZE, color="#000000"):
+def create_pencil_icon(size=None, color="#000000"):
     """
     Creates a pencil QIcon from embedded SVG at the given size and color.
 
@@ -236,6 +250,8 @@ def create_pencil_icon(size=BUTTON_SIZE, color="#000000"):
     Returns:
         QIcon: The pencil icon
     """
+    if size is None:
+        size = scaled(BUTTON_SIZE)
     # Icon uses transparent interior (no white fill), only the outline path
     svg = PENCIL_SVG.replace('fill="#ffffff"', 'fill="none"').replace('#000000', color)
     return QIcon(_render_svg_to_pixmap(svg, size))
@@ -269,6 +285,23 @@ def get_config_path():
     config_dir.mkdir(parents=True, exist_ok=True)
 
     return config_dir / "settings.ini"
+
+
+def load_ui_scale():
+    """Loads UI scale factor from settings file. Called before window creation."""
+    config_path = get_config_path()
+    if not config_path.exists():
+        return 1.0
+    config = configparser.ConfigParser()
+    try:
+        config.read(config_path)
+        if config.has_option('appearance', 'ui_scale'):
+            scale = config.getfloat('appearance', 'ui_scale')
+            if 0.25 <= scale <= 2.0:
+                return scale
+    except Exception:
+        pass
+    return 1.0
 
 
 def is_black_key(midi_note):
@@ -363,8 +396,8 @@ def calculate_initial_window_size():
     """
     num_white_keys = count_white_keys(DEFAULT_START_NOTE, DEFAULT_END_NOTE)
     piano_width = INITIAL_KEY_WIDTH * num_white_keys
-    window_width = int(piano_width + TOTAL_HORIZONTAL_MARGIN)
-    window_height = int(INITIAL_KEY_HEIGHT + WINDOW_VERTICAL_MARGIN)
+    window_width = int(piano_width + total_horizontal_margin())
+    window_height = int(INITIAL_KEY_HEIGHT + scaled(WINDOW_VERTICAL_MARGIN))
     return window_width, window_height
 
 
@@ -539,6 +572,47 @@ def get_black_key_name(midi_note, notation_type):
         return (sharp_name, flat_name)
 
 
+def make_button_style(bg_color="#f5f5f5", text_color="#2a2a2a", interactive=True):
+    """
+    Generates a QPushButton stylesheet with scaled dimensions.
+
+    Args:
+        bg_color: Background color hex string
+        text_color: Text color hex string
+        interactive: If True, includes hover/pressed/disabled states
+    """
+    border = scaled(2)
+    radius = scaled(6)
+    pad_bottom = scaled(1)
+
+    style = f"""
+        QPushButton {{
+            background-color: {bg_color};
+            color: {text_color};
+            font-weight: bold;
+            border: {border}px solid #707070;
+            border-radius: {radius}px;
+            padding: 0px 0px {pad_bottom}px 0px;
+        }}
+    """
+
+    if interactive:
+        style += """
+            QPushButton:hover {
+                background-color: #e8e8e8;
+            }
+            QPushButton:pressed {
+                background-color: #d0d0d0;
+            }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
+        """
+
+    return style
+
+
 # ============================================================================
 # SETTINGS DIALOG
 # ============================================================================
@@ -550,14 +624,14 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(scaled(300))
         self.main_window = parent
         self.init_ui()
 
     def init_ui(self):
         """Creates all the controls in the settings dialog."""
         layout = QVBoxLayout()
-        layout.setSpacing(15)
+        layout.setSpacing(scaled(15))
 
         # MIDI INPUT
         midi_label = QLabel("MIDI Input Device:")
@@ -569,7 +643,7 @@ class SettingsDialog(QDialog):
 
         refresh_btn = QPushButton("🔄")
         refresh_btn.setToolTip("Refresh MIDI device list")
-        refresh_btn.setFixedSize(30, 30)
+        refresh_btn.setFixedSize(scaled(30), scaled(30))
         refresh_btn.clicked.connect(self.refresh_midi_devices)
 
         midi_layout.addWidget(self.midi_dropdown, 1)
@@ -583,7 +657,7 @@ class SettingsDialog(QDialog):
         color_label = QLabel("Highlight Color")
 
         self.color_preview = QPushButton()
-        self.color_preview.setFixedSize(30, 30)
+        self.color_preview.setFixedSize(scaled(30), scaled(30))
         self.color_preview.clicked.connect(self.choose_color)
         self.update_color_preview(self.main_window.piano.highlight_color)
 
@@ -593,8 +667,36 @@ class SettingsDialog(QDialog):
 
         layout.addLayout(color_layout)
 
+        # UI SCALE
+        scale_layout = QHBoxLayout()
+        scale_label = QLabel("UI Scale")
+
+        self.scale_dropdown = QComboBox()
+        scale_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.50, 1.75, 2.0]
+        for val in scale_values:
+            self.scale_dropdown.addItem(f"{int(val * 100)}%", val)
+
+        # Set current value
+        index = self.scale_dropdown.findData(UI_SCALE_FACTOR)
+        if index >= 0:
+            self.scale_dropdown.setCurrentIndex(index)
+
+        self.scale_dropdown.currentIndexChanged.connect(self.scale_changed)
+
+        scale_layout.addWidget(scale_label)
+        scale_layout.addStretch()
+        scale_layout.addWidget(self.scale_dropdown)
+        layout.addLayout(scale_layout)
+
+        # Restart hint (only shown when scale differs from current)
+        self.scale_hint = QLabel("Restart to apply")
+        self.scale_hint.setStyleSheet("color: #888; font-style: italic;")
+        self.scale_hint.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.scale_hint.setVisible(False)
+        layout.addWidget(self.scale_hint)
+
         # SEPARATOR
-        layout.addSpacing(10)
+        layout.addSpacing(scaled(10))
 
         # SHOW OCTAVE NUMBERS CHECKBOX
         self.octave_numbers_checkbox = QCheckBox("Show Octave Numbers")
@@ -619,7 +721,7 @@ class SettingsDialog(QDialog):
 
         # BLACK KEY NOTATION DROPDOWN
         notation_layout = QHBoxLayout()
-        notation_layout.setContentsMargins(20, 0, 0, 0)  # Indent to show it's related to black keys
+        notation_layout.setContentsMargins(scaled(20), 0, 0, 0)  # Indent to show it's related to black keys
 
         self.black_key_notation_dropdown = QComboBox()
         self.black_key_notation_dropdown.addItem("♭ Flats", "Flats")
@@ -666,9 +768,12 @@ class SettingsDialog(QDialog):
         layout.addWidget(close_button)
         self.setLayout(layout)
 
-        # Make dialog fixed size (non-resizable) - Qt calculates optimal size
+        # Size dialog with hint visible so space is pre-allocated,
+        # then hide it — prevents layout shifts when hint appears later
+        self.scale_hint.setVisible(True)
         self.adjustSize()
         self.setFixedSize(self.size())
+        self.scale_hint.setVisible(self.main_window.pending_ui_scale != UI_SCALE_FACTOR)
 
     def populate_midi_devices(self):
         """Scans for available MIDI input devices."""
@@ -724,9 +829,18 @@ class SettingsDialog(QDialog):
 
     def update_color_preview(self, color):
         """Updates the color preview button."""
+        radius = scaled(15)
         self.color_preview.setStyleSheet(
-            f"background-color: {color.name()}; border: 1px solid #999; border-radius: 15px;"
+            f"background-color: {color.name()}; border: 1px solid #999; border-radius: {radius}px;"
         )
+
+    def scale_changed(self, index):
+        """Called when user selects a different UI scale."""
+        new_scale = self.scale_dropdown.currentData()
+        self.scale_hint.setVisible(new_scale != UI_SCALE_FACTOR)
+        # Save immediately so it takes effect on next launch
+        self.main_window.pending_ui_scale = new_scale
+        self.main_window.save_settings()
 
     def toggle_octave_numbers(self, state):
         """Toggles octave number display."""
@@ -824,7 +938,6 @@ class PianoKeyboard(QWidget):
         keyboard_y = KEYBOARD_CANVAS_MARGIN
         keyboard_width = width - (KEYBOARD_CANVAS_MARGIN * 2)
         keyboard_height = height - (KEYBOARD_CANVAS_MARGIN * 2)
-
         num_white_keys = count_white_keys(self.start_note, self.end_note)
 
         if num_white_keys == 0:
@@ -1463,6 +1576,9 @@ class PianoMIDIViewer(QMainWindow):
         self.black_key_notation = "Flats"  # Default: Flats
         self.show_names_when_pressed = False  # Default: OFF (show names on all keys)
 
+        # UI scale (pending value saved for next launch)
+        self.pending_ui_scale = UI_SCALE_FACTOR
+
         self.init_ui()
         self.setup_midi_polling()
         self.load_settings()  # Load saved settings after UI is initialized
@@ -1480,9 +1596,9 @@ class PianoMIDIViewer(QMainWindow):
         num_white_keys = count_white_keys(DEFAULT_START_NOTE, DEFAULT_END_NOTE)
         min_key_width = PRACTICAL_MIN_KEY_WIDTH
         min_key_height = min_key_width * MIN_HEIGHT_RATIO
-        min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
-        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
-        min_height = max(key_based_height, MIN_WINDOW_HEIGHT)  # Ensure buttons fit
+        min_width = (min_key_width * num_white_keys) + total_horizontal_margin()
+        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + scaled(WINDOW_VERTICAL_MARGIN)
+        min_height = max(key_based_height, min_window_height())  # Ensure buttons fit
         self.setMinimumSize(int(min_width), int(min_height))
 
         central_widget = QWidget()
@@ -1490,50 +1606,30 @@ class PianoMIDIViewer(QMainWindow):
 
         main_layout = QHBoxLayout(central_widget)
         main_layout.setSpacing(0)
-        main_layout.setContentsMargins(LAYOUT_MARGIN, LAYOUT_MARGIN, LAYOUT_MARGIN, LAYOUT_MARGIN)
+        lm = scaled(LAYOUT_MARGIN)
+        main_layout.setContentsMargins(lm, lm, lm, lm)
 
-        # Button styling
-        # Bottom padding compensates for font baseline alignment - without it,
-        # characters appear visually lower than center because fonts reserve
-        # space for descenders (g, y, p) that symbols like +, ✎, ♪ don't use
-        button_style = """
-            QPushButton {
-                background-color: #f5f5f5;
-                border: 2px solid #707070;
-                border-radius: 6px;
-                padding: 0px 0px 1px 0px;
-                color: #2a2a2a;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #e8e8e8;
-            }
-            QPushButton:pressed {
-                background-color: #d0d0d0;
-            }
-            QPushButton:disabled {
-                background-color: #e0e0e0;
-                color: #a0a0a0;
-            }
-        """
+        # Button styling (consolidated via make_button_style for scaling support)
+        button_style = make_button_style()
+        btn_sz = scaled(BUTTON_SIZE)
 
         # Use JetBrains Mono for button labels (consistent across platforms)
         button_font_family = LOADED_FONT_FAMILY if LOADED_FONT_FAMILY else "monospace"
         button_font = QFont(button_font_family)
-        button_font.setPixelSize(int(BUTTON_SIZE * ICON_SIZE_RATIO))
+        button_font.setPixelSize(int(btn_sz * ICON_SIZE_RATIO))
 
         # LEFT SIDE (pencil button + octave controls)
         left_container = QWidget()
-        left_container.setFixedWidth(BUTTON_AREA_WIDTH)
+        left_container.setFixedWidth(scaled(BUTTON_AREA_WIDTH))
         left_layout = QVBoxLayout(left_container)
-        left_layout.setSpacing(BUTTON_SPACING)
-        left_layout.setContentsMargins(0, 0, 3, 0)
+        left_layout.setSpacing(scaled(BUTTON_SPACING))
+        left_layout.setContentsMargins(0, 0, scaled(3), 0)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Pencil button: click to enter/exit drawing tool
         self.pencil_button = QPushButton()
         self.pencil_button.setToolTip("Pencil tool — left click to mark, right click to erase\nPress Esc to exit")
-        self.pencil_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.pencil_button.setFixedSize(btn_sz, btn_sz)
         self.pencil_button.setIcon(create_pencil_icon())
         self.pencil_button.setIconSize(self.pencil_button.size() * 0.7)
         self.pencil_button.setStyleSheet(button_style)
@@ -1544,7 +1640,7 @@ class PianoMIDIViewer(QMainWindow):
 
         self.left_plus_btn = QPushButton("+")
         self.left_plus_btn.setToolTip("Add octave on the left (lower notes)")
-        self.left_plus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.left_plus_btn.setFixedSize(btn_sz, btn_sz)
         self.left_plus_btn.setFont(button_font)
         self.left_plus_btn.setStyleSheet(button_style)
         self.left_plus_btn.clicked.connect(self.add_octave_left)
@@ -1552,7 +1648,7 @@ class PianoMIDIViewer(QMainWindow):
         # Use en-dash for minus (better vertical centering in JetBrains Mono)
         self.left_minus_btn = QPushButton("−")
         self.left_minus_btn.setToolTip("Remove octave on the left (lower notes)")
-        self.left_minus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.left_minus_btn.setFixedSize(btn_sz, btn_sz)
         self.left_minus_btn.setFont(button_font)
         self.left_minus_btn.setStyleSheet(button_style)
         self.left_minus_btn.clicked.connect(self.remove_octave_left)
@@ -1565,17 +1661,17 @@ class PianoMIDIViewer(QMainWindow):
 
         # RIGHT SIDE (settings + sustain + octave controls)
         right_container = QWidget()
-        right_container.setFixedWidth(BUTTON_AREA_WIDTH)
+        right_container.setFixedWidth(scaled(BUTTON_AREA_WIDTH))
         right_layout = QVBoxLayout(right_container)
-        right_layout.setSpacing(BUTTON_SPACING)
-        right_layout.setContentsMargins(3, 0, 0, 0)
+        right_layout.setSpacing(scaled(BUTTON_SPACING))
+        right_layout.setContentsMargins(scaled(3), 0, 0, 0)
         right_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Settings button uses SVG icon for consistent cross-platform rendering
         self.settings_button = QPushButton()
         self.settings_button.setToolTip("Open Settings")
-        self.settings_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
-        self.settings_button.setIcon(create_settings_icon(BUTTON_SIZE, "#000000"))
+        self.settings_button.setFixedSize(btn_sz, btn_sz)
+        self.settings_button.setIcon(create_settings_icon(btn_sz, "#000000"))
         self.settings_button.setIconSize(self.settings_button.size() * 0.7)
         self.settings_button.setStyleSheet(button_style)
         self.settings_button.clicked.connect(self.open_settings)
@@ -1583,7 +1679,7 @@ class PianoMIDIViewer(QMainWindow):
         # Sustain button: indicator only (lights up when sustain pedal is held)
         self.sustain_button = QPushButton("S")
         self.sustain_button.setToolTip("Sustain pedal indicator — lights up when your sustain pedal is held")
-        self.sustain_button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.sustain_button.setFixedSize(btn_sz, btn_sz)
         self.sustain_button.setFont(button_font)
         self.sustain_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -1593,7 +1689,7 @@ class PianoMIDIViewer(QMainWindow):
 
         self.right_plus_btn = QPushButton("+")
         self.right_plus_btn.setToolTip("Add octave on the right (higher notes)")
-        self.right_plus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.right_plus_btn.setFixedSize(btn_sz, btn_sz)
         self.right_plus_btn.setFont(button_font)
         self.right_plus_btn.setStyleSheet(button_style)
         self.right_plus_btn.clicked.connect(self.add_octave_right)
@@ -1601,7 +1697,7 @@ class PianoMIDIViewer(QMainWindow):
         # Use en-dash for minus (better vertical centering in JetBrains Mono)
         self.right_minus_btn = QPushButton("−")
         self.right_minus_btn.setToolTip("Remove octave on the right (higher notes)")
-        self.right_minus_btn.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        self.right_minus_btn.setFixedSize(btn_sz, btn_sz)
         self.right_minus_btn.setFont(button_font)
         self.right_minus_btn.setStyleSheet(button_style)
         self.right_minus_btn.clicked.connect(self.remove_octave_right)
@@ -1725,7 +1821,8 @@ class PianoMIDIViewer(QMainWindow):
             'show_white_key_names': str(self.show_white_key_names),
             'show_black_key_names': str(self.show_black_key_names),
             'black_key_notation': self.black_key_notation,
-            'show_names_when_pressed': str(self.show_names_when_pressed)
+            'show_names_when_pressed': str(self.show_names_when_pressed),
+            'ui_scale': str(self.pending_ui_scale)
         }
 
         # Keyboard range settings
@@ -1801,22 +1898,10 @@ class PianoMIDIViewer(QMainWindow):
             bg_color = self.piano.highlight_color.name()
             icon_color = get_text_color_for_highlight(self.piano.highlight_color).name()
             self.pencil_button.setIcon(create_pencil_icon(color=icon_color))
-            self.pencil_button.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg_color};
-                    border: 2px solid #707070;
-                    border-radius: 6px;
-                }}
-            """)
+            self.pencil_button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=icon_color, interactive=False))
         else:
             self.pencil_button.setIcon(create_pencil_icon(color="#000000"))
-            self.pencil_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #f5f5f5;
-                    border: 2px solid #707070;
-                    border-radius: 6px;
-                }
-            """)
+            self.pencil_button.setStyleSheet(make_button_style(interactive=False))
 
     def update_sustain_button_visual(self):
         """
@@ -1828,27 +1913,9 @@ class PianoMIDIViewer(QMainWindow):
         if self.sustain_pedal_active:
             bg_color = self.piano.highlight_color.name()
             text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
-            self.sustain_button.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg_color};
-                    color: {text_color};
-                    font-weight: bold;
-                    border: 2px solid #707070;
-                    border-radius: 6px;
-                    padding: 0px 0px 1px 0px;
-                }}
-            """)
+            self.sustain_button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=text_color, interactive=False))
         else:
-            self.sustain_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #f5f5f5;
-                    border: 2px solid #707070;
-                    border-radius: 6px;
-                    padding: 0px 0px 1px 0px;
-                    color: #2a2a2a;
-                    font-weight: bold;
-                }
-            """)
+            self.sustain_button.setStyleSheet(make_button_style(interactive=False))
 
     def get_current_key_dimensions(self):
         """Calculates current white key width and height."""
@@ -2043,27 +2110,9 @@ class PianoMIDIViewer(QMainWindow):
         if glow:
             bg_color = self.piano.highlight_color.name()
             text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
-            button.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {bg_color};
-                    color: {text_color};
-                    font-weight: bold;
-                    border: 2px solid #707070;
-                    border-radius: 6px;
-                    padding: 0px 0px 1px 0px;
-                }}
-            """)
+            button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=text_color, interactive=False))
         else:
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color: #f5f5f5;
-                    border: 2px solid #707070;
-                    border-radius: 6px;
-                    padding: 0px 0px 1px 0px;
-                    color: #2a2a2a;
-                    font-weight: bold;
-                }
-            """)
+            button.setStyleSheet(make_button_style())
 
     # OCTAVE MANAGEMENT
 
@@ -2089,7 +2138,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + total_horizontal_margin())
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -2120,7 +2169,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + total_horizontal_margin())
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -2151,7 +2200,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + total_horizontal_margin())
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -2182,7 +2231,7 @@ class PianoMIDIViewer(QMainWindow):
             # Calculate new window width to maintain key size
             new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
             new_piano_width = key_width * new_num_white
-            new_window_width = round(new_piano_width + TOTAL_HORIZONTAL_MARGIN)
+            new_window_width = round(new_piano_width + total_horizontal_margin())
 
             # Resize window
             self.resize(new_window_width, self.height())
@@ -2203,9 +2252,9 @@ class PianoMIDIViewer(QMainWindow):
         num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
         min_key_width = PRACTICAL_MIN_KEY_WIDTH
         min_key_height = min_key_width * MIN_HEIGHT_RATIO
-        min_width = (min_key_width * num_white_keys) + TOTAL_HORIZONTAL_MARGIN
-        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN
-        min_height = max(key_based_height, MIN_WINDOW_HEIGHT)  # Ensure buttons fit
+        min_width = (min_key_width * num_white_keys) + total_horizontal_margin()
+        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + scaled(WINDOW_VERTICAL_MARGIN)
+        min_height = max(key_based_height, min_window_height())  # Ensure buttons fit
         self.setMinimumSize(int(min_width), int(min_height))
 
     # WINDOW MANAGEMENT
@@ -2235,8 +2284,10 @@ class PianoMIDIViewer(QMainWindow):
             if num_white_keys == 0:
                 return
 
-            piano_width = w - TOTAL_HORIZONTAL_MARGIN
-            piano_height = h - WINDOW_VERTICAL_MARGIN
+            h_margin = total_horizontal_margin()
+            v_margin = scaled(WINDOW_VERTICAL_MARGIN)
+            piano_width = w - h_margin
+            piano_height = h - v_margin
             white_key_width = piano_width / num_white_keys
             white_key_height = piano_height - (KEYBOARD_CANVAS_MARGIN * 2)
 
@@ -2247,12 +2298,12 @@ class PianoMIDIViewer(QMainWindow):
                 # Too tall (ratio > 6)? Reduce height
                 if height_ratio > MAX_HEIGHT_RATIO:
                     white_key_height = white_key_width * MAX_HEIGHT_RATIO
-                    h = round(white_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + WINDOW_VERTICAL_MARGIN)
+                    h = round(white_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + v_margin)
 
                 # Too short (ratio < 3)? Reduce width
                 elif height_ratio < MIN_HEIGHT_RATIO:
                     white_key_width = white_key_height / MIN_HEIGHT_RATIO
-                    w = round(white_key_width * num_white_keys + TOTAL_HORIZONTAL_MARGIN)
+                    w = round(white_key_width * num_white_keys + h_margin)
 
             # Apply constrained size
             if w != self.width() or h != self.height():
@@ -2324,6 +2375,12 @@ def main():
     else:
         print(f"⚠ Font file not found: {font_path}")
         LOADED_FONT_FAMILY = "monospace"  # Fallback
+
+    # Load UI scale before window creation (scales buttons, margins, cursors)
+    global UI_SCALE_FACTOR
+    UI_SCALE_FACTOR = load_ui_scale()
+    if UI_SCALE_FACTOR != 1.0:
+        print(f"UI Scale: {int(UI_SCALE_FACTOR * 100)}%")
 
     window = PianoMIDIViewer()
     window.show()
