@@ -63,7 +63,10 @@ jobs:
           name: PianoMIDIViewer-windows-x86_64
           path: dist/PianoMIDIViewer.exe
 
-  build-macos:
+  # Build separate ARM and Intel macOS binaries, then combine with lipo
+  # into a universal2 binary that runs natively on both architectures.
+
+  build-macos-arm:
     runs-on: macos-14  # M1 Apple Silicon
     steps:
       - uses: actions/checkout@v4
@@ -97,21 +100,101 @@ jobs:
             --exclude-module unittest \
             piano_viewer.py
 
+      - name: Upload ARM app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-app
+          path: dist/PianoMIDIViewer.app
+
+  build-macos-intel:
+    runs-on: macos-15-intel  # Intel x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS Intel app bundle
+        run: |
+          pyinstaller --onefile --windowed --name PianoMIDIViewer \
+            --add-data "JetBrainsMono-Regular.ttf:." \
+            --osx-bundle-identifier com.skoomabwoy.pianomidiviewer \
+            --exclude-module PyQt6.QtPdf \
+            --exclude-module PyQt6.QtPdfWidgets \
+            --exclude-module PyQt6.QtWebEngine \
+            --exclude-module PyQt6.QtWebEngineCore \
+            --exclude-module PyQt6.QtWebEngineWidgets \
+            --exclude-module PyQt6.QtQuick \
+            --exclude-module PyQt6.QtQml \
+            --exclude-module PyQt6.QtDesigner \
+            --exclude-module PyQt6.QtMultimedia \
+            --exclude-module tkinter \
+            --exclude-module unittest \
+            piano_viewer.py
+
+      - name: Upload Intel app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-x86_64-app
+          path: dist/PianoMIDIViewer.app
+
+  combine-macos:
+    needs: [build-macos-arm, build-macos-intel]
+    runs-on: macos-14
+    steps:
+      - name: Download ARM app bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64-app
+          path: arm64-app
+
+      - name: Download Intel app bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x86_64-app
+          path: x86_64-app
+
+      - name: Combine into universal2 with lipo
+        run: |
+          # Use ARM app bundle as base (preserves Info.plist, resources, etc.)
+          cp -R arm64-app universal-app
+
+          # Combine the main executables into a universal binary
+          lipo -create \
+            arm64-app/Contents/MacOS/PianoMIDIViewer \
+            x86_64-app/Contents/MacOS/PianoMIDIViewer \
+            -output universal-app/Contents/MacOS/PianoMIDIViewer
+
+          # Verify the result
+          echo "=== File type ==="
+          file universal-app/Contents/MacOS/PianoMIDIViewer
+          echo "=== Architectures ==="
+          lipo -info universal-app/Contents/MacOS/PianoMIDIViewer
+
       - name: Create DMG
         run: |
           mkdir -p dmg_staging
-          cp -R dist/PianoMIDIViewer.app dmg_staging/
+          # Rename to .app for the DMG
+          cp -R universal-app dmg_staging/PianoMIDIViewer.app
           ln -s /Applications dmg_staging/Applications
-          hdiutil create -volname "Piano MIDI Viewer" -srcfolder dmg_staging -ov -format UDZO dist/PianoMIDIViewer.dmg
+          hdiutil create -volname "Piano MIDI Viewer" -srcfolder dmg_staging -ov -format UDZO PianoMIDIViewer.dmg
 
-      - name: Upload DMG
+      - name: Upload universal DMG
         uses: actions/upload-artifact@v4
         with:
-          name: PianoMIDIViewer-macos-arm64
-          path: dist/PianoMIDIViewer.dmg
+          name: PianoMIDIViewer-macos-universal
+          path: PianoMIDIViewer.dmg
 
   create-release:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows, combine-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -128,4 +211,4 @@ jobs:
           files: |
             PianoMIDIViewer-linux-x86_64/PianoMIDIViewer
             PianoMIDIViewer-windows-x86_64/PianoMIDIViewer.exe
-            PianoMIDIViewer-macos-arm64/PianoMIDIViewer.dmg
+            PianoMIDIViewer-macos-universal/PianoMIDIViewer.dmg
