@@ -525,6 +525,7 @@ Mode is locked for entire drag (determined by initial button press):
 - **Color themes/presets**: Built-in themes (classic, dark mode for OBS, pastel for kids) — each theme = highlight color + background + key colors
 - **Export drawn notes as image**: "Save as PNG" for teachers using pencil tool to mark notes
 - **Velocity visualization**: Show key press intensity via color opacity or brightness
+- **Live UI scaling**: Apply scale changes without requiring app restart (currently requires restart due to cached widget sizes/stylesheets)
 
 ### Developer/maintenance
 - **Logging**: Replace print() with Python logging module for user-reportable debug output

@@ -3,27 +3,34 @@
 Piano MIDI Viewer - A visual piano keyboard that displays MIDI input
 Created for music education and online lessons via OBS
 
-Version: 8.1.2
+Version: see VERSION constant
 License: GPL-3.0
 """
 
 import sys
 import os
+import json
 import configparser
 from pathlib import Path
+import subprocess
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 import rtmidi
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
     QColorDialog, QCheckBox
 )
-from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray
+from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QThread, pyqtSignal, QUrl
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIcon, QPixmap, QDesktopServices, QFontDatabase, QCursor
 
 
 # ============================================================================
 # CONSTANTS - Single White Key Foundation
 # ============================================================================
+
+# VERSION
+VERSION = "8.1.3"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -617,6 +624,39 @@ def make_button_style(bg_color="#f5f5f5", text_color="#2a2a2a", interactive=True
 # SETTINGS DIALOG
 # ============================================================================
 
+class UpdateChecker(QThread):
+    """Background thread to check for new releases on GitHub."""
+    result = pyqtSignal(str, str)  # (display_text, url_or_empty)
+
+    def run(self):
+        try:
+            url = "https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest"
+            req = Request(url, headers={"User-Agent": "PianoMIDIViewer"})
+            with urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            tag = data.get("tag_name", "")
+            latest = tag.lstrip("v")
+            if latest and self._is_newer(latest, VERSION):
+                self.result.emit(
+                    f"Version {latest} available",
+                    "https://codeberg.org/skoomabwoy/piano-midi-viewer/releases"
+                )
+            else:
+                self.result.emit("Up to date", "")
+        except (URLError, OSError, ValueError, KeyError):
+            self.result.emit("Could not check for updates", "")
+
+    @staticmethod
+    def _is_newer(remote, local):
+        """Returns True if remote version is newer than local."""
+        try:
+            r = tuple(int(x) for x in remote.split("."))
+            l = tuple(int(x) for x in local.split("."))
+            return r > l
+        except (ValueError, AttributeError):
+            return False
+
+
 class SettingsDialog(QDialog):
     """Dialog window for app configuration."""
 
@@ -688,12 +728,11 @@ class SettingsDialog(QDialog):
         scale_layout.addWidget(self.scale_dropdown)
         layout.addLayout(scale_layout)
 
-        # Restart hint (only shown when scale differs from current)
-        self.scale_hint = QLabel("Restart to apply")
-        self.scale_hint.setStyleSheet("color: #888; font-style: italic;")
-        self.scale_hint.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.scale_hint.setVisible(False)
-        layout.addWidget(self.scale_hint)
+        # Restart button (only shown when scale differs from current)
+        self.restart_button = QPushButton("Restart to apply")
+        self.restart_button.setVisible(False)
+        self.restart_button.clicked.connect(self.restart_app)
+        layout.addWidget(self.restart_button)
 
         # SEPARATOR
         layout.addSpacing(scaled(10))
@@ -751,8 +790,26 @@ class SettingsDialog(QDialog):
         self.names_when_pressed_checkbox.setEnabled(names_enabled)
         layout.addWidget(self.names_when_pressed_checkbox)
 
-        # INFO LINK
+        # VERSION + CHECK FOR UPDATES
         layout.addStretch()
+        version_row = QHBoxLayout()
+        version_label = QLabel(f"Version {VERSION}")
+        version_label.setStyleSheet("color: #888;")
+        version_row.addWidget(version_label)
+        version_row.addStretch()
+        self.update_button = QPushButton("Check for Updates")
+        self.update_button.clicked.connect(self.check_for_updates)
+        version_row.addWidget(self.update_button)
+        layout.addLayout(version_row)
+
+        self.update_result = QLabel("")
+        self.update_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.update_result.setTextFormat(Qt.TextFormat.RichText)
+        self.update_result.setOpenExternalLinks(True)
+        self.update_result.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        layout.addWidget(self.update_result)
+
+        # INFO LINK
         info_label = QLabel()
         info_label.setText('<a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" style="color: #5094d4;">Project Info & Source Code</a>')
         info_label.setOpenExternalLinks(True)
@@ -768,12 +825,14 @@ class SettingsDialog(QDialog):
         layout.addWidget(close_button)
         self.setLayout(layout)
 
-        # Size dialog with hint visible so space is pre-allocated,
-        # then hide it — prevents layout shifts when hint appears later
-        self.scale_hint.setVisible(True)
+        # Size dialog with hints visible so space is pre-allocated,
+        # then hide them — prevents layout shifts when they appear later
+        self.restart_button.setVisible(True)
+        self.update_result.setText("Version 00.00.00 available")
         self.adjustSize()
         self.setFixedSize(self.size())
-        self.scale_hint.setVisible(self.main_window.pending_ui_scale != UI_SCALE_FACTOR)
+        self.restart_button.setVisible(self.main_window.pending_ui_scale != UI_SCALE_FACTOR)
+        self.update_result.setText("")
 
     def populate_midi_devices(self):
         """Scans for available MIDI input devices."""
@@ -837,10 +896,18 @@ class SettingsDialog(QDialog):
     def scale_changed(self, index):
         """Called when user selects a different UI scale."""
         new_scale = self.scale_dropdown.currentData()
-        self.scale_hint.setVisible(new_scale != UI_SCALE_FACTOR)
+        self.restart_button.setVisible(new_scale != UI_SCALE_FACTOR)
         # Save immediately so it takes effect on next launch
         self.main_window.pending_ui_scale = new_scale
         self.main_window.save_settings()
+
+    def restart_app(self):
+        """Saves settings and restarts the application."""
+        self.main_window.save_settings()
+        kwargs = {"creationflags": subprocess.DETACHED_PROCESS} if sys.platform == "win32" else {"start_new_session": True}
+        devnull = subprocess.DEVNULL
+        subprocess.Popen([sys.executable] + sys.argv, stdin=devnull, stdout=devnull, stderr=devnull, **kwargs)
+        QApplication.instance().quit()
 
     def toggle_octave_numbers(self, state):
         """Toggles octave number display."""
@@ -883,6 +950,24 @@ class SettingsDialog(QDialog):
         self.main_window.show_names_when_pressed = (state == Qt.CheckState.Checked.value)
         self.main_window.piano.update()
         self.main_window.save_settings()
+
+    def check_for_updates(self):
+        """Checks GitHub for a newer release in a background thread."""
+        self.update_button.setEnabled(False)
+        self.update_button.setText("Checking...")
+        self.update_result.setText("")
+        self._update_checker = UpdateChecker()
+        self._update_checker.result.connect(self._on_update_result)
+        self._update_checker.start()
+
+    def _on_update_result(self, text, url):
+        """Handles the result from the update checker thread."""
+        self.update_button.setEnabled(True)
+        self.update_button.setText("Check for Updates")
+        if url:
+            self.update_result.setText(f'<a href="{url}" style="color: #5094d4;">{text}</a>')
+        else:
+            self.update_result.setText(f'<span style="color: #888;">{text}</span>')
 
 
 # ============================================================================
@@ -2346,7 +2431,7 @@ class PianoMIDIViewer(QMainWindow):
 
 def main():
     """Creates and runs the application."""
-    print("Piano MIDI Viewer - Version 8.1.2")
+    print(f"Piano MIDI Viewer - Version {VERSION}")
     print("=" * 40)
     print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
     print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
