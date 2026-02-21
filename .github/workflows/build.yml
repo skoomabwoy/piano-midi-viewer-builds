@@ -63,10 +63,13 @@ jobs:
           name: PianoMIDIViewer-windows-x86_64
           path: dist/PianoMIDIViewer.exe
 
-  # Build separate ARM and Intel macOS app bundles (--onedir mode),
+  # Build separate ARM and Intel macOS app bundles using the spec file,
   # then combine every Mach-O file with lipo into a universal2 bundle.
-  # --onedir is required because --onefile appends an archive after the
-  # Mach-O data, which lipo corrupts when combining architectures.
+  #
+  # Key: artifacts are uploaded as tarballs to preserve symlinks and
+  # file permissions.  PyInstaller 6.0+ uses symlinks to cross-link
+  # Contents/Frameworks/ and Contents/Resources/ — without tar,
+  # upload-artifact resolves symlinks into full copies (2x bloat).
 
   build-macos-arm:
     runs-on: macos-14  # M1 Apple Silicon
@@ -96,29 +99,19 @@ jobs:
           iconutil -c icns icon.iconset -o icon.icns
 
       - name: Build macOS ARM app bundle
-        run: |
-          pyinstaller --windowed --name PianoMIDIViewer \
-            --icon=icon.icns \
-            --add-data "JetBrainsMono-Regular.ttf:." \
-            --osx-bundle-identifier com.skoomabwoy.pianomidiviewer \
-            --exclude-module PyQt6.QtPdf \
-            --exclude-module PyQt6.QtPdfWidgets \
-            --exclude-module PyQt6.QtWebEngine \
-            --exclude-module PyQt6.QtWebEngineCore \
-            --exclude-module PyQt6.QtWebEngineWidgets \
-            --exclude-module PyQt6.QtQuick \
-            --exclude-module PyQt6.QtQml \
-            --exclude-module PyQt6.QtDesigner \
-            --exclude-module PyQt6.QtMultimedia \
-            --exclude-module tkinter \
-            --exclude-module unittest \
-            piano_viewer.py
+        run: pyinstaller PianoMIDIViewer-macos.spec
+
+      - name: Archive app bundle (preserves symlinks and permissions)
+        run: tar -czf arm64-app.tar.gz -C dist PianoMIDIViewer.app
+
+      - name: Show build size
+        run: du -sh dist/PianoMIDIViewer.app
 
       - name: Upload ARM app bundle
         uses: actions/upload-artifact@v4
         with:
           name: macos-arm64-app
-          path: dist/PianoMIDIViewer.app
+          path: arm64-app.tar.gz
 
   build-macos-intel:
     runs-on: macos-15-intel  # Intel x86_64
@@ -148,56 +141,59 @@ jobs:
           iconutil -c icns icon.iconset -o icon.icns
 
       - name: Build macOS Intel app bundle
-        run: |
-          pyinstaller --windowed --name PianoMIDIViewer \
-            --icon=icon.icns \
-            --add-data "JetBrainsMono-Regular.ttf:." \
-            --osx-bundle-identifier com.skoomabwoy.pianomidiviewer \
-            --exclude-module PyQt6.QtPdf \
-            --exclude-module PyQt6.QtPdfWidgets \
-            --exclude-module PyQt6.QtWebEngine \
-            --exclude-module PyQt6.QtWebEngineCore \
-            --exclude-module PyQt6.QtWebEngineWidgets \
-            --exclude-module PyQt6.QtQuick \
-            --exclude-module PyQt6.QtQml \
-            --exclude-module PyQt6.QtDesigner \
-            --exclude-module PyQt6.QtMultimedia \
-            --exclude-module tkinter \
-            --exclude-module unittest \
-            piano_viewer.py
+        run: pyinstaller PianoMIDIViewer-macos.spec
+
+      - name: Archive app bundle (preserves symlinks and permissions)
+        run: tar -czf x86_64-app.tar.gz -C dist PianoMIDIViewer.app
+
+      - name: Show build size
+        run: du -sh dist/PianoMIDIViewer.app
 
       - name: Upload Intel app bundle
         uses: actions/upload-artifact@v4
         with:
           name: macos-x86_64-app
-          path: dist/PianoMIDIViewer.app
+          path: x86_64-app.tar.gz
 
   combine-macos:
     needs: [build-macos-arm, build-macos-intel]
     runs-on: macos-14
     steps:
-      - name: Download ARM app bundle
+      - name: Download ARM artifact
         uses: actions/download-artifact@v4
         with:
           name: macos-arm64-app
-          path: arm64-app
+          path: downloads
 
-      - name: Download Intel app bundle
+      - name: Download Intel artifact
         uses: actions/download-artifact@v4
         with:
           name: macos-x86_64-app
-          path: x86_64-app
+          path: downloads
+
+      - name: Extract app bundles
+        run: |
+          mkdir arm64-app x86_64-app
+          tar -xzf downloads/arm64-app.tar.gz -C arm64-app
+          tar -xzf downloads/x86_64-app.tar.gz -C x86_64-app
+          echo "=== ARM bundle ==="
+          du -sh arm64-app/PianoMIDIViewer.app
+          echo "=== Intel bundle ==="
+          du -sh x86_64-app/PianoMIDIViewer.app
 
       - name: Combine into universal2 with lipo
         run: |
-          # Use ARM app bundle as base (preserves Info.plist, resources, icon, etc.)
-          cp -R arm64-app universal-app
+          # Use ARM app bundle as base (preserves Info.plist, resources, icon,
+          # symlink structure, and file permissions)
+          cp -a arm64-app/PianoMIDIViewer.app universal-app
 
-          # Lipo every Mach-O file (executables, .dylib, .so) from both bundles
+          # Lipo every real Mach-O file from both bundles.
+          # -type f skips symlinks — each binary is lipo'd once at its real
+          # location, and cross-linking symlinks continue to point there.
           combined=0
-          find arm64-app -type f | while read arm_file; do
-            rel="${arm_file#arm64-app/}"
-            intel_file="x86_64-app/$rel"
+          find arm64-app/PianoMIDIViewer.app -type f | while read arm_file; do
+            rel="${arm_file#arm64-app/PianoMIDIViewer.app/}"
+            intel_file="x86_64-app/PianoMIDIViewer.app/$rel"
             universal_file="universal-app/$rel"
 
             # Skip files that don't exist in both bundles
@@ -211,18 +207,26 @@ jobs:
             fi
           done
 
-          # Verify the main executable
+          # Safety: ensure main executable is executable
+          chmod +x universal-app/Contents/MacOS/PianoMIDIViewer
+
+          # Verify
           echo ""
           echo "=== Main executable ==="
           file universal-app/Contents/MacOS/PianoMIDIViewer
           lipo -info universal-app/Contents/MacOS/PianoMIDIViewer
+          echo ""
+          echo "=== Bundle size ==="
+          du -sh universal-app
 
       - name: Create DMG
         run: |
           mkdir -p dmg_staging
-          cp -R universal-app dmg_staging/PianoMIDIViewer.app
+          cp -a universal-app dmg_staging/PianoMIDIViewer.app
           ln -s /Applications dmg_staging/Applications
           hdiutil create -volname "Piano MIDI Viewer" -srcfolder dmg_staging -ov -format UDZO PianoMIDIViewer.dmg
+          echo "=== DMG size ==="
+          ls -lh PianoMIDIViewer.dmg
 
       - name: Upload universal DMG
         uses: actions/upload-artifact@v4
