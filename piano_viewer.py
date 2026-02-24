@@ -30,7 +30,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # ============================================================================
 
 # VERSION
-VERSION = "8.3.0"
+VERSION = "8.4.0"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -439,6 +439,24 @@ def get_text_color_for_highlight(highlight_color):
         return QColor(255, 255, 255)  # White
 
 
+def blend_colors(base, target, factor):
+    """
+    Linearly interpolates between two QColors.
+
+    Args:
+        base: QColor to blend from (factor=0.0)
+        target: QColor to blend to (factor=1.0)
+        factor: Blend amount (0.0 to 1.0)
+
+    Returns:
+        QColor: The blended color
+    """
+    r = base.red() + (target.red() - base.red()) * factor
+    g = base.green() + (target.green() - base.green()) * factor
+    b = base.blue() + (target.blue() - base.blue()) * factor
+    return QColor(int(r), int(g), int(b))
+
+
 def calculate_font_size_for_width(target_width, num_chars, font_family):
     """
     Calculates font size to fit a given number of characters in a target width.
@@ -799,6 +817,15 @@ class SettingsDialog(QDialog):
         self.names_when_pressed_checkbox.setEnabled(names_enabled)
         layout.addWidget(self.names_when_pressed_checkbox)
 
+        # SEPARATOR
+        layout.addSpacing(10)
+
+        # SHOW VELOCITY CHECKBOX
+        self.velocity_checkbox = QCheckBox("Show Velocity")
+        self.velocity_checkbox.setChecked(self.main_window.show_velocity)
+        self.velocity_checkbox.stateChanged.connect(self.toggle_velocity)
+        layout.addWidget(self.velocity_checkbox)
+
         # VERSION + CHECK FOR UPDATES
         layout.addStretch()
         version_row = QHBoxLayout()
@@ -972,6 +999,12 @@ class SettingsDialog(QDialog):
         self.main_window.piano.update()
         self.main_window.save_settings()
 
+    def toggle_velocity(self, state):
+        """Toggles velocity visualization."""
+        self.main_window.show_velocity = (state == Qt.CheckState.Checked.value)
+        self.main_window.piano.update()
+        self.main_window.save_settings()
+
     def check_for_updates(self):
         """Checks Codeberg for a newer release in a background thread."""
         self.update_button.setEnabled(False)
@@ -1011,8 +1044,8 @@ class PianoKeyboard(QWidget):
         self.start_note = DEFAULT_START_NOTE
         self.end_note = DEFAULT_END_NOTE
 
-        # Note tracking sets - which notes are currently highlighted
-        self.active_notes = set()           # MIDI notes currently being pressed (visible range)
+        # Note tracking - which notes are currently highlighted
+        self.active_notes = {}               # MIDI notes currently pressed → velocity (visible range)
         self.active_notes_left = set()      # MIDI notes being pressed below visible range
         self.active_notes_right = set()     # MIDI notes being pressed above visible range
 
@@ -1057,12 +1090,17 @@ class PianoKeyboard(QWidget):
         white_key_width = keyboard_width / num_white_keys
         key_corner_radius = max(KEY_CORNER_RADIUS_MIN, white_key_width * KEY_CORNER_RADIUS_RATIO)
 
+        # Get velocity visualization setting
+        main_window = self._get_main_window()
+        show_velocity = main_window.show_velocity if main_window else False
+
         # Draw white keys
         for note in range(self.start_note, self.end_note + 1):
             if not is_black_key(note):
                 self._draw_white_key(
                     painter, note, white_key_width,
-                    keyboard_x, keyboard_y, keyboard_height, key_corner_radius
+                    keyboard_x, keyboard_y, keyboard_height, key_corner_radius,
+                    show_velocity
                 )
 
         # Draw black keys
@@ -1073,11 +1111,11 @@ class PianoKeyboard(QWidget):
             if is_black_key(note):
                 self._draw_black_key(
                     painter, note, white_key_width,
-                    black_key_width, keyboard_x, keyboard_y, black_key_height, key_corner_radius
+                    black_key_width, keyboard_x, keyboard_y, black_key_height, key_corner_radius,
+                    show_velocity
                 )
 
         # Draw note names and octave numbers (if enabled)
-        main_window = self._get_main_window()
         if main_window:
             # Draw white key text (note names and/or octave numbers)
             if main_window.show_white_key_names or main_window.show_octave_numbers:
@@ -1091,7 +1129,7 @@ class PianoKeyboard(QWidget):
                     painter, white_key_width, black_key_width, keyboard_x, keyboard_y, black_key_height, keyboard_height, main_window
                 )
 
-    def _draw_white_key(self, painter, midi_note, key_width, x_offset, y_offset, height, corner_radius):
+    def _draw_white_key(self, painter, midi_note, key_width, x_offset, y_offset, height, corner_radius, show_velocity=False):
         """Draws a single white key."""
         white_index = get_white_key_index(midi_note, self.start_note)
         x = x_offset + (white_index * key_width)
@@ -1108,7 +1146,17 @@ class PianoKeyboard(QWidget):
         is_highlighted = (midi_note in self.active_notes or
                          midi_note in self.drawn_notes or
                          (midi_note == self.mouse_held_note and self.glissando_mode != 'off'))
-        fill_color = self.highlight_color if is_highlighted else QColor(252, 252, 252)
+
+        base_color = QColor(252, 252, 252)
+        if is_highlighted:
+            if show_velocity and midi_note in self.active_notes:
+                velocity = self.active_notes[midi_note]
+                factor = 0.3 + 0.7 * (velocity / 127.0)
+                fill_color = blend_colors(base_color, self.highlight_color, factor)
+            else:
+                fill_color = self.highlight_color
+        else:
+            fill_color = base_color
 
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -1142,7 +1190,7 @@ class PianoKeyboard(QWidget):
         )
 
     def _draw_black_key(self, painter, midi_note, white_key_width,
-                        black_key_width, x_offset, y_offset, black_key_height, corner_radius):
+                        black_key_width, x_offset, y_offset, black_key_height, corner_radius, show_velocity=False):
         """Draws a single black key."""
         left_white_note = get_left_white_key(midi_note, self.start_note)
         white_index = get_white_key_index(left_white_note, self.start_note)
@@ -1158,7 +1206,17 @@ class PianoKeyboard(QWidget):
         is_highlighted = (midi_note in self.active_notes or
                          midi_note in self.drawn_notes or
                          (midi_note == self.mouse_held_note and self.glissando_mode != 'off'))
-        fill_color = self.highlight_color if is_highlighted else QColor(16, 16, 16)
+
+        base_color = QColor(16, 16, 16)
+        if is_highlighted:
+            if show_velocity and midi_note in self.active_notes:
+                velocity = self.active_notes[midi_note]
+                factor = 0.3 + 0.7 * (velocity / 127.0)
+                fill_color = blend_colors(base_color, self.highlight_color, factor)
+            else:
+                fill_color = self.highlight_color
+        else:
+            fill_color = base_color
 
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -1240,7 +1298,13 @@ class PianoKeyboard(QWidget):
 
             # Determine text color based on highlight state
             if is_highlighted:
-                text_color = get_text_color_for_highlight(self.highlight_color)
+                if main_window.show_velocity and note in self.active_notes:
+                    velocity = self.active_notes[note]
+                    factor = 0.3 + 0.7 * (velocity / 127.0)
+                    fill_color = blend_colors(QColor(252, 252, 252), self.highlight_color, factor)
+                    text_color = get_text_color_for_highlight(fill_color)
+                else:
+                    text_color = get_text_color_for_highlight(self.highlight_color)
             else:
                 text_color = QColor(0, 0, 0)  # Black for normal white keys
 
@@ -1381,7 +1445,13 @@ class PianoKeyboard(QWidget):
 
             # Determine text color based on highlight state
             if is_highlighted:
-                text_color = get_text_color_for_highlight(self.highlight_color)
+                if main_window.show_velocity and note in self.active_notes:
+                    velocity = self.active_notes[note]
+                    factor = 0.3 + 0.7 * (velocity / 127.0)
+                    fill_color = blend_colors(QColor(16, 16, 16), self.highlight_color, factor)
+                    text_color = get_text_color_for_highlight(fill_color)
+                else:
+                    text_color = get_text_color_for_highlight(self.highlight_color)
             else:
                 text_color = QColor(255, 255, 255)  # White for normal black keys
 
@@ -1598,7 +1668,7 @@ class PianoKeyboard(QWidget):
 
             elif event.button() == Qt.MouseButton.LeftButton:
                 # Playing mode (left click only): highlight the note while held
-                self.active_notes.add(note)
+                self.active_notes[note] = 127  # Mouse clicks = full velocity
                 self.mouse_held_note = note
                 self.glissando_mode = None
                 self.update()
@@ -1629,8 +1699,8 @@ class PianoKeyboard(QWidget):
                         self.drawn_notes.discard(note)
                 else:
                     # Playing: move active note to new key
-                    self.active_notes.discard(self.mouse_held_note)
-                    self.active_notes.add(note)
+                    self.active_notes.pop(self.mouse_held_note, None)
+                    self.active_notes[note] = 127
 
                 self.mouse_held_note = note
                 self.update()
@@ -1652,7 +1722,7 @@ class PianoKeyboard(QWidget):
             else:
                 # Playing: remove from active_notes
                 if self.mouse_held_note in self.active_notes:
-                    self.active_notes.discard(self.mouse_held_note)
+                    self.active_notes.pop(self.mouse_held_note, None)
 
             self.mouse_held_note = None
             self.glissando_mode = None
@@ -1690,6 +1760,7 @@ class PianoMIDIViewer(QMainWindow):
         self.show_black_key_names = False # Default: OFF
         self.black_key_notation = "Flats"  # Default: Flats
         self.show_names_when_pressed = False  # Default: OFF (show names on all keys)
+        self.show_velocity = False  # Default: OFF (all notes same brightness)
 
         # UI scale (pending value saved for next launch)
         self.pending_ui_scale = UI_SCALE_FACTOR
@@ -1898,6 +1969,8 @@ class PianoMIDIViewer(QMainWindow):
 
             if config.has_option('appearance', 'show_names_when_pressed'):
                 self.show_names_when_pressed = config.getboolean('appearance', 'show_names_when_pressed')
+            if config.has_option('appearance', 'show_velocity'):
+                self.show_velocity = config.getboolean('appearance', 'show_velocity')
 
             # Load keyboard range (must be before geometry restoration)
             if config.has_option('keyboard', 'start_note') and config.has_option('keyboard', 'end_note'):
@@ -1950,6 +2023,7 @@ class PianoMIDIViewer(QMainWindow):
             'show_black_key_names': str(self.show_black_key_names),
             'black_key_notation': self.black_key_notation,
             'show_names_when_pressed': str(self.show_names_when_pressed),
+            'show_velocity': str(self.show_velocity),
             'ui_scale': str(self.pending_ui_scale)
         }
 
@@ -2266,17 +2340,17 @@ class PianoMIDIViewer(QMainWindow):
 
         # Note On/Off messages
         elif message_type == 0x90 and data2 > 0:
-            self.handle_note_on(data1)
+            self.handle_note_on(data1, data2)
         elif message_type == 0x80 or (message_type == 0x90 and data2 == 0):
             self.handle_note_off(data1)
 
-    def handle_note_on(self, note_number):
+    def handle_note_on(self, note_number, velocity=127):
         """
         Handles a Note On MIDI event.
 
         Behavior depends on pencil state:
         - Pencil active: toggle in drawn_notes (only visible range)
-        - Playing (default): add to active_notes
+        - Playing (default): add to active_notes with velocity
         """
         if self.pencil_active:
             # Drawing: toggle in drawn_notes (only visible range)
@@ -2291,7 +2365,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Playing mode: highlight the note while it is physically pressed
         if self.piano.start_note <= note_number <= self.piano.end_note:
-            self.piano.active_notes.add(note_number)
+            self.piano.active_notes[note_number] = velocity
             self.piano.update()
         elif note_number < self.piano.start_note:
             # Note below visible range
@@ -2320,7 +2394,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Handle notes within visible range
         if note_number in self.piano.active_notes:
-            self.piano.active_notes.discard(note_number)
+            self.piano.active_notes.pop(note_number, None)
             self.piano.update()
 
         # Handle notes outside visible range (left)

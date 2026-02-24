@@ -8,7 +8,17 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.3.0**
+**Current Version: 8.4.0**
+
+### Changes in 8.4.0
+- **Velocity visualization**: Key brightness reflects how hard each key is pressed (off by default)
+- **`active_notes` dict**: Changed from `set()` to `dict()` mapping `note_number → velocity (1-127)` — `note in dict` checks keys, so all existing membership checks work unchanged
+- **`blend_colors()` helper**: Linear interpolation between two QColors for velocity-aware rendering
+- **Velocity factor**: Maps velocity 1-127 to 0.3-1.0 range — even soft notes are always visible (minimum 30% blend)
+- **Settings checkbox**: "Show velocity brightness" in Settings dialog under note display section
+- **Velocity-aware text contrast**: Note names and octave numbers adapt to blended fill color when velocity is active
+- **Mouse clicks**: Always use velocity 127 (full highlight intensity)
+- **Out-of-range indicators**: Plus button glow always at 100% highlight — intentionally NOT velocity-sensitive
 
 ### Changes in 8.3.0
 - **Persistent MIDI scanner**: Single `rtmidi.MidiIn()` instance reused for all port listing — eliminates ALSA sequencer handle leaks
@@ -230,7 +240,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 1. **`PianoKeyboard` (QWidget)** - Custom widget that renders the piano keyboard
    - Draws white and black keys using QPainter
    - Maintains four note tracking sets:
-     - `active_notes` - MIDI notes currently pressed (visible range)
+     - `active_notes` - Dict mapping MIDI note → velocity for currently pressed notes (visible range)
      - `active_notes_left/right` - MIDI notes pressed outside visible range
      - `drawn_notes` - Notes marked by pencil tool (visible range only)
    - Mouse interaction tracking (`mouse_held_note`, `glissando_mode`)
@@ -247,6 +257,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
    - `sustain_pedal_active` - tracks CC 64 pedal state for the S indicator
    - `pencil_active` - whether pencil drawing tool is active
    - Five note display settings (`show_octave_numbers`, `show_white_key_names`, `show_black_key_names`, `black_key_notation`, `show_names_when_pressed`)
+   - `show_velocity` - whether velocity brightness is enabled (default: OFF)
    - Keyboard event handler for Esc key (exits pencil tool)
    - Enforces window resize constraints in `resizeEvent()`
    - Three-column layout: ✎/+/- (left) | piano (center) | ⚙️/S/+/- (right)
@@ -482,10 +493,10 @@ When adding/removing octaves:
 - Note Off: Status byte 0x80, or 0x90 with velocity = 0
 - Control Change: Status byte 0xB0 (for sustain pedal, CC 64)
 
-**Four note tracking sets:**
-- `active_notes` - MIDI notes currently pressed (visible range)
-- `active_notes_left/right` - Notes pressed outside visible range
-- `drawn_notes` - Notes marked by pencil tool (visible range only)
+**Note tracking collections:**
+- `active_notes` - Dict mapping MIDI note → velocity for currently pressed notes (visible range)
+- `active_notes_left/right` - Sets of notes pressed outside visible range
+- `drawn_notes` - Set of notes marked by pencil tool (visible range only)
 
 **Pencil Tool:**
 The pencil button (left side, SVG icon) activates a drawing tool independent from playing:
@@ -571,7 +582,6 @@ Mode is locked for entire drag (determined by initial button press):
 - **Graceful disconnect handling**: Clean recovery when USB MIDI device is unplugged mid-session
 - **Color themes/presets**: Built-in themes (classic, dark mode for OBS, pastel for kids) — each theme = highlight color + background + key colors
 - **Export drawn notes as image**: "Save as PNG" for teachers using pencil tool to mark notes
-- **Velocity visualization**: Show key press intensity via color opacity or brightness
 - **Live UI scaling**: Apply scale changes without requiring app restart (currently requires restart due to cached widget sizes/stylesheets)
 
 ### Developer/maintenance

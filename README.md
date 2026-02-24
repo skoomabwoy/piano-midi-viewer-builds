@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and streamers.
 
-![Version](https://img.shields.io/badge/version-8.3.0-blue)
+![Version](https://img.shields.io/badge/version-8.4.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -14,6 +14,7 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 - 🔠 **Key labels** — show or hide note names, octave numbers, sharps and flats
 - 👇 **Show on press** — only show labels on keys that you are currently pressing
 - 🎨 **Custom colors** — pick any highlight color; text adjusts automatically so it's always easy to read
+- 🎶 **Velocity sensitivity** — optionally show how hard you press each key (brighter = harder); off by default
 - 🎵 **Sustain indicator** — the S button lights up when your MIDI sustain pedal is held
 - ↔️ **Octave range** — use the + and − buttons to show more or fewer octaves (from A0 up to C8)
 
@@ -110,6 +111,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.4.0** — Velocity visualization: keys light up brighter the harder you press them (off by default in Settings)
 **8.3.0** — MIDI connection hardening: persistent scanner (no ALSA leaks), non-modal Settings, dropdown auto-refresh
 **8.2.2** — Fixed restart button in compiled builds (PyInstaller)
 **8.2.1** — MIDI hot-plug detection, auto-reconnect, version display and update checker in Settings
