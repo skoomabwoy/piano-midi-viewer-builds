@@ -12,10 +12,13 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 ### Changes in 8.5.0
 - **New app icon**: Replaced hand-drawn piano icon with CC0 icon from SVG Repo (white keys on Arch Blue background)
-- **macOS update check fix**: Stopped excluding `libcrypto`/`libssl` from macOS builds — Python's `ssl` module needs them for HTTPS update checks
+- **macOS update check fix**: Added `certifi` dependency for CA certificates — PyInstaller bundles don't include system CA certs, so `urlopen` over HTTPS failed silently. Now creates explicit `ssl.create_default_context(cafile=certifi.where())` for the update check
+- **macOS spec**: Stopped excluding `libcrypto`/`libssl` — Python's `ssl` module needs them
 - **Linux AppImage**: Linux builds now produce `.AppImage` instead of a bare binary — works out-of-the-box on Ubuntu, Mint, Fedora, Arch without extra dependencies (uses static runtime, no FUSE2/FUSE3 issues)
 - **Linux spec**: Changed from `--onefile` to `--onedir` PyInstaller build to support AppImage packaging
 - **macOS DMG README**: Added `README.txt` inside the DMG with step-by-step install instructions including the `xattr -cr` command with absolute path to `/Applications/PianoMIDIViewer.app`
+- **Update button layout fix**: Version label now takes stretch space (stretch factor 1), button stays fixed — no more shifting when label text changes
+- **Shorter error text**: "Check failed" instead of "Could not check for updates" to fit the version label area
 
 ### Changes in 8.4.0
 - **Velocity visualization**: Key brightness reflects how hard each key is pressed (off by default)

@@ -13,8 +13,10 @@ import json
 import configparser
 from pathlib import Path
 import subprocess
+import ssl
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+import certifi
 import rtmidi
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -647,7 +649,8 @@ class UpdateChecker(QThread):
         try:
             url = "https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest"
             req = Request(url, headers={"User-Agent": "PianoMIDIViewer"})
-            with urlopen(req, timeout=10) as resp:
+            ctx = ssl.create_default_context(cafile=certifi.where())
+            with urlopen(req, timeout=10, context=ctx) as resp:
                 data = json.loads(resp.read().decode())
             tag = data.get("tag_name", "")
             latest = tag.lstrip("v")
@@ -659,7 +662,7 @@ class UpdateChecker(QThread):
             else:
                 self.result.emit("Up to date", "")
         except (URLError, OSError, ValueError, KeyError):
-            self.result.emit("Could not check for updates", "")
+            self.result.emit("Check failed", "")
 
     @staticmethod
     def _is_newer(remote, local):
@@ -828,12 +831,11 @@ class SettingsDialog(QDialog):
         self.version_label.setTextFormat(Qt.TextFormat.RichText)
         self.version_label.setOpenExternalLinks(True)
         self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        version_row.addWidget(self.version_label)
-        version_row.addStretch()
+        version_row.addWidget(self.version_label, 1)
         self.update_button = QPushButton("Check for Updates")
         self.update_button.setFixedWidth(self.update_button.sizeHint().width())
         self.update_button.clicked.connect(self.check_for_updates)
-        version_row.addWidget(self.update_button)
+        version_row.addWidget(self.update_button, 0)
         layout.addLayout(version_row)
 
         # INFO LINK
