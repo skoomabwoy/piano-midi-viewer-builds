@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and streamers.
 
-![Version](https://img.shields.io/badge/version-8.4.0-blue)
+![Version](https://img.shields.io/badge/version-8.5.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -40,7 +40,7 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 
 <img src="screenshots/settings.png" height="400">
 
-*MIDI device, colors, and display options*
+*MIDI device, highlight color, UI scale, key labels, velocity, and update checker*
 
 ## Download
 
@@ -55,30 +55,29 @@ Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and
 
 ### macOS
 
-1. Download **PianoMIDIViewer.app.zip**
-2. Double-click the zip file to unzip it
-3. Right-click **PianoMIDIViewer.app** and choose **Open**
+1. Download **PianoMIDIViewer.dmg**
+2. Double-click to open the disk image
+3. Drag **PianoMIDIViewer.app** to the **Applications** folder
+4. Open **Terminal** (press `Cmd + Space`, type `Terminal`, press Enter)
+5. Paste this command and press Enter:
+   ```
+   xattr -cr /Applications/PianoMIDIViewer.app
+   ```
+6. Open **PianoMIDIViewer** from your Applications folder
 
-> If macOS shows a warning that the app "can't be opened", follow these extra steps (only needed once):
->
-> 4. Open **Terminal** (press `Cmd + Space`, type `Terminal`, press Enter)
-> 5. Type "xattr -cr " (with a space at the end), then **drag the PianoMIDIViewer.app icon into the Terminal window** — this will add a path to the folder with the app
-> 6. Press Enter
-> 7. Now right-click the app again and choose **Open**
->
-> This happens because the app is not signed with an Apple certificate — but it is still safe to run.
+> Step 5 is needed because the app is not signed with an Apple certificate — but it is still safe to run. You only need to do this once.
 
 
 ### Linux
 
-1. Download **PianoMIDIViewer**
+1. Download **PianoMIDIViewer-x86_64.AppImage**
 2. Right-click the file → Properties → Permissions → check **"Allow executing as program"**
 3. Double-click the file to open it
 
 Or if you prefer the terminal:
 ```bash
-chmod +x PianoMIDIViewer
-./PianoMIDIViewer
+chmod +x PianoMIDIViewer-x86_64.AppImage
+./PianoMIDIViewer-x86_64.AppImage
 ```
 
 <details>
@@ -111,6 +110,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.5.0** — New app icon, Linux AppImage format, macOS update checker fix, install instructions in DMG
 **8.4.0** — Velocity visualization: keys light up brighter the harder you press them (off by default in Settings)
 **8.3.0** — MIDI connection hardening: persistent scanner (no ALSA leaks), non-modal Settings, dropdown auto-refresh
 **8.2.2** — Fixed restart button in compiled builds (PyInstaller)
