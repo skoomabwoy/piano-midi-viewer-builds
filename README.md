@@ -48,14 +48,14 @@ Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and
 
 ### Windows
 
-1. Download **PianoMIDIViewer.exe**
+1. Download **WIN_PianoMIDIViewer.exe**
 2. Double-click the file to open it
 
 > If Windows shows a "Windows protected your PC" warning, click **More info** → **Run anyway**. This happens because the app is not signed with a Microsoft certificate — but it is still safe to run.
 
 ### macOS
 
-1. Download **PianoMIDIViewer.dmg**
+1. Download **MAC_PianoMIDIViewer.dmg**
 2. Double-click to open the disk image
 3. Drag **PianoMIDIViewer.app** to the **Applications** folder
 4. Open **Terminal** (press `Cmd + Space`, type `Terminal`, press Enter)
@@ -70,14 +70,14 @@ Go to [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) and
 
 ### Linux
 
-1. Download **PianoMIDIViewer-x86_64.AppImage**
+1. Download **LINUX_PianoMIDIViewer.AppImage**
 2. Right-click the file → Properties → Permissions → check **"Allow executing as program"**
 3. Double-click the file to open it
 
 Or if you prefer the terminal:
 ```bash
-chmod +x PianoMIDIViewer-x86_64.AppImage
-./PianoMIDIViewer-x86_64.AppImage
+chmod +x LINUX_PianoMIDIViewer.AppImage
+./LINUX_PianoMIDIViewer.AppImage
 ```
 
 <details>
