@@ -30,7 +30,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # ============================================================================
 
 # VERSION
-VERSION = "8.4.0"
+VERSION = "8.5.0"
 
 # DEFAULT HIGHLIGHT COLOR - Arch Blue!
 DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
@@ -132,18 +132,13 @@ LOADED_FONT_FAMILY = None  # Will be set in main() after font loading
 # ============================================================================
 
 def create_piano_icon():
-    """Creates a simple piano icon as a QIcon."""
+    """Creates a piano icon as a QIcon from embedded SVG."""
     svg_data = """
-    <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-        <rect width="64" height="64" fill="#5094d4" rx="8"/>
-        <rect x="8" y="16" width="48" height="36" fill="#f5f5f5" rx="2"/>
-        <rect x="12" y="18" width="9" height="30" fill="#ffffff" stroke="#888" stroke-width="0.5"/>
-        <rect x="22" y="18" width="9" height="30" fill="#ffffff" stroke="#888" stroke-width="0.5"/>
-        <rect x="32" y="18" width="9" height="30" fill="#ffffff" stroke="#888" stroke-width="0.5"/>
-        <rect x="42" y="18" width="9" height="30" fill="#ffffff" stroke="#888" stroke-width="0.5"/>
-        <rect x="18" y="18" width="6" height="18" fill="#1a1a1a"/>
-        <rect x="28" y="18" width="6" height="18" fill="#1a1a1a"/>
-        <rect x="38" y="18" width="6" height="18" fill="#1a1a1a"/>
+    <svg width="64" height="64" viewBox="-31.4 -31.4 376.84 376.84" xmlns="http://www.w3.org/2000/svg">
+        <rect x="-31.4" y="-31.4" width="376.84" height="376.84" fill="#1793D1"/>
+        <g fill="#ffffff">
+            <path d="M89.859,314.043h60.092h14.142h60.092h14.142h74.233V0h-74.233h-14.142h-60.092h-14.142H89.859H75.717H1.484v314.043 h74.233H89.859z M296.652,298.136h-56.561v-91.021h18.559V15.907h38.002V298.136z M222.418,207.115v91.021h-56.561v-91.021h18.559 V15.907h17.673v191.208H222.418z M148.185,207.115v91.021H91.625v-91.021h18.559V15.907h17.673v191.208H148.185z M73.952,298.136 H17.391V15.907h36.231v191.208h20.33V298.136z"/>
+        </g>
     </svg>
     """
     pixmap = QPixmap(64, 64)

@@ -166,12 +166,12 @@ print("=" * 60 + "\n")
 
 pyz = PYZ(a.pure)
 
+# Linux: --onedir build for AppImage packaging
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='PianoMIDIViewer',
     debug=False,
     bootloader_ignore_signals=False,
@@ -181,11 +181,20 @@ exe = EXE(
         # Don't compress these - can cause issues or slowdown
         'libpython*.so*',
     ],
-    runtime_tmpdir=None,
     console=False,  # Windowed app, no console
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=True,
+    upx=True,
+    upx_exclude=['libpython*.so*'],
+    name='PianoMIDIViewer',
 )

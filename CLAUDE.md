@@ -8,7 +8,14 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
 
-**Current Version: 8.4.0**
+**Current Version: 8.5.0**
+
+### Changes in 8.5.0
+- **New app icon**: Replaced hand-drawn piano icon with CC0 icon from SVG Repo (white keys on Arch Blue background)
+- **macOS update check fix**: Stopped excluding `libcrypto`/`libssl` from macOS builds — Python's `ssl` module needs them for HTTPS update checks
+- **Linux AppImage**: Linux builds now produce `.AppImage` instead of a bare binary — works out-of-the-box on Ubuntu, Mint, Fedora, Arch without extra dependencies (uses static runtime, no FUSE2/FUSE3 issues)
+- **Linux spec**: Changed from `--onefile` to `--onedir` PyInstaller build to support AppImage packaging
+- **macOS DMG README**: Added `README.txt` inside the DMG with step-by-step install instructions including the `xattr -cr` command with absolute path to `/Applications/PianoMIDIViewer.app`
 
 ### Changes in 8.4.0
 - **Velocity visualization**: Key brightness reflects how hard each key is pressed (off by default)
@@ -584,6 +591,9 @@ Mode is locked for entire drag (determined by initial button press):
 - **Export drawn notes as image**: "Save as PNG" for teachers using pencil tool to mark notes
 - **Live UI scaling**: Apply scale changes without requiring app restart (currently requires restart due to cached widget sizes/stylesheets)
 
+### Distribution
+- **Flatpak packaging**: Investigate distributing via Flatpak for broader Linux desktop integration (auto-updates, sandboxing, Flathub discoverability)
+
 ### Developer/maintenance
 - **Logging**: Replace print() with Python logging module for user-reportable debug output
 - **Settings migration**: Version field in settings file with migration logic for new settings across versions
@@ -596,4 +606,4 @@ Mode is locked for entire drag (determined by initial button press):
 - MIDI device connection errors print to console
 - Version number in docstring (currently 8.0.0)
 - Extensive inline comments for educational purposes and code continuity
-- Cross-platform: Linux (run from source) and Windows (standalone .exe)
+- Cross-platform: Linux (AppImage), Windows (.exe), macOS (.dmg)

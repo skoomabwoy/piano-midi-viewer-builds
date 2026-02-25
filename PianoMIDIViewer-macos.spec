@@ -83,9 +83,7 @@ def filter_binaries(binaries):
     exclude_patterns = [
         # Unnecessary Qt native libraries (macOS framework names)
         'QtPdf',
-        'QtNetwork',       # App has no networking
-        'libcrypto',       # Pulled in by QtNetwork
-        'libssl',          # Pulled in by QtNetwork
+        'QtNetwork',       # Qt networking not used (Python urllib handles updates)
         'QtQuick',
         'QtQml',
         'QtDesigner',

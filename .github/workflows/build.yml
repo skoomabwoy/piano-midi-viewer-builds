@@ -17,7 +17,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev
+          sudo apt-get install -y libasound2-dev librsvg2-bin
 
       - name: Install Python dependencies
         run: |
@@ -28,11 +28,44 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller PianoMIDIViewer.spec
 
+      - name: Generate icon
+        run: rsvg-convert -w 256 -h 256 icon.svg -o piano-midi-viewer.png
+
+      - name: Create AppDir
+        run: |
+          mkdir -p PianoMIDIViewer.AppDir/usr/bin
+          cp -a dist/PianoMIDIViewer/* PianoMIDIViewer.AppDir/usr/bin/
+          cp piano-midi-viewer.png PianoMIDIViewer.AppDir/piano-midi-viewer.png
+
+          cat > PianoMIDIViewer.AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/PianoMIDIViewer" "$@"
+          APPRUN
+          chmod +x PianoMIDIViewer.AppDir/AppRun
+
+          cat > PianoMIDIViewer.AppDir/piano-midi-viewer.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=Piano MIDI Viewer
+          Exec=PianoMIDIViewer
+          Icon=piano-midi-viewer
+          Type=Application
+          Categories=AudioVideo;Audio;Music;Education;
+          DESKTOP
+
+      - name: Build AppImage
+        run: |
+          curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool PianoMIDIViewer.AppDir PianoMIDIViewer-x86_64.AppImage
+          echo "=== AppImage size ==="
+          ls -lh PianoMIDIViewer-x86_64.AppImage
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: PianoMIDIViewer-linux-x86_64
-          path: dist/PianoMIDIViewer
+          path: PianoMIDIViewer-x86_64.AppImage
 
   build-windows:
     runs-on: windows-latest
@@ -234,6 +267,24 @@ jobs:
           mkdir -p dmg_staging
           cp -a universal-app dmg_staging/PianoMIDIViewer.app
           ln -s /Applications dmg_staging/Applications
+          printf '%s\n' \
+            "How to install Piano MIDI Viewer" \
+            "================================" \
+            "" \
+            "1. Drag PianoMIDIViewer.app to the Applications folder." \
+            "" \
+            "2. Open Terminal (press Cmd+Space, type \"Terminal\", press Enter)." \
+            "" \
+            "3. Paste this command and press Enter:" \
+            "" \
+            "   xattr -cr /Applications/PianoMIDIViewer.app" \
+            "" \
+            "4. Open PianoMIDIViewer from your Applications folder." \
+            "" \
+            "Step 3 is needed because the app is not signed with an Apple" \
+            "Developer certificate. The xattr command removes the macOS" \
+            "quarantine flag so the app can run normally." \
+            > dmg_staging/README.txt
           hdiutil create -volname "Piano MIDI Viewer" -srcfolder dmg_staging -ov -format UDZO PianoMIDIViewer.dmg
           echo "=== DMG size ==="
           ls -lh PianoMIDIViewer.dmg
@@ -260,6 +311,6 @@ jobs:
           draft: true
           generate_release_notes: true
           files: |
-            PianoMIDIViewer-linux-x86_64/PianoMIDIViewer
+            PianoMIDIViewer-linux-x86_64/PianoMIDIViewer-x86_64.AppImage
             PianoMIDIViewer-windows-x86_64/PianoMIDIViewer.exe
             PianoMIDIViewer-macos-universal/PianoMIDIViewer.dmg
