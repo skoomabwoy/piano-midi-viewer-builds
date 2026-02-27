@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and streamers.
 
-![Version](https://img.shields.io/badge/version-8.5.2-blue)
+![Version](https://img.shields.io/badge/version-8.5.3-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -110,6 +110,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.5.3** — Test suite: 67 pytest tests covering all helper functions
 **8.5.2** — Trimmed CLAUDE.md, added CHANGELOG.md, pinned dependencies, committed SVG assets, git hook for dual-remote push
 **8.5.1** — Logging, settings migration framework, expanded comments, project folder reorganization
 **8.5.0** — New app icon, Linux AppImage format, macOS update checker fix, install instructions in DMG

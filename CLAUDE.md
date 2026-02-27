@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~3000 lines).
 
-**Current Version: 8.5.2**
+**Current Version: 8.5.3**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -175,7 +175,7 @@ ENTRY POINT       - main() function
 ## Future Features & Ideas
 
 ### High priority
-- **Test suite**: Unit tests for helper functions (`is_black_key`, `count_white_keys`, `get_note_name`, `migrate_settings`) — pure logic, no GUI. pytest in `tests/` directory
+- ~~**Test suite**: Unit tests for helper functions~~ Done in 8.5.3 — 67 tests in `tests/`
 
 ### Accessibility
 - **High contrast mode**: Thicker key borders, bolder outlines for low vision users and OBS at low resolutions

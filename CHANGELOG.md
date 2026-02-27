@@ -2,6 +2,9 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 8.5.3
+- **Test suite**: Added pytest with 67 tests covering all pure-logic helper functions — MIDI note classification, white key counting/indexing, note naming, octave numbers, black key accidentals, color contrast/blending, and settings migration
+
 ## 8.5.2
 - **CLAUDE.md debloat**: Moved full version history to CHANGELOG.md, kept only architecture and conventions (~660 lines -> ~160 lines)
 - **CHANGELOG.md**: New file with full version history from 5.0.0 to present
