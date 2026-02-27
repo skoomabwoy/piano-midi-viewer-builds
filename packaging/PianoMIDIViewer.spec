@@ -21,7 +21,7 @@ a = Analysis(
     pathex=[],
     binaries=rtmidi_binaries,
     datas=[
-        ('JetBrainsMono-Regular.ttf', '.'),
+        ('assets/JetBrainsMono-Regular.ttf', '.'),
     ] + rtmidi_datas,
     hiddenimports=rtmidi_hiddenimports,
     hookspath=[],

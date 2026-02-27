@@ -6,9 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. It's designed for music education and online lessons via OBS.
 
-**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~2300 lines).
+**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~3000 lines).
 
-**Current Version: 8.5.0**
+**Current Version: 8.5.1**
+
+### Changes in 8.5.1
+- **Logging**: Replaced all `print()` calls with Python's `logging` module — `log.info()`, `log.warning()`, `log.error()` for user-reportable debug output
+- **Settings migration framework**: Added `SETTINGS_VERSION` constant and `migrate_settings()` function — versioned `[meta]` section in settings.ini with sequential migration steps for future format changes
+- **Expanded comments**: Comprehensive review of all comments across the entire file — beginner-friendly explanations, section headers, class docstrings, and inline notes for educational clarity (~300 lines added)
+- **Project reorganization**: Moved `icon.svg` and `JetBrainsMono-Regular.ttf` into `assets/`, moved `.spec` files into `packaging/` — updated all references in piano_viewer.py, spec files, and CI workflow
+- **`.gitignore` cleanup**: Added AppImage build artifact patterns
 
 ### Changes in 8.5.0
 - **New app icon**: Replaced hand-drawn piano icon with CC0 icon from SVG Repo (white keys on Arch Blue background)
@@ -204,6 +211,30 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 - **Visual improvements**: Darker background grey (150, 150, 150) for better white key contrast
 - **Color sync fix**: Mode button and plus button glows now update immediately when highlight color changes
 
+## Project Structure
+
+```
+piano_viewer.py          # Entire application (single-file architecture)
+README.md                # User-facing documentation
+CLAUDE.md                # Developer documentation (this file)
+requirements.txt         # Python dependencies
+LICENSE                  # GPL-3.0
+
+assets/                  # SVG icons and embedded font
+  icon.svg               # App icon (used by CI for .ico/.icns generation)
+  JetBrainsMono-Regular.ttf  # Bundled font for note labels
+  pencil.svg             # Local reference only (not committed)
+  eraser.svg             # Local reference only (not committed)
+  new-icon.svg           # Local reference only (not committed)
+
+packaging/               # PyInstaller build specs
+  PianoMIDIViewer.spec         # Linux build spec
+  PianoMIDIViewer-macos.spec   # macOS build spec
+
+screenshots/             # README screenshots
+.github/workflows/       # GitHub Actions CI (build.yml)
+```
+
 ## Running the Application
 
 ```bash
@@ -373,6 +404,14 @@ PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
 MAIN WINDOW       - Application controller (PianoMIDIViewer class)
 ENTRY POINT       - main() function
 ```
+
+Key additions in 8.5.1:
+- `logging` module with `log` logger instance — replaces all `print()` calls
+- `SETTINGS_VERSION` constant — tracks settings.ini format version
+- `migrate_settings()` function — runs sequential migrations on settings.ini before app starts
+- `[meta]` section in settings.ini with `settings_version` field
+- Project files reorganized: `assets/` (SVGs + font), `packaging/` (spec files)
+- Font path updated: `os.path.join(..., "assets", "JetBrainsMono-Regular.ttf")`
 
 Key additions in 6.3.4:
 - Constants: `KEY_GAP_RATIO`, `KEY_GAP_MIN`, `KEY_GAP_MAX`, `SHADOW_DISABLE_WIDTH`, `BUTTON_SPACING`, `MIN_BUTTON_AREA_HEIGHT`, `MIN_WINDOW_HEIGHT`
@@ -594,12 +633,23 @@ Mode is locked for entire drag (determined by initial button press):
 - **Export drawn notes as image**: "Save as PNG" for teachers using pencil tool to mark notes
 - **Live UI scaling**: Apply scale changes without requiring app restart (currently requires restart due to cached widget sizes/stylesheets)
 
+### Website (landing page)
+- **Single-page landing site**: Static HTML/CSS/JS site to replace Codeberg repo as the public-facing download page
+- **Hosting**: Codeberg Pages (free, open-source aligned) → custom domain later (~$12/year via Gandi or similar)
+- **Interactive piano demo**: Clickable HTML/CSS piano on the page itself — visitors can play with it immediately
+- **OS-detected downloads**: Auto-detect visitor's OS, show the right download button prominently
+- **Scroll-triggered feature animations**: Animated demos of MIDI input, sustain pedal, pencil tool, velocity
+- **Per-platform install instructions**: OS-tabbed section with step-by-step animated guides
+- **Design**: Dark theme, minimal, non-technical language, mobile responsive
+- **Tech**: Pure HTML/CSS/JS, no frameworks, no build step — likely under 1000 lines total
+- **Strategy doc**: Detailed planning in memory file `website-strategy.md`
+
 ### Distribution
 - **Flatpak packaging**: Investigate distributing via Flatpak for broader Linux desktop integration (auto-updates, sandboxing, Flathub discoverability)
 
 ### Developer/maintenance
-- **Logging**: Replace print() with Python logging module for user-reportable debug output
-- **Settings migration**: Version field in settings file with migration logic for new settings across versions
+- ~~**Logging**: Replace print() with Python logging module for user-reportable debug output~~ ✓ Done in 8.5.1
+- ~~**Settings migration**: Version field in settings file with migration logic for new settings across versions~~ ✓ Done in 8.5.1
 - **Error reporting dialog**: User-facing "something went wrong" dialog with copy-to-clipboard instead of silent console errors
 
 ## Development Notes

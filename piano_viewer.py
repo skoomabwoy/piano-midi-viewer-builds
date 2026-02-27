@@ -7,17 +7,35 @@ Version: see VERSION constant
 License: GPL-3.0
 """
 
+# --- Standard library imports ---
 import sys
 import os
 import json
+import logging
 import configparser
 from pathlib import Path
 import subprocess
 import ssl
 from urllib.request import urlopen, Request
 from urllib.error import URLError
-import certifi
-import rtmidi
+
+# --- Third-party imports ---
+import certifi       # Provides CA certificates for HTTPS (needed in PyInstaller builds)
+import rtmidi        # MIDI input handling (python-rtmidi)
+
+# --- Logging setup ---
+# Outputs to stderr so it doesn't interfere with stdout.
+# All modules in this app use `log.info()`, `log.warning()`, `log.error()`, etc.
+log = logging.getLogger("piano-midi-viewer")
+log.setLevel(logging.DEBUG)
+_log_handler = logging.StreamHandler()
+_log_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+log.addHandler(_log_handler)
+
+# --- PyQt6 imports ---
+# QtWidgets: all the visible UI elements (windows, buttons, dropdowns, etc.)
+# QtCore:    non-visual essentials (timers, geometry, signals, threads)
+# QtGui:     drawing and rendering (painter, colors, fonts, icons, cursors)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
@@ -28,113 +46,144 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 
 
 # ============================================================================
-# CONSTANTS - Single White Key Foundation
+# CONSTANTS
 # ============================================================================
+# All sizing in this app is derived from a single white key's width.
+# Change INITIAL_KEY_WIDTH and everything else (height, gaps, text, buttons)
+# scales proportionally. This makes the layout consistent at any window size.
 
-# VERSION
-VERSION = "8.5.0"
+# --- App version ---
+VERSION = "8.5.1"
+# Settings file format version. Increment this when the settings.ini format
+# changes, and add a corresponding migration step in migrate_settings().
+SETTINGS_VERSION = 1
 
-# DEFAULT HIGHLIGHT COLOR - Arch Blue!
-DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # #5094d4
+# --- Colors ---
+DEFAULT_HIGHLIGHT_COLOR = QColor(80, 148, 212)  # Arch Blue (#5094d4)
+BACKGROUND_COLOR = QColor(120, 120, 120)         # Grey canvas behind the keys
 
-# BACKGROUND COLOR
-BACKGROUND_COLOR = QColor(120, 120, 120)  # Darker for better contrast with white keys
+# --- MIDI note range ---
+# A standard piano spans A0 (MIDI 21) to C8 (MIDI 108).
+# The app lets you show any subset of this range.
+MIDI_NOTE_MIN = 21   # A0 — lowest note on a standard piano
+MIDI_NOTE_MAX = 108  # C8 — highest note on a standard piano
 
-# MIDI NOTE RANGE
-MIDI_NOTE_MIN = 21   # A0
-MIDI_NOTE_MAX = 108  # C8
-
-# STARTING CONFIGURATION - 3 octaves centered on Middle C
+# --- Default visible range (3 octaves around Middle C) ---
 DEFAULT_START_NOTE = 48  # C3
 DEFAULT_END_NOTE = 83    # B5
 
-# SINGLE WHITE KEY - Foundation of all sizing
-# Everything scales from white_key_width as the anchor
-INITIAL_KEY_WIDTH = 32  # pixels (tweakable)
+# --- Key sizing ---
+# The single white key width is the "anchor" for all other dimensions.
+INITIAL_KEY_WIDTH = 32  # pixels — tweak this to change the default key size
 
-# HEIGHT RATIO LIMITS
-# white_key_height = white_key_width × height_ratio
-MIN_HEIGHT_RATIO = 3    # minimum: keys are 3× as tall as wide
-MAX_HEIGHT_RATIO = 6    # maximum: keys are 6× as tall as wide
+# Height ratio limits control how tall keys can be relative to their width.
+# white_key_height = white_key_width * height_ratio
+MIN_HEIGHT_RATIO = 3    # minimum: keys are 3x as tall as wide (squat)
+MAX_HEIGHT_RATIO = 6    # maximum: keys are 6x as tall as wide (tall)
 
-# INITIAL KEY HEIGHT - within allowed ratio range
-INITIAL_KEY_HEIGHT = INITIAL_KEY_WIDTH * MAX_HEIGHT_RATIO  # = 150px
+# Initial key height starts at the maximum ratio (tallest allowed shape)
+INITIAL_KEY_HEIGHT = INITIAL_KEY_WIDTH * MAX_HEIGHT_RATIO  # = 192px
 
-# PRACTICAL MINIMUM KEY WIDTH (for UI usability, used for min window size)
+# Smallest key width allowed (prevents keys from becoming unusably tiny)
 PRACTICAL_MIN_KEY_WIDTH = 15  # pixels
 
-# VISUAL STYLING
-KEY_GAP_RATIO = 0.03            # key_gap = white_key_width × 0.03
-KEY_GAP_MIN = 1                 # minimum 1px gap
-KEY_GAP_MAX = 5                 # maximum 5px per side (10px visible gap between keys)
-SHADOW_DISABLE_WIDTH = 25       # disable shadow effects below this key width
-BLACK_KEY_HEIGHT_RATIO = 0.6    # black_key_height = white_key_height × 0.6
-BLACK_KEY_WIDTH_RATIO = 0.8     # black_key_width = white_key_width × 0.8
-KEY_CORNER_RADIUS_RATIO = 0.08
-KEY_CORNER_RADIUS_MIN = 4
-KEYBOARD_CANVAS_MARGIN = 4
-KEYBOARD_CANVAS_RADIUS = 6
+# --- Visual styling ---
+# Gap between white keys — scales with key width, clamped to a sensible range.
+# Each side of a key has this gap, so the visible space between two keys is 2x.
+KEY_GAP_RATIO = 0.03            # gap = white_key_width * 0.03
+KEY_GAP_MIN = 1                 # at least 1px gap per side
+KEY_GAP_MAX = 5                 # at most 5px gap per side
 
-# CURSOR SIZING AND COLORS (for pencil/eraser tool cursors)
-CURSOR_SIZE = 24                # pixel size of custom cursor pixmap (try 24-40)
-CURSOR_OUTLINE_COLOR = '#010101'  # outline color for both cursors (try #707070, #a0a0a0, #c0c0c0)
-CURSOR_FILL_COLOR = '#ffffff'     # interior fill color for both cursors
+# Shadow lines on white keys (subtle 3D effect) are hidden when keys are
+# too narrow, because they make small text harder to read.
+SHADOW_DISABLE_WIDTH = 25       # disable shadows below this key width (pixels)
 
-# UI SCALE (loaded from settings before window creation)
+# Black keys are sized as a fraction of white keys
+BLACK_KEY_HEIGHT_RATIO = 0.6    # black_key_height = keyboard_height * 0.6
+BLACK_KEY_WIDTH_RATIO = 0.8     # black_key_width = white_key_width * 0.8
+
+# Rounded corners on each key
+KEY_CORNER_RADIUS_RATIO = 0.08  # corner_radius = white_key_width * 0.08
+KEY_CORNER_RADIUS_MIN = 4       # minimum corner radius in pixels
+
+# The grey canvas behind the keys has its own margin and rounded corners
+KEYBOARD_CANVAS_MARGIN = 4      # pixels of grey border around the keys
+KEYBOARD_CANVAS_RADIUS = 6      # corner radius of the grey canvas
+
+# --- Custom cursor sizing and colors (pencil/eraser tool) ---
+CURSOR_SIZE = 24                  # pixel size of cursor icon (try 24-40)
+CURSOR_OUTLINE_COLOR = '#010101'  # dark outline for both cursors
+CURSOR_FILL_COLOR = '#ffffff'     # white fill so cursors are visible on black keys
+
+# --- UI scale ---
+# Loaded from settings before the window is created. All button sizes, margins,
+# and cursor sizes are multiplied by this factor via the scaled() helper.
 UI_SCALE_FACTOR = 1.0  # Set in main() from saved settings
 
 def scaled(px):
-    """Scale a pixel value by the current UI scale factor."""
+    """Multiply a pixel value by the current UI scale factor.
+
+    Used throughout the app to make buttons, margins, and cursors respect
+    the user's chosen UI scale (25%-200%).
+    """
     return round(px * UI_SCALE_FACTOR)
 
-# BUTTON SIZING (base values, scaled at runtime via scaled())
-BUTTON_SIZE = 36
-ICON_SIZE_RATIO = 0.9
-BUTTON_AREA_WIDTH = 50
-BUTTON_SPACING = 5              # Spacing between buttons in layout
+# --- Button sizing (base values before scaling) ---
+BUTTON_SIZE = 36          # width and height of each button (square)
+ICON_SIZE_RATIO = 0.9     # icon fills 90% of the button
+BUTTON_AREA_WIDTH = 50    # width of the left/right button columns
+BUTTON_SPACING = 5        # vertical gap between buttons
 
-# LAYOUT MARGINS (base values, scaled at runtime via scaled())
-LAYOUT_MARGIN = 5  # Main layout margins
-WINDOW_VERTICAL_MARGIN = 50  # Extra space for top/bottom window margins
+# --- Layout margins (base values before scaling) ---
+LAYOUT_MARGIN = 5               # padding around the main layout
+WINDOW_VERTICAL_MARGIN = 50     # extra vertical space for title bar and padding
 
-# Derived layout values — must be functions because they depend on scaled()
+# Derived layout helpers — these are functions (not constants) because they
+# call scaled(), which depends on UI_SCALE_FACTOR set at runtime.
 def total_horizontal_margin():
+    """Total horizontal space taken by margins and button columns."""
     return scaled(LAYOUT_MARGIN) * 2 + scaled(BUTTON_AREA_WIDTH) * 2
 
 def min_button_area_height():
+    """Minimum height needed to fit 4 buttons stacked vertically."""
     return scaled(BUTTON_SIZE) * 4 + scaled(BUTTON_SPACING) * 3
 
 def min_window_height():
+    """Minimum window height so that buttons are never clipped."""
     return min_button_area_height() + scaled(LAYOUT_MARGIN) * 2
 
-# MIDI POLLING
-MIDI_POLL_INTERVAL = 10
-MIDI_SCAN_INTERVAL = 3000     # milliseconds between device scans (hot-plug detection)
-STATUS_MESSAGE_DURATION = 3000  # milliseconds before status message auto-hides
+# --- MIDI timing ---
+MIDI_POLL_INTERVAL = 10          # milliseconds between MIDI message polls (100 Hz)
+MIDI_SCAN_INTERVAL = 3000        # milliseconds between device scans (hot-plug detection)
+STATUS_MESSAGE_DURATION = 3000   # milliseconds before toast notification auto-hides
 
-# NOTE NAMES AND TEXT RENDERING
+# --- Note names for text rendering on keys ---
 NOTE_NAMES_WHITE = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
-NOTE_NAMES_BLACK_SHARPS = ['C♯', 'D♯', 'F♯', 'G♯', 'A♯']  # Using Unicode sharp symbol
-NOTE_NAMES_BLACK_FLATS = ['D♭', 'E♭', 'G♭', 'A♭', 'B♭']  # Using Unicode flat symbol
+NOTE_NAMES_BLACK_SHARPS = ['C♯', 'D♯', 'F♯', 'G♯', 'A♯']
+NOTE_NAMES_BLACK_FLATS = ['D♭', 'E♭', 'G♭', 'A♭', 'B♭']
 
-# Text sizing - all derived from white_key_width
-WHITE_TEXT_GAP_RATIO = 0.02         # white_text_gap = white_key_height × 0.02
-BLACK_TEXT_GAP_RATIO = 0.05         # black_text_gap = white_key_height × 0.05
-WHITE_KEY_TEXT_WIDTH_RATIO = 0.7    # 1 char must fit in white_key_width × 0.7
-BLACK_KEY_TEXT_WIDTH_RATIO = 0.5    # 2 chars must fit in white_key_width × 0.5
-WHITE_KEY_TEXT_AREA_RATIO = 0.4     # bottom 40% of white key is available for text
-MIN_FONT_SIZE = 6                   # hide text if font size falls below this
+# --- Text sizing ratios (all relative to key dimensions) ---
+WHITE_TEXT_GAP_RATIO = 0.02         # gap between text and key edge = key_height * 0.02
+BLACK_TEXT_GAP_RATIO = 0.05         # gap for black keys = key_height * 0.05
+WHITE_KEY_TEXT_WIDTH_RATIO = 0.7    # 1 character must fit in key_width * 0.7
+BLACK_KEY_TEXT_WIDTH_RATIO = 0.5    # 2 characters must fit in key_width * 0.5
+WHITE_KEY_TEXT_AREA_RATIO = 0.4     # bottom 40% of white key is reserved for text
+MIN_FONT_SIZE = 6                   # text is hidden entirely below this point size
 
-# Global variable to store the loaded font family name
-LOADED_FONT_FAMILY = None  # Will be set in main() after font loading
+# The font family name is set in main() after loading JetBrains Mono.
+# Falls back to "monospace" if the font file is missing.
+LOADED_FONT_FAMILY = None
 
 
 # ============================================================================
-# APP ICON
+# APP ICONS AND CURSORS
 # ============================================================================
+# All icons and cursors are generated at runtime from embedded SVG strings.
+# This means no external icon files are needed — the app looks the same on
+# every platform (Linux, Windows, macOS) without shipping image assets.
 
 def create_piano_icon():
-    """Creates a piano icon as a QIcon from embedded SVG."""
+    """Creates the app icon (white piano keys on blue background) from embedded SVG."""
     svg_data = """
     <svg width="64" height="64" viewBox="-31.4 -31.4 376.84 376.84" xmlns="http://www.w3.org/2000/svg">
         <rect x="-31.4" y="-31.4" width="376.84" height="376.84" fill="#1793D1"/>
@@ -178,8 +227,10 @@ def create_settings_icon(size=64, color="#000000"):
     return QIcon(pixmap)
 
 
-# Embedded SVG for pencil cursor/icon (source: SVG Repo, www.svgrepo.com)
-# Outer contour filled white (opaque interior), detail path filled black on top
+# Embedded SVG for pencil cursor and button icon.
+# Source: SVG Repo (www.svgrepo.com), CC0 license.
+# The SVG has two layers: a white fill path (so the cursor is visible on dark
+# keys) and a black detail path drawn on top for the outline.
 PENCIL_SVG = """<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
 <path fill="#ffffff" d="M497.209,88.393l-73.626-73.6c-19.721-19.712-51.656-19.729-71.376-0.017L304.473,62.51L71.218,295.816
 c-9.671,9.662-17.066,21.341-21.695,34.193L2.238,461.6c-4.93,13.73-1.492,29.064,8.818,39.372
@@ -195,8 +246,8 @@ l95.079,95.08L191.242,415.831z M472.247,134.808l-35.235,35.244l-1.767,1.767l-95.
 c5.921-5.896,15.506-5.905,21.454,0.017l73.625,73.609c5.921,5.904,5.93,15.489-0.026,21.47L472.247,134.808z"/>
 </svg>"""
 
-# Embedded SVG for eraser cursor (source: SVG Repo, www.svgrepo.com)
-# Outer contour filled white (opaque interior), detail path filled black on top
+# Embedded SVG for eraser cursor (same two-layer approach as pencil above).
+# Source: SVG Repo (www.svgrepo.com), CC0 license.
 ERASER_SVG = """<svg viewBox="0 0 203.464 203.464" xmlns="http://www.w3.org/2000/svg">
 <path fill="#ffffff" d="M186.023,12.626C186,5.665,180.305,0,173.329,0c-2.964,0-5.755,1.022-8.07,2.956L55.597,94.522c0,0,0,0,0,0
 l-30.286,25.289c-5.323,4.444-8.253,10.969-8.039,17.901l1.655,53.477c0.213,6.883,5.785,12.274,12.686,12.275c0,0,0,0,0.001,0
@@ -210,7 +261,11 @@ l0.181,54.981C176.215,71.348,174.59,74.837,171.744,77.214z"/>
 
 
 def _render_svg_to_pixmap(svg_data, size):
-    """Renders SVG data string to a QPixmap at the given size."""
+    """Renders an SVG string to a QPixmap at the given pixel size.
+
+    Injects width/height attributes into the SVG so Qt renders it at the
+    exact size we want, regardless of the SVG's original viewBox dimensions.
+    """
     svg = svg_data.replace('viewBox=', f'width="{size}" height="{size}" viewBox=')
     pixmap = QPixmap()
     pixmap.loadFromData(svg.encode())
@@ -266,6 +321,12 @@ def create_pencil_icon(size=None, color="#000000"):
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+# Standalone utility functions used by the main classes. These handle:
+# - Settings file location and migration
+# - MIDI note math (which notes are black keys, counting white keys, etc.)
+# - Window size calculations
+# - Text color contrast and font sizing for note labels
+# - Button stylesheet generation
 
 def get_config_path():
     """
@@ -294,7 +355,12 @@ def get_config_path():
 
 
 def load_ui_scale():
-    """Loads UI scale factor from settings file. Called before window creation."""
+    """Loads the UI scale factor from settings file. Called before the window is created.
+
+    This must happen early (before any widgets exist) because the scale factor
+    affects button sizes, margins, and cursor dimensions at creation time.
+    Returns 1.0 (100%) if no saved setting exists.
+    """
     config_path = get_config_path()
     if not config_path.exists():
         return 1.0
@@ -308,6 +374,63 @@ def load_ui_scale():
     except Exception:
         pass
     return 1.0
+
+
+def migrate_settings():
+    """Migrates settings file to the current SETTINGS_VERSION.
+
+    Called once at startup before load_settings(). Reads the settings_version
+    field from [meta], applies any needed migrations sequentially, then writes
+    the updated version back. No-op if the file doesn't exist or is already
+    at the current version.
+
+    To add a migration:
+    1. Increment SETTINGS_VERSION constant
+    2. Add an `if old_version < N:` block below with the migration logic
+    """
+    config_path = get_config_path()
+    if not config_path.exists():
+        return
+
+    config = configparser.ConfigParser()
+    try:
+        config.read(config_path)
+    except Exception as e:
+        log.error(f"Error reading settings for migration: {e}")
+        return
+
+    old_version = 0
+    if config.has_option('meta', 'settings_version'):
+        try:
+            old_version = config.getint('meta', 'settings_version')
+        except ValueError:
+            old_version = 0
+
+    if old_version >= SETTINGS_VERSION:
+        return  # Already up to date
+
+    log.info(f"Migrating settings from version {old_version} to {SETTINGS_VERSION}")
+
+    # --- Add future migrations here ---
+    # Example:
+    # if old_version < 2:
+    #     # Rename a setting, add a new default, etc.
+    #     if config.has_option('appearance', 'old_name'):
+    #         value = config.get('appearance', 'old_name')
+    #         config.set('appearance', 'new_name', value)
+    #         config.remove_option('appearance', 'old_name')
+
+    # Stamp the current version
+    if not config.has_section('meta'):
+        config.add_section('meta')
+    config.set('meta', 'settings_version', str(SETTINGS_VERSION))
+
+    try:
+        with open(config_path, 'w') as f:
+            config.write(f)
+        log.info("Settings migration complete")
+    except Exception as e:
+        log.error(f"Error writing migrated settings: {e}")
 
 
 def is_black_key(midi_note):
@@ -440,13 +563,16 @@ def blend_colors(base, target, factor):
     """
     Linearly interpolates between two QColors.
 
+    Used for velocity visualization — soft notes blend just a little towards the
+    highlight color (factor ~0.3), while hard notes blend almost fully (factor ~1.0).
+
     Args:
-        base: QColor to blend from (factor=0.0)
-        target: QColor to blend to (factor=1.0)
-        factor: Blend amount (0.0 to 1.0)
+        base: QColor to blend from (factor=0.0 gives this color exactly)
+        target: QColor to blend towards (factor=1.0 gives this color exactly)
+        factor: Blend amount between 0.0 and 1.0
 
     Returns:
-        QColor: The blended color
+        QColor: The blended result
     """
     r = base.red() + (target.red() - base.red()) * factor
     g = base.green() + (target.green() - base.green()) * factor
@@ -598,12 +724,17 @@ def get_black_key_name(midi_note, notation_type):
 
 def make_button_style(bg_color="#f5f5f5", text_color="#2a2a2a", interactive=True):
     """
-    Generates a QPushButton stylesheet with scaled dimensions.
+    Generates a QPushButton stylesheet string with scaled border and radius.
+
+    Every button in the app uses this function so they all look consistent.
+    The `interactive` flag controls whether hover/pressed/disabled states are
+    included — set it to False for indicator-only buttons (like sustain "S")
+    that shouldn't change appearance on hover.
 
     Args:
-        bg_color: Background color hex string
-        text_color: Text color hex string
-        interactive: If True, includes hover/pressed/disabled states
+        bg_color: Background color as a hex string (e.g. "#f5f5f5")
+        text_color: Text color as a hex string (e.g. "#2a2a2a")
+        interactive: If True, adds hover/pressed/disabled CSS states
     """
     border = scaled(2)
     radius = scaled(6)
@@ -640,9 +771,16 @@ def make_button_style(bg_color="#f5f5f5", text_color="#2a2a2a", interactive=True
 # ============================================================================
 # SETTINGS DIALOG
 # ============================================================================
+# The settings dialog lets users configure MIDI devices, highlight color,
+# note display options, UI scale, and check for updates. It opens as a
+# non-modal window so MIDI input keeps working while settings are open.
 
 class UpdateChecker(QThread):
-    """Background thread to check for new releases on GitHub."""
+    """Background thread that checks Codeberg for a newer release.
+
+    Runs an HTTPS request in a separate thread so the UI doesn't freeze.
+    Emits a `result` signal with (display_text, url_or_empty) when done.
+    """
     result = pyqtSignal(str, str)  # (display_text, url_or_empty)
 
     def run(self):
@@ -676,14 +814,19 @@ class UpdateChecker(QThread):
 
 
 class SettingsDialog(QDialog):
-    """Dialog window for app configuration."""
+    """Dialog window for app configuration.
+
+    Only one instance can be open at a time (singleton pattern enforced by
+    open_settings() in PianoMIDIViewer). The dialog is non-modal, meaning
+    MIDI input and the piano display keep working while this is open.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
         self.setMinimumWidth(300)
-        self.main_window = parent
+        self.main_window = parent  # Reference to PianoMIDIViewer for reading/writing settings
         self.init_ui()
 
     def init_ui(self):
@@ -859,7 +1002,12 @@ class SettingsDialog(QDialog):
         self.setFixedSize(self.size())
 
     def populate_midi_devices(self):
-        """Scans for available MIDI input devices."""
+        """Scans for available MIDI input devices and populates the dropdown.
+
+        Temporarily blocks signals on the dropdown to prevent the
+        currentIndexChanged signal from firing during rebuild, which would
+        cause an unwanted reconnection attempt for each item added.
+        """
         self.midi_dropdown.blockSignals(True)
         self.midi_dropdown.clear()
         devices = self.main_window.get_midi_devices()
@@ -934,22 +1082,28 @@ class SettingsDialog(QDialog):
         self.main_window.save_settings()
 
     def restart_app(self):
-        """Saves settings and restarts the application."""
+        """Saves settings and restarts the application.
+
+        Spawns a new process and then quits the current one. Handles two cases:
+        - Frozen (PyInstaller) builds: runs the binary directly, and clears
+          PyInstaller's temp-directory env vars so the child process doesn't
+          try to reuse the parent's extraction folder (which gets deleted on exit).
+        - Development (python script): runs via the Python interpreter.
+        """
         self.main_window.save_settings()
         kwargs = {"creationflags": subprocess.DETACHED_PROCESS} if sys.platform == "win32" else {"start_new_session": True}
         devnull = subprocess.DEVNULL
         if getattr(sys, "frozen", False):
+            # PyInstaller frozen build — run the binary directly
             exe = os.path.abspath(sys.executable)
             cmd = [exe] + sys.argv[1:]
             kwargs["cwd"] = os.path.dirname(exe)
-            # Clear PyInstaller env vars so the child process extracts
-            # its own temp directory instead of reusing the parent's
-            # (which gets cleaned up when the parent exits).
             env = os.environ.copy()
             env.pop("_MEIPASS2", None)
             env.pop("_PYI_ARCHIVE_FILE", None)
             kwargs["env"] = env
         else:
+            # Development — run via Python interpreter
             cmd = [sys.executable] + sys.argv
         subprocess.Popen(cmd, stdin=devnull, stdout=devnull, stderr=devnull, **kwargs)
         QApplication.instance().quit()
@@ -1003,7 +1157,11 @@ class SettingsDialog(QDialog):
         self.main_window.save_settings()
 
     def check_for_updates(self):
-        """Checks Codeberg for a newer release in a background thread."""
+        """Checks Codeberg for a newer release in a background thread.
+
+        Disables the button while the check is running to prevent duplicate
+        requests. The result is handled by _on_update_result().
+        """
         self.update_button.setEnabled(False)
         self.update_button.setText("Checking...")
         self._update_checker = UpdateChecker()
@@ -1029,44 +1187,72 @@ class SettingsDialog(QDialog):
 # ============================================================================
 # PIANO KEYBOARD WIDGET
 # ============================================================================
+# This is the visual heart of the app — a custom-drawn piano keyboard that
+# responds to MIDI input, mouse clicks, and the pencil drawing tool.
+# All rendering happens in paintEvent() using Qt's QPainter.
 
 class PianoKeyboard(QWidget):
-    """Custom widget that draws a piano keyboard."""
+    """Custom widget that draws and manages a piano keyboard.
+
+    This widget handles:
+    - Drawing white and black keys with proper proportions
+    - Highlighting keys that are currently pressed (via MIDI or mouse)
+    - Rendering note names and octave numbers on keys
+    - Mouse interaction (click, drag/glissando, pencil tool)
+    - Velocity-based brightness when that setting is enabled
+    """
 
     def __init__(self):
         super().__init__()
+        # Prevent the right-click context menu from appearing (right-click
+        # is used for erasing in pencil mode instead).
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
 
-        # MIDI note range - which notes are currently visible
-        self.start_note = DEFAULT_START_NOTE
-        self.end_note = DEFAULT_END_NOTE
+        # --- MIDI note range (which notes are visible on screen) ---
+        self.start_note = DEFAULT_START_NOTE  # leftmost note (default: C3)
+        self.end_note = DEFAULT_END_NOTE      # rightmost note (default: B5)
 
-        # Note tracking - which notes are currently highlighted
-        self.active_notes = {}               # MIDI notes currently pressed → velocity (visible range)
-        self.active_notes_left = set()      # MIDI notes being pressed below visible range
-        self.active_notes_right = set()     # MIDI notes being pressed above visible range
+        # --- Note tracking ---
+        # These collections track which notes are currently highlighted.
+        # active_notes is a dict because we need to store velocity for each note.
+        # The left/right sets track out-of-range notes (used for + button glow).
+        self.active_notes = {}              # {MIDI note: velocity} for pressed notes in visible range
+        self.active_notes_left = set()      # MIDI notes pressed below visible range
+        self.active_notes_right = set()     # MIDI notes pressed above visible range
 
-        # Drawn notes (pencil tool marks, separate from playing)
-        self.drawn_notes = set()         # Notes marked by the pencil tool (visible range only)
+        # Drawn notes are separate from playing — these are marks left by the
+        # pencil tool and persist until the user erases them or exits pencil mode.
+        self.drawn_notes = set()
 
-        # Mouse interaction state
-        self.mouse_held_note = None   # Which note the mouse cursor is currently over (or None)
-        self._drag_button = None      # Which mouse button started the current drag
-        self.glissando_mode = None    # 'on' or 'off' - determined at initial mouse press
-        # Visual appearance
+        # --- Mouse interaction state ---
+        self.mouse_held_note = None   # MIDI note currently under the mouse cursor (or None)
+        self._drag_button = None      # which mouse button started the current drag
+        self.glissando_mode = None    # 'on' (painting) or 'off' (erasing), set at mouse press
+
+        # --- Visual appearance ---
         self.highlight_color = DEFAULT_HIGHLIGHT_COLOR
-        self.glow_left_plus = False   # Whether left + button should glow
-        self.glow_right_plus = False  # Whether right + button should glow
+        # These flags tell the main window to light up the + buttons when
+        # notes are being played outside the visible range.
+        self.glow_left_plus = False
+        self.glow_right_plus = False
 
     def paintEvent(self, event):
-        """Draws the piano keyboard."""
+        """Draws the entire piano keyboard from scratch.
+
+        Qt calls this method every time the widget needs to be repainted
+        (e.g., after a note is pressed or released). The drawing order is:
+        1. Grey rounded background canvas
+        2. White keys (full height of the keyboard)
+        3. Black keys (drawn on top, covering the upper portion of white keys)
+        4. Note names and octave numbers (text rendered last, on top of keys)
+        """
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         width = self.width()
         height = self.height()
 
-        # Draw grey rounded canvas
+        # Draw grey rounded canvas (the background behind all keys)
         painter.setBrush(QBrush(BACKGROUND_COLOR))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(
@@ -1127,7 +1313,7 @@ class PianoKeyboard(QWidget):
                 )
 
     def _draw_white_key(self, painter, midi_note, key_width, x_offset, y_offset, height, corner_radius, show_velocity=False):
-        """Draws a single white key."""
+        """Draws a single white key (rectangle with optional highlight and shadow)."""
         white_index = get_white_key_index(midi_note, self.start_note)
         x = x_offset + (white_index * key_width)
 
@@ -1139,14 +1325,22 @@ class PianoKeyboard(QWidget):
         rect_width = key_width - key_gap * 2
         rect_height = height
 
-        # Highlight if note is active (pressed, drawn, or mouse-held)
+        # A key is highlighted if it's being pressed via MIDI, marked by the
+        # pencil tool, or currently under the mouse cursor (during a draw drag).
+        # The glissando_mode != 'off' check prevents keys from highlighting
+        # while the user is erasing with right-click.
         is_highlighted = (midi_note in self.active_notes or
                          midi_note in self.drawn_notes or
                          (midi_note == self.mouse_held_note and self.glissando_mode != 'off'))
 
-        base_color = QColor(252, 252, 252)
+        # Choose the fill color: highlighted keys use the highlight color,
+        # optionally blended with the base color for velocity visualization.
+        base_color = QColor(252, 252, 252)  # off-white
         if is_highlighted:
             if show_velocity and midi_note in self.active_notes:
+                # Velocity blending: soft notes (low velocity) are faintly colored,
+                # hard notes (high velocity) are fully colored. The 0.3 minimum
+                # ensures even the softest notes are always visible.
                 velocity = self.active_notes[midi_note]
                 factor = 0.3 + 0.7 * (velocity / 127.0)
                 fill_color = blend_colors(base_color, self.highlight_color, factor)
@@ -1155,6 +1349,7 @@ class PianoKeyboard(QWidget):
         else:
             fill_color = base_color
 
+        # Draw the key body (filled rounded rectangle)
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(
@@ -1162,22 +1357,24 @@ class PianoKeyboard(QWidget):
             corner_radius, corner_radius
         )
 
-        # Draw shadow lines on non-highlighted keys (disabled at small sizes for readability)
+        # Draw subtle shadow lines on the bottom and right edges for a 3D effect.
+        # Only on non-highlighted keys, and only when keys are wide enough that
+        # the shadows don't interfere with text readability.
         if not is_highlighted and key_width >= SHADOW_DISABLE_WIDTH:
             shadow_color = QColor(170, 170, 170)
             painter.setPen(QPen(shadow_color, 1))
-
+            # Bottom edge shadow
             painter.drawLine(
                 int(rect_x + corner_radius), int(rect_y + rect_height - 1),
                 int(rect_x + rect_width - corner_radius), int(rect_y + rect_height - 1)
             )
-
+            # Right edge shadow
             painter.drawLine(
                 int(rect_x + rect_width - 1), int(rect_y + corner_radius),
                 int(rect_x + rect_width - 1), int(rect_y + rect_height - corner_radius)
             )
 
-        # Draw border - darker when highlighted for better visibility
+        # Draw the key border (darker when highlighted so the key stands out)
         border_color = QColor(25, 25, 25) if is_highlighted else QColor(85, 85, 85)
         painter.setPen(QPen(border_color, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -1188,7 +1385,10 @@ class PianoKeyboard(QWidget):
 
     def _draw_black_key(self, painter, midi_note, white_key_width,
                         black_key_width, x_offset, y_offset, black_key_height, corner_radius, show_velocity=False):
-        """Draws a single black key."""
+        """Draws a single black key (positioned between two white keys)."""
+        # Black keys are centered on the boundary between two adjacent white keys.
+        # Find the white key to the left, then position the black key so its
+        # center sits on the right edge of that white key.
         left_white_note = get_left_white_key(midi_note, self.start_note)
         white_index = get_white_key_index(left_white_note, self.start_note)
 
@@ -1199,12 +1399,12 @@ class PianoKeyboard(QWidget):
         rect_width = black_key_width
         rect_height = black_key_height
 
-        # Highlight if note is active (pressed, drawn, or mouse-held)
+        # Same highlight logic as white keys (see _draw_white_key for details)
         is_highlighted = (midi_note in self.active_notes or
                          midi_note in self.drawn_notes or
                          (midi_note == self.mouse_held_note and self.glissando_mode != 'off'))
 
-        base_color = QColor(16, 16, 16)
+        base_color = QColor(16, 16, 16)  # near-black
         if is_highlighted:
             if show_velocity and midi_note in self.active_notes:
                 velocity = self.active_notes[midi_note]
@@ -1215,6 +1415,7 @@ class PianoKeyboard(QWidget):
         else:
             fill_color = base_color
 
+        # Draw the key body
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(
@@ -1222,6 +1423,7 @@ class PianoKeyboard(QWidget):
             corner_radius, corner_radius
         )
 
+        # Draw black border (always black, regardless of highlight state)
         painter.setPen(QPen(QColor(0, 0, 0), 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(
@@ -1498,7 +1700,12 @@ class PianoKeyboard(QWidget):
                 painter.drawText(int(text_x), int(sharp_baseline_y), name)
 
     def _get_main_window(self):
-        """Returns the parent PianoMIDIViewer instance, or None."""
+        """Walks up the widget tree to find the PianoMIDIViewer main window.
+
+        The piano widget is nested inside layouts, so self.parent() isn't
+        necessarily the main window — we have to traverse upward until we
+        find it. Returns None if no PianoMIDIViewer ancestor exists.
+        """
         parent = self.parent()
         while parent and not isinstance(parent, PianoMIDIViewer):
             parent = parent.parent()
@@ -1703,7 +1910,7 @@ class PianoKeyboard(QWidget):
                 self.update()
 
     def mouseReleaseEvent(self, event):
-        """Handle mouse release."""
+        """Handle mouse button release. Clears highlight (playing) or restores cursor (pencil)."""
         if self.mouse_held_note is not None:
             main_window = self._get_main_window()
 
@@ -1729,37 +1936,48 @@ class PianoKeyboard(QWidget):
 # ============================================================================
 # MAIN WINDOW
 # ============================================================================
+# The main window ties everything together: it owns the piano widget, manages
+# MIDI connections, handles octave range changes, and coordinates settings.
+# The three-column layout is: [pencil/+/-] | [piano keyboard] | [settings/S/+/-]
 
 class PianoMIDIViewer(QMainWindow):
-    """Main application window."""
+    """Main application window — manages MIDI, UI layout, and app state."""
 
     def __init__(self):
         super().__init__()
 
-        self._in_resize_event = False  # Guard against recursion
-        self.midi_in = None
-        self.midi_scanner = None  # Persistent MidiIn for port listing (never opens a port)
-        self.current_midi_device = None
-        self.midi_timer = None
-        self.known_midi_devices = []
-        self.device_scan_timer = None
-        self.status_hide_timer = None
+        self._in_resize_event = False  # Prevents recursive resize loops
 
-        # Sustain state — tracked purely for the S indicator
-        self.sustain_pedal_active = False    # MIDI sustain pedal held (CC 64)
+        # --- MIDI connection state ---
+        self.midi_in = None             # Active MidiIn connection (or None if disconnected)
+        self.midi_scanner = None        # Persistent MidiIn used only for listing ports (never opens a port)
+        self.current_midi_device = None # Name of the connected device (kept for auto-reconnect)
+        self.midi_timer = None          # QTimer for polling MIDI messages every 10ms
+        self.known_midi_devices = []    # Last-seen device list (for hot-plug detection)
+        self.device_scan_timer = None   # QTimer for scanning device changes every 3s
+        self.status_hide_timer = None   # QTimer for auto-hiding toast notifications
 
-        # Pencil tool state (drawing is independent from playing)
-        self.pencil_active = False  # Whether pencil tool is currently active
+        # --- Sustain pedal state ---
+        # Tracked purely to light up the "S" indicator button.
+        # Does not affect note highlighting (notes go dark on release regardless).
+        self.sustain_pedal_active = False
 
-        # Note name and octave number display settings
-        self.show_octave_numbers = True   # Default: ON
-        self.show_white_key_names = True  # Default: ON
-        self.show_black_key_names = False # Default: OFF
-        self.black_key_notation = "Flats"  # Default: Flats
-        self.show_names_when_pressed = False  # Default: OFF (show names on all keys)
-        self.show_velocity = False  # Default: OFF (all notes same brightness)
+        # --- Pencil tool state ---
+        # When active, MIDI notes toggle drawn_notes instead of active_notes,
+        # and the cursor changes to a pencil/eraser icon.
+        self.pencil_active = False
 
-        # UI scale (pending value saved for next launch)
+        # --- Note display settings (all saved to settings.ini) ---
+        self.show_octave_numbers = True       # show "3", "4", "5" on C keys
+        self.show_white_key_names = True      # show "C", "D", "E" etc. on white keys
+        self.show_black_key_names = False     # show accidental names on black keys
+        self.black_key_notation = "Flats"     # "Flats", "Sharps", or "Both"
+        self.show_names_when_pressed = False  # only show names on highlighted keys
+        self.show_velocity = False            # brightness reflects how hard each key is pressed
+
+        # --- UI scale ---
+        # The current scale is applied at startup. If the user changes it in
+        # settings, the new value is saved here for the NEXT launch (requires restart).
         self.pending_ui_scale = UI_SCALE_FACTOR
 
         self.init_ui()
@@ -1768,7 +1986,7 @@ class PianoMIDIViewer(QMainWindow):
         self.load_settings()  # Load saved settings after UI is initialized
 
     def init_ui(self):
-        """Sets up the user interface."""
+        """Sets up the user interface (three-column layout with piano in center)."""
         self.setWindowTitle("Piano MIDI Viewer")
         self.setWindowIcon(create_piano_icon())
 
@@ -1829,7 +2047,8 @@ class PianoMIDIViewer(QMainWindow):
         self.left_plus_btn.setStyleSheet(button_style)
         self.left_plus_btn.clicked.connect(self.add_octave_left)
 
-        # Use en-dash for minus (better vertical centering in JetBrains Mono)
+        # Using the proper minus sign (−) instead of hyphen (-) because it
+        # centers vertically much better in JetBrains Mono.
         self.left_minus_btn = QPushButton("−")
         self.left_minus_btn.setToolTip("Remove octave on the left (lower notes)")
         self.left_minus_btn.setFixedSize(btn_sz, btn_sz)
@@ -1878,7 +2097,7 @@ class PianoMIDIViewer(QMainWindow):
         self.right_plus_btn.setStyleSheet(button_style)
         self.right_plus_btn.clicked.connect(self.add_octave_right)
 
-        # Use en-dash for minus (better vertical centering in JetBrains Mono)
+        # Same minus sign as left side (see comment there)
         self.right_minus_btn = QPushButton("−")
         self.right_minus_btn.setToolTip("Remove octave on the right (higher notes)")
         self.right_minus_btn.setFixedSize(btn_sz, btn_sz)
@@ -1907,7 +2126,11 @@ class PianoMIDIViewer(QMainWindow):
         self.update_sustain_button_visual()
 
     def open_settings(self):
-        """Opens the settings dialog (non-modal so MIDI keeps working)."""
+        """Opens the settings dialog. Only one instance can be open at a time.
+
+        If the dialog is already visible, just bring it to the front instead of
+        creating a second one. The dialog is non-modal so MIDI keeps working.
+        """
         if hasattr(self, '_settings_dialog') and self._settings_dialog.isVisible():
             self._settings_dialog.raise_()
             return
@@ -1990,7 +2213,7 @@ class PianoMIDIViewer(QMainWindow):
                 self.restoreGeometry(geometry_bytes)
 
         except Exception as e:
-            print(f"Error loading settings: {e}")
+            log.error(f"Error loading settings: {e}")
             # Continue with defaults if loading fails
 
     def save_settings(self):
@@ -2039,11 +2262,16 @@ class PianoMIDIViewer(QMainWindow):
             'geometry': geometry_string
         }
 
+        # Settings format version (used by migrate_settings on startup)
+        config['meta'] = {
+            'settings_version': str(SETTINGS_VERSION)
+        }
+
         try:
             with open(config_path, 'w') as f:
                 config.write(f)
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            log.error(f"Error saving settings: {e}")
 
     def toggle_pencil(self):
         """
@@ -2117,7 +2345,10 @@ class PianoMIDIViewer(QMainWindow):
             self.sustain_button.setStyleSheet(make_button_style(interactive=False))
 
     def get_current_key_dimensions(self):
-        """Calculates current white key width and height."""
+        """Calculates current white key width and height from the piano widget size.
+
+        Used when adding/removing octaves to maintain consistent key proportions.
+        """
         num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
         if num_white_keys == 0:
             return None, None
@@ -2130,25 +2361,39 @@ class PianoMIDIViewer(QMainWindow):
 
         return key_width, key_height
 
-    # MIDI FUNCTIONALITY
+    # --- MIDI FUNCTIONALITY ---
+    # Uses a polling approach (QTimer every 10ms) rather than callbacks.
+    # A persistent scanner instance is reused for port listing to avoid
+    # leaking ALSA sequencer handles (each rtmidi.MidiIn() opens a new one).
 
     def get_midi_devices(self):
-        """Returns list of available MIDI input devices using persistent scanner."""
+        """Returns list of available MIDI input device names.
+
+        Uses a persistent MidiIn scanner instance to avoid leaking ALSA
+        sequencer handles (creating a temporary MidiIn for each scan would
+        leak one handle per call).
+        """
         try:
             if not self.midi_scanner:
                 self.midi_scanner = rtmidi.MidiIn()
             return self.midi_scanner.get_ports()
         except Exception as e:
-            print(f"Error scanning MIDI devices: {e}")
+            log.error(f"Error scanning MIDI devices: {e}")
             return []
 
     def connect_midi_device(self, device_name):
         """Connects to the specified MIDI input device.
-        Returns True on success, False on failure."""
+
+        Uses a "connect-before-disconnect" approach: opens the new connection
+        first, and only closes the old one after success. This way, a failed
+        connection attempt doesn't leave the app disconnected.
+
+        Returns True on success, False on failure.
+        """
         # Check availability using the persistent scanner
         ports = self.get_midi_devices()
         if device_name not in ports:
-            print(f"Device not found: {device_name}")
+            log.warning(f"Device not found: {device_name}")
             self.show_status_message(f"Not found: {device_name}")
             return False
 
@@ -2157,7 +2402,7 @@ class PianoMIDIViewer(QMainWindow):
             port_index = ports.index(device_name)
             new_midi_in.open_port(port_index)
         except Exception as e:
-            print(f"Error connecting to MIDI device: {e}")
+            log.error(f"Error connecting to MIDI device: {e}")
             self.show_status_message(f"Connection failed: {device_name}")
             return False
 
@@ -2171,7 +2416,7 @@ class PianoMIDIViewer(QMainWindow):
 
         self.midi_in = new_midi_in
         self.current_midi_device = device_name
-        print(f"Connected to MIDI device: {device_name}")
+        log.info(f"Connected to MIDI device: {device_name}")
         self.show_status_message(f"Connected: {device_name}")
         self.save_settings()
         return True
@@ -2183,15 +2428,23 @@ class PianoMIDIViewer(QMainWindow):
         self.midi_timer.start(MIDI_POLL_INTERVAL)
 
     def setup_device_scanning(self):
-        """Sets up a timer to periodically scan for MIDI device changes."""
-        # Snapshot current ports so the first scan doesn't treat them as new
+        """Sets up a timer to periodically scan for MIDI device changes (hot-plug detection).
+
+        Takes a snapshot of currently connected ports so the first scan doesn't
+        falsely report existing devices as newly appeared.
+        """
         self.known_midi_devices = self.get_midi_devices()
         self.device_scan_timer = QTimer()
         self.device_scan_timer.timeout.connect(self.scan_midi_devices)
         self.device_scan_timer.start(MIDI_SCAN_INTERVAL)
 
     def scan_midi_devices(self):
-        """Checks for MIDI device changes (hot-plug detection)."""
+        """Checks for MIDI device changes (called every 3 seconds by device_scan_timer).
+
+        Compares the current port list against the last-known list to detect
+        newly appeared or disappeared devices. Handles auto-reconnect when a
+        previously used device reappears.
+        """
         current_ports = self.get_midi_devices()
 
         previous = set(self.known_midi_devices)
@@ -2218,7 +2471,13 @@ class PianoMIDIViewer(QMainWindow):
                 self.connect_midi_device(list(appeared)[0])
 
     def handle_midi_disconnect(self):
-        """Handles a MIDI device disconnection gracefully."""
+        """Handles a MIDI device disconnection gracefully.
+
+        Cleans up the MIDI connection, clears all lit keys and button glows,
+        resets the sustain indicator, and shows a toast notification.
+        Keeps current_midi_device set so scan_midi_devices() can auto-reconnect
+        if the device reappears later.
+        """
         device_name = self.current_midi_device or "Unknown device"
 
         # Clean up the MIDI connection
@@ -2255,7 +2514,11 @@ class PianoMIDIViewer(QMainWindow):
         self.show_status_message(f"Disconnected: {device_name}")
 
     def show_status_message(self, text):
-        """Shows a temporary overlay notification centered on the piano."""
+        """Shows a temporary toast notification centered near the bottom of the piano.
+
+        The notification auto-hides after STATUS_MESSAGE_DURATION milliseconds.
+        Font size scales with key width so the toast looks proportional at any zoom.
+        """
         # Match font size to note labels (based on current key width)
         num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
         if num_white > 0:
@@ -2286,7 +2549,12 @@ class PianoMIDIViewer(QMainWindow):
         self.status_hide_timer.start(STATUS_MESSAGE_DURATION)
 
     def poll_midi_messages(self):
-        """Checks for new MIDI messages and processes them."""
+        """Checks for new MIDI messages and processes them.
+
+        Called every 10ms (100 Hz) by midi_timer. Drains all pending messages
+        in a loop, since multiple notes can arrive between polls. If an
+        exception occurs (e.g., the device was unplugged), triggers disconnect.
+        """
         if not self.midi_in:
             return
 
@@ -2301,7 +2569,7 @@ class PianoMIDIViewer(QMainWindow):
                 self.process_midi_message(midi_data)
 
         except Exception as e:
-            print(f"Error polling MIDI: {e}")
+            log.error(f"Error polling MIDI: {e}")
             self.handle_midi_disconnect()
 
     def process_midi_message(self, midi_data):
@@ -2409,8 +2677,13 @@ class PianoMIDIViewer(QMainWindow):
                 self.apply_button_glow(self.right_plus_btn, False)
 
     def apply_button_glow(self, button, glow):
-        """Applies or removes a glow effect on a button.
-        Text color adapts based on highlight color luminance."""
+        """Applies or removes a highlight glow on a + button.
+
+        Used to indicate that notes are being played outside the visible
+        range — the + button on that side lights up in the highlight color
+        to signal the user can expand the range. Text color automatically
+        adapts (black on light highlights, white on dark) for readability.
+        """
         if glow:
             bg_color = self.piano.highlight_color.name()
             text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
@@ -2418,10 +2691,12 @@ class PianoMIDIViewer(QMainWindow):
         else:
             button.setStyleSheet(make_button_style())
 
-    # OCTAVE MANAGEMENT
+    # --- OCTAVE MANAGEMENT ---
+    # Each method: gets the current key width, updates the note range, adjusts
+    # the window width to maintain key proportions, and updates button states.
 
     def add_octave_left(self):
-        """Adds an octave to the left (lower notes)."""
+        """Extends the keyboard range by one octave on the left (lower notes)."""
         new_start = self.piano.start_note - 12
 
         if new_start >= MIDI_NOTE_MIN:
@@ -2545,7 +2820,11 @@ class PianoMIDIViewer(QMainWindow):
             self.update_minimum_size()
 
     def update_button_states(self):
-        """Updates the enabled/disabled state of octave control buttons."""
+        """Updates the enabled/disabled state of octave +/- buttons.
+
+        + buttons are disabled when the range already reaches the MIDI limit.
+        - buttons are disabled when only 1 octave remains (minimum range).
+        """
         self.left_plus_btn.setEnabled(self.piano.start_note > MIDI_NOTE_MIN + 12)
         self.left_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
         self.right_plus_btn.setEnabled(self.piano.end_note < MIDI_NOTE_MAX - 12)
@@ -2561,7 +2840,7 @@ class PianoMIDIViewer(QMainWindow):
         min_height = max(key_based_height, min_window_height())  # Ensure buttons fit
         self.setMinimumSize(int(min_width), int(min_height))
 
-    # WINDOW MANAGEMENT
+    # --- WINDOW MANAGEMENT ---
 
     def resizeEvent(self, event):
         """
@@ -2617,17 +2896,25 @@ class PianoMIDIViewer(QMainWindow):
             self._in_resize_event = False
 
     def keyPressEvent(self, event):
-        """Handle keyboard key press events."""
-        # Esc exits pencil drawing tool
+        """Handle keyboard shortcuts.
+
+        Esc: exit pencil tool (only when active)
+        P:   toggle pencil tool on/off (only when no modifier keys are held,
+             to avoid conflicts with Ctrl+P, Alt+P, etc.)
+        """
         if event.key() == Qt.Key.Key_Escape and self.pencil_active:
             self.toggle_pencil()
-        # P toggles pencil tool on/off
         elif event.key() == Qt.Key.Key_P and not event.modifiers():
             self.toggle_pencil()
 
     def closeEvent(self, event):
-        """Called when the window is closed. Clean up MIDI resources."""
-        # Save settings before closing
+        """Called when the window is closed. Saves settings and frees MIDI resources.
+
+        Stops all timers, closes the active MIDI port, and deletes both the
+        connection and scanner MidiIn objects. The `del` calls are important
+        because they release the underlying ALSA sequencer handles — Python's
+        garbage collector doesn't guarantee timely cleanup.
+        """
         self.save_settings()
 
         if self.midi_timer:
@@ -2654,13 +2941,26 @@ class PianoMIDIViewer(QMainWindow):
 # ============================================================================
 
 def main():
-    """Creates and runs the application."""
-    print(f"Piano MIDI Viewer - Version {VERSION}")
-    print("=" * 40)
-    print(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
-    print(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
-    print("=" * 40)
+    """Creates and runs the application.
 
+    Startup sequence:
+    1. Log startup info
+    2. Migrate settings file (if format has changed since last run)
+    3. Set up Qt high-DPI support
+    4. Create the QApplication
+    5. Load the embedded font (JetBrains Mono for note labels and buttons)
+    6. Load UI scale from settings (must happen before any widgets are created)
+    7. Create and show the main window
+    8. Enter Qt's event loop (blocks until the window is closed)
+    """
+    log.info(f"Piano MIDI Viewer - Version {VERSION}")
+    log.info(f"Initial key size: {INITIAL_KEY_WIDTH}px × {INITIAL_KEY_HEIGHT}px")
+    log.info(f"Height ratio limits: {MIN_HEIGHT_RATIO}× to {MAX_HEIGHT_RATIO}× (height/width)")
+
+    # Migrate settings file to the current format before anything reads it
+    migrate_settings()
+
+    # Allow fractional scale factors on high-DPI displays (e.g., 125%, 150%)
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
@@ -2668,31 +2968,34 @@ def main():
     app = QApplication(sys.argv)
     app.setWindowIcon(create_piano_icon())
 
-    # Load JetBrains Mono font for note names and octave numbers
+    # Load JetBrains Mono font for note names, octave numbers, and button labels.
+    # The font file is bundled alongside the script (and inside PyInstaller builds).
+    # Falls back to the system's default monospace font if loading fails.
     global LOADED_FONT_FAMILY
-    font_path = os.path.join(os.path.dirname(__file__), "JetBrainsMono-Regular.ttf")
+    font_path = os.path.join(os.path.dirname(__file__), "assets", "JetBrainsMono-Regular.ttf")
     if os.path.exists(font_path):
         font_id = QFontDatabase.addApplicationFont(font_path)
         if font_id != -1:
             font_families = QFontDatabase.applicationFontFamilies(font_id)
             if font_families:
                 LOADED_FONT_FAMILY = font_families[0]
-                print(f"✓ Loaded font: {LOADED_FONT_FAMILY}")
+                log.info(f"Loaded font: {LOADED_FONT_FAMILY}")
             else:
-                print("⚠ Font loaded but no families found")
-                LOADED_FONT_FAMILY = "monospace"  # Fallback
+                log.warning("Font loaded but no families found")
+                LOADED_FONT_FAMILY = "monospace"
         else:
-            print(f"⚠ Failed to load font from {font_path}")
-            LOADED_FONT_FAMILY = "monospace"  # Fallback
+            log.warning(f"Failed to load font from {font_path}")
+            LOADED_FONT_FAMILY = "monospace"
     else:
-        print(f"⚠ Font file not found: {font_path}")
-        LOADED_FONT_FAMILY = "monospace"  # Fallback
+        log.warning(f"Font file not found: {font_path}")
+        LOADED_FONT_FAMILY = "monospace"
 
-    # Load UI scale before window creation (scales buttons, margins, cursors)
+    # Load UI scale before the window is created, since button sizes, margins,
+    # and cursor dimensions are calculated at widget creation time.
     global UI_SCALE_FACTOR
     UI_SCALE_FACTOR = load_ui_scale()
     if UI_SCALE_FACTOR != 1.0:
-        print(f"UI Scale: {int(UI_SCALE_FACTOR * 100)}%")
+        log.info(f"UI Scale: {int(UI_SCALE_FACTOR * 100)}%")
 
     window = PianoMIDIViewer()
     window.show()
