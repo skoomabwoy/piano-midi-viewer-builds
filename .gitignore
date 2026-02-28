@@ -24,8 +24,8 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Local AppImage build artifacts
-local-appimage/
+# Local builds and version archive
+builds/
 
 # Claude Code
 .claude/
