@@ -24,9 +24,8 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Build artifacts (local)
-PianoMIDIViewer.AppDir/
-*.AppImage
+# Local AppImage build artifacts
+local-appimage/
 
 # Claude Code
 .claude/

@@ -28,7 +28,7 @@ assets/                  # SVG icons and embedded font
   JetBrainsMono-Regular.ttf  # Bundled font for note labels
   pencil.svg             # Pencil cursor source SVG (CC0)
   eraser.svg             # Eraser cursor source SVG (CC0)
-  new-icon.svg           # Icon design reference
+  camera.svg             # Camera/save icon source SVG (CC0)
 
 packaging/               # PyInstaller build specs
   PianoMIDIViewer.spec         # Linux build spec

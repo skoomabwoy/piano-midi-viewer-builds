@@ -47,8 +47,8 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
     QColorDialog, QCheckBox, QFileDialog, QPlainTextEdit
 )
-from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QThread, pyqtSignal, QUrl
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIcon, QPixmap, QDesktopServices, QFontDatabase, QCursor
+from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QThread, pyqtSignal
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIcon, QPixmap, QFontDatabase, QCursor
 
 
 # ============================================================================
@@ -1220,10 +1220,10 @@ class SettingsDialog(QDialog):
         self.version_label.setText(f"Version {VERSION}")
 
     def _open_url(self, url):
-        """Opens a URL in the default browser. Falls back to Python's webbrowser
-        module if Qt can't open it (common inside AppImage on Linux)."""
-        if not QDesktopServices.openUrl(QUrl(url)):
-            webbrowser.open(url)
+        """Opens a URL in the default browser. Uses Python's webbrowser module
+        instead of Qt's QDesktopServices because the latter silently fails
+        inside AppImage (returns True without actually opening anything)."""
+        webbrowser.open(url)
 
 
 # ============================================================================
