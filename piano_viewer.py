@@ -18,6 +18,7 @@ import subprocess
 import ssl
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+from datetime import datetime
 
 # --- Third-party imports ---
 import certifi       # Provides CA certificates for HTTPS (needed in PyInstaller builds)
@@ -32,6 +33,10 @@ _log_handler = logging.StreamHandler()
 _log_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 log.addHandler(_log_handler)
 
+# Collects errors that happen before the main window exists (e.g. settings migration).
+# Flushed into an error dialog once the window is ready.
+_startup_errors = []
+
 # --- PyQt6 imports ---
 # QtWidgets: all the visible UI elements (windows, buttons, dropdowns, etc.)
 # QtCore:    non-visual essentials (timers, geometry, signals, threads)
@@ -39,7 +44,7 @@ log.addHandler(_log_handler)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QHBoxLayout, QComboBox, QPushButton, QLabel, QDialog,
-    QColorDialog, QCheckBox
+    QColorDialog, QCheckBox, QFileDialog, QPlainTextEdit
 )
 from PyQt6.QtCore import Qt, QRectF, QTimer, QByteArray, QThread, pyqtSignal, QUrl
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIcon, QPixmap, QDesktopServices, QFontDatabase, QCursor
@@ -53,7 +58,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # scales proportionally. This makes the layout consistent at any window size.
 
 # --- App version ---
-VERSION = "8.5.3"
+VERSION = "8.6.0"
 # Settings file format version. Increment this when the settings.ini format
 # changes, and add a corresponding migration step in migrate_settings().
 SETTINGS_VERSION = 1
@@ -260,6 +265,16 @@ l0.181,54.981C176.215,71.348,174.59,74.837,171.744,77.214z"/>
 </svg>"""
 
 
+# Camera icon for the "Save as PNG" button.
+# Simple camera shape: body rectangle with rounded corners, lens circle, viewfinder bump.
+# Two layers: white fill (opaque interior) + black outline (detail).
+SAVE_SVG = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path fill="#ffffff" d="M3 7c0-1.1.9-2 2-2h2.2l1.4-1.7c.4-.5 1-.8 1.6-.8h3.6c.6 0 1.2.3 1.6.8L16.8 5H19c1.1 0 2 .9 2 2v10c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V7z"/>
+<path fill="#000000" d="M5 6a1 1 0 00-1 1v10a1 1 0 001 1h14a1 1 0 001-1V7a1 1 0 00-1-1h-2.8l-1.5-1.8a.5.5 0 00-.4-.2h-4.6a.5.5 0 00-.4.2L7.8 6H5zM5 4h2.2l1.4-1.7c.4-.5 1-.8 1.6-.8h3.6c.6 0 1.2.3 1.6.8L16.8 4H19c1.7 0 3 1.3 3 3v10c0 1.7-1.3 3-3 3H5c-1.7 0-3-1.3-3-3V7c0-1.7 1.3-3 3-3z"/>
+<circle fill="#000000" cx="12" cy="12" r="3.5" stroke="#000000" stroke-width="1.5" fill="none"/>
+</svg>"""
+
+
 def _render_svg_to_pixmap(svg_data, size):
     """Renders an SVG string to a QPixmap at the given pixel size.
 
@@ -315,6 +330,25 @@ def create_pencil_icon(size=None, color="#000000"):
         size = scaled(BUTTON_SIZE)
     # Icon uses transparent interior (no white fill), only the outline path
     svg = PENCIL_SVG.replace('fill="#ffffff"', 'fill="none"').replace('#000000', color)
+    return QIcon(_render_svg_to_pixmap(svg, size))
+
+
+def create_save_icon(size=None, color="#000000"):
+    """
+    Creates a camera/save QIcon from embedded SVG at the given size and color.
+
+    Used for the "Save as PNG" button that captures the piano keyboard.
+
+    Args:
+        size: Icon size in pixels
+        color: Hex color for the icon
+
+    Returns:
+        QIcon: The camera icon
+    """
+    if size is None:
+        size = scaled(BUTTON_SIZE)
+    svg = SAVE_SVG.replace('fill="#ffffff"', 'fill="none"').replace('#000000', color)
     return QIcon(_render_svg_to_pixmap(svg, size))
 
 
@@ -397,6 +431,7 @@ def migrate_settings():
         config.read(config_path)
     except Exception as e:
         log.error(f"Error reading settings for migration: {e}")
+        _startup_errors.append(f"Could not read settings file: {e}")
         return
 
     old_version = 0
@@ -431,6 +466,7 @@ def migrate_settings():
         log.info("Settings migration complete")
     except Exception as e:
         log.error(f"Error writing migrated settings: {e}")
+        _startup_errors.append(f"Could not save migrated settings: {e}")
 
 
 def is_black_key(midi_note):
@@ -1182,6 +1218,79 @@ class SettingsDialog(QDialog):
     def _restore_version_label(self):
         """Restores the version label to show the version number."""
         self.version_label.setText(f"Version {VERSION}")
+
+
+# ============================================================================
+# ERROR DIALOG
+# ============================================================================
+# A simple dialog that appears when something goes wrong. Shows the error
+# details with a "Copy to Clipboard" button so users can easily paste the
+# info into a bug report or message.
+
+class ErrorDialog(QDialog):
+    """Dialog for displaying errors with copy-to-clipboard support.
+
+    Shows error details in a readable format with app version and timestamp.
+    The "Copy to Clipboard" button lets users easily share error info when
+    reporting issues.
+    """
+
+    def __init__(self, title, details, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumWidth(450)
+        self.setMinimumHeight(250)
+
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        # Header
+        header = QLabel("Something went wrong. You can copy the details "
+                        "below and report this issue.")
+        header.setWordWrap(True)
+        layout.addWidget(header)
+
+        # Build error report text
+        report_lines = [
+            f"Piano MIDI Viewer v{VERSION}",
+            f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"",
+            f"Error: {details}",
+        ]
+        self.report_text = "\n".join(report_lines)
+
+        # Read-only text area with the error details
+        self.text_area = QPlainTextEdit()
+        self.text_area.setPlainText(self.report_text)
+        self.text_area.setReadOnly(True)
+        self.text_area.setFont(QFont("monospace", 10))
+        layout.addWidget(self.text_area)
+
+        # Button row
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        self.copy_btn = QPushButton("Copy to Clipboard")
+        self.copy_btn.setFixedHeight(32)
+        self.copy_btn.setStyleSheet(make_button_style())
+        self.copy_btn.clicked.connect(self._copy_to_clipboard)
+
+        close_btn = QPushButton("Close")
+        close_btn.setFixedHeight(32)
+        close_btn.setStyleSheet(make_button_style())
+        close_btn.clicked.connect(self.close)
+
+        button_layout.addWidget(self.copy_btn)
+        button_layout.addWidget(close_btn)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+    def _copy_to_clipboard(self):
+        """Copies the error report text to the system clipboard."""
+        QApplication.clipboard().setText(self.report_text)
+        self.copy_btn.setText("Copied!")
+        QTimer.singleShot(1500, lambda: self.copy_btn.setText("Copy to Clipboard"))
 
 
 # ============================================================================
@@ -1985,6 +2094,14 @@ class PianoMIDIViewer(QMainWindow):
         self.setup_device_scanning()
         self.load_settings()  # Load saved settings after UI is initialized
 
+        # Show any errors that occurred during startup (before the window existed)
+        if _startup_errors:
+            errors = "\n".join(_startup_errors)
+            QTimer.singleShot(0, lambda: self.show_error_dialog(
+                "Startup Error",
+                f"Errors occurred during startup:\n\n{errors}"))
+            _startup_errors.clear()
+
     def init_ui(self):
         """Sets up the user interface (three-column layout with piano in center)."""
         self.setWindowTitle("Piano MIDI Viewer")
@@ -2038,6 +2155,19 @@ class PianoMIDIViewer(QMainWindow):
         self.pencil_button.clicked.connect(self.toggle_pencil)
 
         left_layout.addWidget(self.pencil_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # Save as PNG button: left-click opens file dialog, right-click quick saves
+        self.save_button = QPushButton()
+        self.save_button.setToolTip("Save keyboard as image\nRight-click to quick save")
+        self.save_button.setFixedSize(btn_sz, btn_sz)
+        self.save_button.setIcon(create_save_icon())
+        self.save_button.setIconSize(self.save_button.size() * 0.7)
+        self.save_button.setStyleSheet(button_style)
+        self.save_button.clicked.connect(self.save_keyboard_image)
+        self.save_button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.save_button.customContextMenuRequested.connect(self.quick_save_keyboard_image)
+
+        left_layout.addWidget(self.save_button, alignment=Qt.AlignmentFlag.AlignCenter)
         left_layout.addStretch()
 
         self.left_plus_btn = QPushButton("+")
@@ -2214,6 +2344,9 @@ class PianoMIDIViewer(QMainWindow):
 
         except Exception as e:
             log.error(f"Error loading settings: {e}")
+            QTimer.singleShot(0, lambda: self.show_error_dialog(
+                "Settings Error",
+                f"Could not load settings: {e}\n\nDefault settings will be used."))
             # Continue with defaults if loading fails
 
     def save_settings(self):
@@ -2272,6 +2405,9 @@ class PianoMIDIViewer(QMainWindow):
                 config.write(f)
         except Exception as e:
             log.error(f"Error saving settings: {e}")
+            self.show_error_dialog(
+                "Settings Error",
+                f"Could not save settings: {e}\n\nYour changes may be lost.")
 
     def toggle_pencil(self):
         """
@@ -2313,6 +2449,30 @@ class PianoMIDIViewer(QMainWindow):
 
         self.update_pencil_button_visual()
         self.piano.update()
+
+    def save_keyboard_image(self):
+        """Opens a file dialog to save the piano keyboard as a PNG image."""
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Save Keyboard Image",
+            os.path.join(os.path.expanduser("~"), "piano_keyboard.png"),
+            "PNG Image (*.png)"
+        )
+        if filename:
+            if not filename.lower().endswith('.png'):
+                filename += '.png'
+            pixmap = self.piano.grab()
+            pixmap.save(filename, "PNG")
+            self.show_status_message(f"Saved to {os.path.basename(filename)}")
+
+    def quick_save_keyboard_image(self):
+        """Quick-saves the piano keyboard as PNG to ~/Pictures with a timestamp."""
+        save_dir = os.path.join(os.path.expanduser("~"), "Pictures")
+        os.makedirs(save_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(save_dir, f"piano_{timestamp}.png")
+        pixmap = self.piano.grab()
+        pixmap.save(filename, "PNG")
+        self.show_status_message(f"Saved to {os.path.basename(filename)}")
 
     def update_pencil_button_visual(self):
         """
@@ -2379,6 +2539,8 @@ class PianoMIDIViewer(QMainWindow):
             return self.midi_scanner.get_ports()
         except Exception as e:
             log.error(f"Error scanning MIDI devices: {e}")
+            self.show_error_dialog(
+                "MIDI Error", f"Could not scan for MIDI devices: {e}")
             return []
 
     def connect_midi_device(self, device_name):
@@ -2547,6 +2709,15 @@ class PianoMIDIViewer(QMainWindow):
         self.status_hide_timer.setSingleShot(True)
         self.status_hide_timer.timeout.connect(lambda: self.status_label.setVisible(False))
         self.status_hide_timer.start(STATUS_MESSAGE_DURATION)
+
+    def show_error_dialog(self, title, details):
+        """Shows an error dialog with copy-to-clipboard support.
+
+        The error is also logged via the logging module. The dialog is modal
+        so the user must acknowledge it before continuing.
+        """
+        dialog = ErrorDialog(title, str(details), parent=self)
+        dialog.exec()
 
     def poll_midi_messages(self):
         """Checks for new MIDI messages and processes them.

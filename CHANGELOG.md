@@ -2,6 +2,11 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 8.6.0
+- **Save as PNG**: New camera button on the left column captures the piano keyboard as an image. Left-click opens a file dialog to choose filename and location. Right-click quick-saves to `~/Pictures/` with a timestamp filename
+- **Error reporting dialog**: Auto-popup `ErrorDialog` when settings or MIDI scan errors occur, with error details (version, timestamp) and a "Copy to Clipboard" button for easy bug reporting
+- **Startup error capture**: Errors during settings migration (before the window exists) are collected and shown once the app is ready
+
 ## 8.5.3
 - **Test suite**: Added pytest with 67 tests covering all pure-logic helper functions — MIDI note classification, white key counting/indexing, note naming, octave numbers, black key accidentals, color contrast/blending, and settings migration
 

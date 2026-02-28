@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~3000 lines).
 
-**Current Version: 8.5.3**
+**Current Version: 8.6.0**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -184,8 +184,7 @@ ENTRY POINT       - main() function
 - **Keyboard shortcuts**: Low priority, may cancel — only P shortcut exists currently
 
 ### User-facing improvements
-- **Color themes/presets**: Built-in themes (classic, dark mode for OBS, pastel for kids)
-- **Export drawn notes as image**: "Save as PNG" for teachers
+- ~~**Export drawn notes as image**: "Save as PNG" for teachers~~ Done in 8.6.0
 - **Live UI scaling**: Apply scale changes without restart
 
 ### Website (landing page)
@@ -198,7 +197,7 @@ ENTRY POINT       - main() function
 - **Flatpak packaging**: Investigate for broader Linux desktop integration
 
 ### Developer/maintenance
-- **Error reporting dialog**: User-facing "something went wrong" with copy-to-clipboard
+- ~~**Error reporting dialog**: User-facing "something went wrong" with copy-to-clipboard~~ Done in 8.6.0
 
 ## Development Notes
 
