@@ -1220,10 +1220,19 @@ class SettingsDialog(QDialog):
         self.version_label.setText(f"Version {VERSION}")
 
     def _open_url(self, url):
-        """Opens a URL in the default browser. Uses Python's webbrowser module
-        instead of Qt's QDesktopServices because the latter silently fails
-        inside AppImage (returns True without actually opening anything)."""
-        webbrowser.open(url)
+        """Opens a URL in the default browser. On Linux, xdg-open delegates
+        to kde-open (KDE) or gio (GNOME), which are Qt/GTK apps themselves.
+        AppImage and PyInstaller set environment variables (LD_LIBRARY_PATH,
+        QT_PLUGIN_PATH, etc.) that cause these helpers to load incompatible
+        bundled libraries and crash. Strip all problematic variables so child
+        processes use system libraries."""
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(('LD_', 'QT_', 'QML', 'PYTHON'))
+               and k not in ('APPIMAGE', 'APPDIR', 'ARGV0', 'OWD')}
+        try:
+            subprocess.Popen(['xdg-open', url], env=env)
+        except FileNotFoundError:
+            webbrowser.open(url)
 
 
 # ============================================================================
