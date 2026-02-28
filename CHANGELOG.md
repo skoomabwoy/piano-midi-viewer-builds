@@ -2,6 +2,14 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 8.6.1
+- **Fixed crash on corrupted settings**: Garbage in `settings.ini` no longer crashes the app — shows an error dialog with a "Reset Settings" button instead
+- **Per-value settings recovery**: Individual bad values (e.g. `start_note = banana`) are reset to defaults while keeping all other settings intact — a toast shows which values were reset
+- **Highlight color validation**: Invalid color values are now detected and reset to default (previously silently turned black)
+- **Reset Settings button**: Error dialogs for settings errors now offer a "Reset Settings" button that deletes the config file
+- **Camera icon**: Save button now shows the camera icon from `assets/camera.svg` (was blank)
+- **Quick save subfolder**: Screenshots quick-save to `~/Pictures/PianoMIDIViewer/` instead of `~/Pictures/`
+
 ## 8.6.0
 - **Save as PNG**: New camera button on the left column captures the piano keyboard as an image. Left-click opens a file dialog to choose filename and location. Right-click quick-saves to `~/Pictures/` with a timestamp filename
 - **Error reporting dialog**: Auto-popup `ErrorDialog` when settings or MIDI scan errors occur, with error details (version, timestamp) and a "Copy to Clipboard" button for easy bug reporting

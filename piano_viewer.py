@@ -58,7 +58,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # scales proportionally. This makes the layout consistent at any window size.
 
 # --- App version ---
-VERSION = "8.6.0"
+VERSION = "8.6.1"
 # Settings file format version. Increment this when the settings.ini format
 # changes, and add a corresponding migration step in migrate_settings().
 SETTINGS_VERSION = 1
@@ -268,10 +268,9 @@ l0.181,54.981C176.215,71.348,174.59,74.837,171.744,77.214z"/>
 # Camera icon for the "Save as PNG" button.
 # Simple camera shape: body rectangle with rounded corners, lens circle, viewfinder bump.
 # Two layers: white fill (opaque interior) + black outline (detail).
-SAVE_SVG = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-<path fill="#ffffff" d="M3 7c0-1.1.9-2 2-2h2.2l1.4-1.7c.4-.5 1-.8 1.6-.8h3.6c.6 0 1.2.3 1.6.8L16.8 5H19c1.1 0 2 .9 2 2v10c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V7z"/>
-<path fill="#000000" d="M5 6a1 1 0 00-1 1v10a1 1 0 001 1h14a1 1 0 001-1V7a1 1 0 00-1-1h-2.8l-1.5-1.8a.5.5 0 00-.4-.2h-4.6a.5.5 0 00-.4.2L7.8 6H5zM5 4h2.2l1.4-1.7c.4-.5 1-.8 1.6-.8h3.6c.6 0 1.2.3 1.6.8L16.8 4H19c1.7 0 3 1.3 3 3v10c0 1.7-1.3 3-3 3H5c-1.7 0-3-1.3-3-3V7c0-1.7 1.3-3 3-3z"/>
-<circle fill="#000000" cx="12" cy="12" r="3.5" stroke="#000000" stroke-width="1.5" fill="none"/>
+SAVE_SVG = """<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 8.37722C2 8.0269 2 7.85174 2.01462 7.70421C2.1556 6.28127 3.28127 5.1556 4.70421 5.01462C4.85174 5 5.03636 5 5.40558 5C5.54785 5 5.61899 5 5.67939 4.99634C6.45061 4.94963 7.12595 4.46288 7.41414 3.746C7.43671 3.68986 7.45781 3.62657 7.5 3.5C7.54219 3.37343 7.56329 3.31014 7.58586 3.254C7.87405 2.53712 8.54939 2.05037 9.32061 2.00366C9.38101 2 9.44772 2 9.58114 2H14.4189C14.5523 2 14.619 2 14.6794 2.00366C15.4506 2.05037 16.126 2.53712 16.4141 3.254C16.4367 3.31014 16.4578 3.37343 16.5 3.5C16.5422 3.62657 16.5633 3.68986 16.5859 3.746C16.874 4.46288 17.5494 4.94963 18.3206 4.99634C18.381 5 18.4521 5 18.5944 5C18.9636 5 19.1483 5 19.2958 5.01462C20.7187 5.1556 21.8444 6.28127 21.9854 7.70421C22 7.85174 22 8.0269 22 8.37722V16.2C22 17.8802 22 18.7202 21.673 19.362C21.3854 19.9265 20.9265 20.3854 20.362 20.673C19.7202 21 18.8802 21 17.2 21H6.8C5.11984 21 4.27976 21 3.63803 20.673C3.07354 20.3854 2.6146 19.9265 2.32698 19.362C2 18.7202 2 17.8802 2 16.2V8.37722Z" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M12 16.5C14.2091 16.5 16 14.7091 16 12.5C16 10.2909 14.2091 8.5 12 8.5C9.79086 8.5 8 10.2909 8 12.5C8 14.7091 9.79086 16.5 12 16.5Z" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>"""
 
 
@@ -348,7 +347,7 @@ def create_save_icon(size=None, color="#000000"):
     """
     if size is None:
         size = scaled(BUTTON_SIZE)
-    svg = SAVE_SVG.replace('fill="#ffffff"', 'fill="none"').replace('#000000', color)
+    svg = SAVE_SVG.replace('#000000', color)
     return QIcon(_render_svg_to_pixmap(svg, size))
 
 
@@ -1235,11 +1234,12 @@ class ErrorDialog(QDialog):
     reporting issues.
     """
 
-    def __init__(self, title, details, parent=None):
+    def __init__(self, title, details, parent=None, reset_callback=None):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumWidth(450)
         self.setMinimumHeight(250)
+        self.reset_callback = reset_callback
 
         layout = QVBoxLayout()
         layout.setSpacing(10)
@@ -1270,6 +1270,13 @@ class ErrorDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
+        if reset_callback:
+            reset_btn = QPushButton("Reset Settings")
+            reset_btn.setFixedHeight(32)
+            reset_btn.setStyleSheet(make_button_style())
+            reset_btn.clicked.connect(self._reset_settings)
+            button_layout.addWidget(reset_btn)
+
         self.copy_btn = QPushButton("Copy to Clipboard")
         self.copy_btn.setFixedHeight(32)
         self.copy_btn.setStyleSheet(make_button_style())
@@ -1291,6 +1298,12 @@ class ErrorDialog(QDialog):
         QApplication.clipboard().setText(self.report_text)
         self.copy_btn.setText("Copied!")
         QTimer.singleShot(1500, lambda: self.copy_btn.setText("Copy to Clipboard"))
+
+    def _reset_settings(self):
+        """Deletes the settings file and closes the dialog."""
+        if self.reset_callback:
+            self.reset_callback()
+        self.close()
 
 
 # ============================================================================
@@ -2092,14 +2105,19 @@ class PianoMIDIViewer(QMainWindow):
         self.init_ui()
         self.setup_midi_polling()
         self.setup_device_scanning()
-        self.load_settings()  # Load saved settings after UI is initialized
+
+        # If migration already failed (file is corrupt), skip loading —
+        # the startup error dialog will offer reset instead.
+        if not _startup_errors:
+            self.load_settings()
 
         # Show any errors that occurred during startup (before the window existed)
         if _startup_errors:
             errors = "\n".join(_startup_errors)
             QTimer.singleShot(0, lambda: self.show_error_dialog(
                 "Startup Error",
-                f"Errors occurred during startup:\n\n{errors}"))
+                f"Errors occurred during startup:\n\n{errors}",
+                offer_reset=True))
             _startup_errors.clear()
 
     def init_ui(self):
@@ -2279,6 +2297,9 @@ class PianoMIDIViewer(QMainWindow):
         - Window size and position
 
         If the config file doesn't exist, default values are used.
+        Each setting is loaded independently so one bad value doesn't
+        prevent loading the rest. Bad values are reset to defaults and
+        the user is notified via a toast message.
         """
         config_path = get_config_path()
         config = configparser.ConfigParser()
@@ -2288,45 +2309,57 @@ class PianoMIDIViewer(QMainWindow):
 
         try:
             config.read(config_path)
+        except Exception as e:
+            log.error(f"Error reading settings file: {e}")
+            error_msg = f"Could not read settings file: {e}\n\nDefault settings will be used."
+            QTimer.singleShot(0, lambda: self.show_error_dialog(
+                "Settings Error", error_msg, offer_reset=True))
+            return
 
-            # Load MIDI device
-            if config.has_option('midi', 'device'):
-                device_name = config.get('midi', 'device')
-                if device_name:  # Only connect if not empty
-                    self.connect_midi_device(device_name)
+        reset_keys = []  # Track which settings had bad values
 
-            # Load highlight color
-            if config.has_option('appearance', 'highlight_color'):
-                color_hex = config.get('appearance', 'highlight_color')
-                self.piano.highlight_color = QColor(color_hex)
+        # Load MIDI device
+        if config.has_option('midi', 'device'):
+            device_name = config.get('midi', 'device')
+            if device_name:  # Only connect if not empty
+                self.connect_midi_device(device_name)
+
+        # Load highlight color
+        if config.has_option('appearance', 'highlight_color'):
+            color_hex = config.get('appearance', 'highlight_color')
+            color = QColor(color_hex)
+            if color.isValid():
+                self.piano.highlight_color = color
                 self.piano.update()
+            else:
+                reset_keys.append('highlight_color')
 
-            # Load note name and octave number settings
-            if config.has_option('appearance', 'show_octave_numbers'):
-                self.show_octave_numbers = config.getboolean('appearance', 'show_octave_numbers')
+        # Load note name and octave number settings
+        for key, attr in [
+            ('show_octave_numbers', 'show_octave_numbers'),
+            ('show_white_key_names', 'show_white_key_names'),
+            ('show_black_key_names', 'show_black_key_names'),
+            ('show_names_when_pressed', 'show_names_when_pressed'),
+            ('show_velocity', 'show_velocity'),
+        ]:
+            if config.has_option('appearance', key):
+                try:
+                    setattr(self, attr, config.getboolean('appearance', key))
+                except ValueError:
+                    reset_keys.append(key)
 
-            if config.has_option('appearance', 'show_white_key_names'):
-                self.show_white_key_names = config.getboolean('appearance', 'show_white_key_names')
+        if config.has_option('appearance', 'black_key_notation'):
+            notation = config.get('appearance', 'black_key_notation')
+            if notation in ['Flats', 'Sharps', 'Both']:
+                self.black_key_notation = notation
+            else:
+                reset_keys.append('black_key_notation')
 
-            if config.has_option('appearance', 'show_black_key_names'):
-                self.show_black_key_names = config.getboolean('appearance', 'show_black_key_names')
-
-            if config.has_option('appearance', 'black_key_notation'):
-                notation = config.get('appearance', 'black_key_notation')
-                # Validate the notation value
-                if notation in ['Flats', 'Sharps', 'Both']:
-                    self.black_key_notation = notation
-
-            if config.has_option('appearance', 'show_names_when_pressed'):
-                self.show_names_when_pressed = config.getboolean('appearance', 'show_names_when_pressed')
-            if config.has_option('appearance', 'show_velocity'):
-                self.show_velocity = config.getboolean('appearance', 'show_velocity')
-
-            # Load keyboard range (must be before geometry restoration)
-            if config.has_option('keyboard', 'start_note') and config.has_option('keyboard', 'end_note'):
+        # Load keyboard range (must be before geometry restoration)
+        if config.has_option('keyboard', 'start_note') and config.has_option('keyboard', 'end_note'):
+            try:
                 start_note = config.getint('keyboard', 'start_note')
                 end_note = config.getint('keyboard', 'end_note')
-                # Validate the range
                 if (MIDI_NOTE_MIN <= start_note <= MIDI_NOTE_MAX and
                     MIDI_NOTE_MIN <= end_note <= MIDI_NOTE_MAX and
                     end_note >= start_note + 11):  # At least 1 octave
@@ -2334,20 +2367,24 @@ class PianoMIDIViewer(QMainWindow):
                     self.piano.end_note = end_note
                     self.update_button_states()
                     self.update_minimum_size()
+                else:
+                    reset_keys.append('start_note/end_note')
+            except ValueError:
+                reset_keys.append('start_note/end_note')
 
-            # Load window geometry (size and position)
-            # Using Qt's saveGeometry/restoreGeometry handles window manager issues better
-            if config.has_option('window', 'geometry'):
-                geometry_string = config.get('window', 'geometry')
-                geometry_bytes = QByteArray.fromBase64(geometry_string.encode())
-                self.restoreGeometry(geometry_bytes)
+        # Load window geometry (size and position)
+        if config.has_option('window', 'geometry'):
+            geometry_string = config.get('window', 'geometry')
+            geometry_bytes = QByteArray.fromBase64(geometry_string.encode())
+            self.restoreGeometry(geometry_bytes)
 
-        except Exception as e:
-            log.error(f"Error loading settings: {e}")
-            QTimer.singleShot(0, lambda: self.show_error_dialog(
-                "Settings Error",
-                f"Could not load settings: {e}\n\nDefault settings will be used."))
-            # Continue with defaults if loading fails
+        # If any values were bad, notify the user and save cleaned config
+        if reset_keys:
+            names = ", ".join(reset_keys)
+            log.warning(f"Reset invalid settings to defaults: {names}")
+            QTimer.singleShot(0, lambda: self.show_status_message(
+                f"Reset invalid settings: {names}"))
+            QTimer.singleShot(100, lambda: self.save_settings())
 
     def save_settings(self):
         """
@@ -2407,7 +2444,8 @@ class PianoMIDIViewer(QMainWindow):
             log.error(f"Error saving settings: {e}")
             self.show_error_dialog(
                 "Settings Error",
-                f"Could not save settings: {e}\n\nYour changes may be lost.")
+                f"Could not save settings: {e}\n\nYour changes may be lost.",
+                offer_reset=True)
 
     def toggle_pencil(self):
         """
@@ -2466,7 +2504,7 @@ class PianoMIDIViewer(QMainWindow):
 
     def quick_save_keyboard_image(self):
         """Quick-saves the piano keyboard as PNG to ~/Pictures with a timestamp."""
-        save_dir = os.path.join(os.path.expanduser("~"), "Pictures")
+        save_dir = os.path.join(os.path.expanduser("~"), "Pictures", "PianoMIDIViewer")
         os.makedirs(save_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(save_dir, f"piano_{timestamp}.png")
@@ -2710,14 +2748,26 @@ class PianoMIDIViewer(QMainWindow):
         self.status_hide_timer.timeout.connect(lambda: self.status_label.setVisible(False))
         self.status_hide_timer.start(STATUS_MESSAGE_DURATION)
 
-    def show_error_dialog(self, title, details):
+    def show_error_dialog(self, title, details, offer_reset=False):
         """Shows an error dialog with copy-to-clipboard support.
 
         The error is also logged via the logging module. The dialog is modal
         so the user must acknowledge it before continuing.
+        If offer_reset is True, a "Reset Settings" button is shown.
         """
-        dialog = ErrorDialog(title, str(details), parent=self)
+        reset_cb = self._reset_settings_file if offer_reset else None
+        dialog = ErrorDialog(title, str(details), parent=self, reset_callback=reset_cb)
         dialog.exec()
+
+    def _reset_settings_file(self):
+        """Deletes the settings file and shows a confirmation toast."""
+        config_path = get_config_path()
+        try:
+            if config_path.exists():
+                config_path.unlink()
+            self.show_status_message("Settings reset — restart to apply")
+        except Exception as e:
+            log.error(f"Error resetting settings: {e}")
 
     def poll_midi_messages(self):
         """Checks for new MIDI messages and processes them.
