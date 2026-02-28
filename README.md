@@ -25,17 +25,17 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 
 *Default look*
 
-<img src="screenshots/sustained-blue-2-octaves.png" height="250">
+<img src="screenshots/sustained-blue-2-octaves-velocity.png" height="250">
 
-*Arch Blue, 2 octaves, showing sharps*
+*Arch Blue, 2 octaves, showing sharps, velocity brightness on*
 
 <img src="screenshots/pencil-tool-red-4-octaves.png" height="200">
 
 *Red, pencil tool active, 4 octaves, flats, labels only on pressed keys*
 
-<img src="screenshots/sustained-teal.png" height="250">
+<img src="screenshots/sustained-teal-1-octave-velocity.png" height="250">
 
-*Teal, both sharps and flats, no white key names*
+*Teal, 1 octave, both sharps and flats, velocity brightness on*
 
 ### Settings
 
