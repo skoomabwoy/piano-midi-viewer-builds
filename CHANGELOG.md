@@ -2,6 +2,9 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 8.6.2
+- **Fix links in AppImage**: Clickable links in Settings (update check, project info) now open the browser correctly inside AppImage — falls back to Python's `webbrowser` module when Qt's `QDesktopServices` can't reach the system browser
+
 ## 8.6.1
 - **Fixed crash on corrupted settings**: Garbage in `settings.ini` no longer crashes the app — shows an error dialog with a "Reset Settings" button instead
 - **Per-value settings recovery**: Individual bad values (e.g. `start_note = banana`) are reset to defaults while keeping all other settings intact — a toast shows which values were reset

@@ -19,6 +19,7 @@ import ssl
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 from datetime import datetime
+import webbrowser
 
 # --- Third-party imports ---
 import certifi       # Provides CA certificates for HTTPS (needed in PyInstaller builds)
@@ -58,7 +59,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # scales proportionally. This makes the layout consistent at any window size.
 
 # --- App version ---
-VERSION = "8.6.1"
+VERSION = "8.6.2"
 # Settings file format version. Increment this when the settings.ini format
 # changes, and add a corresponding migration step in migrate_settings().
 SETTINGS_VERSION = 1
@@ -1007,7 +1008,7 @@ class SettingsDialog(QDialog):
         version_row = QHBoxLayout()
         self.version_label = QLabel(f"Version {VERSION}")
         self.version_label.setTextFormat(Qt.TextFormat.RichText)
-        self.version_label.setOpenExternalLinks(True)
+        self.version_label.linkActivated.connect(self._open_url)
         self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         version_row.addWidget(self.version_label, 1)
         self.update_button = QPushButton("Check for Updates")
@@ -1019,7 +1020,7 @@ class SettingsDialog(QDialog):
         # INFO LINK
         info_label = QLabel()
         info_label.setText('<a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" style="color: #5094d4;">Project Info & Source Code</a>')
-        info_label.setOpenExternalLinks(True)
+        info_label.linkActivated.connect(self._open_url)
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_label.setTextFormat(Qt.TextFormat.RichText)
         info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
@@ -1217,6 +1218,12 @@ class SettingsDialog(QDialog):
     def _restore_version_label(self):
         """Restores the version label to show the version number."""
         self.version_label.setText(f"Version {VERSION}")
+
+    def _open_url(self, url):
+        """Opens a URL in the default browser. Falls back to Python's webbrowser
+        module if Qt can't open it (common inside AppImage on Linux)."""
+        if not QDesktopServices.openUrl(QUrl(url)):
+            webbrowser.open(url)
 
 
 # ============================================================================
