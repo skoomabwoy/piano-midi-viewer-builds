@@ -12,17 +12,21 @@ Optimizations applied:
 4. Remove non-English translations
 """
 
+import os
 from PyInstaller.utils.hooks import collect_all
+
+# Project root is one directory up from this spec file
+PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 
 # Collect rtmidi with all its dependencies
 rtmidi_datas, rtmidi_binaries, rtmidi_hiddenimports = collect_all('rtmidi')
 
 a = Analysis(
-    ['piano_viewer.py'],
+    [os.path.join(PROJECT_ROOT, 'piano_viewer.py')],
     pathex=[],
     binaries=rtmidi_binaries,
     datas=[
-        ('assets/JetBrainsMono-Regular.ttf', '.'),
+        (os.path.join(PROJECT_ROOT, 'assets', 'JetBrainsMono-Regular.ttf'), '.'),
     ] + rtmidi_datas,
     hiddenimports=rtmidi_hiddenimports,
     hookspath=[],
