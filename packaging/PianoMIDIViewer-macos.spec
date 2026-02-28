@@ -208,6 +208,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='PianoMIDIViewer.app',
-    icon='icon.icns',
+    icon=os.path.join(PROJECT_ROOT, 'icon.icns'),
     bundle_identifier='com.skoomabwoy.pianomidiviewer',
 )
