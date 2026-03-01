@@ -75,7 +75,7 @@ jobs:
 
       - name: Smoke test AppImage
         run: |
-          sudo apt-get install -y xvfb libxcb-cursor0
+          sudo apt-get install -y xvfb libegl1
           chmod +x PianoMIDIViewer-x86_64.AppImage
           # Run for 5 seconds — exit code 124 means timeout killed it (success).
           # Any other non-zero exit means it crashed on startup.
