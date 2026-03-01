@@ -930,7 +930,7 @@ class SettingsDialog(QDialog):
         # Restart button (inserted between label and dropdown when scale changes)
         self.restart_button = QPushButton("Restart to apply")
         self.restart_button.setVisible(False)
-        self.restart_button.setStyleSheet("text-align: left; padding-left: 6px;")
+        self.restart_button.setStyleSheet("text-align: left; padding: 4px 8px 4px 6px;")
         self.restart_button.clicked.connect(self.restart_app)
 
         scale_layout.addWidget(scale_label)
