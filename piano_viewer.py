@@ -887,7 +887,6 @@ class SettingsDialog(QDialog):
 
         refresh_btn = QPushButton("🔄")
         refresh_btn.setToolTip("Refresh MIDI device list")
-        refresh_btn.setFixedSize(30, 30)
         refresh_btn.clicked.connect(self.refresh_midi_devices)
 
         midi_layout.addWidget(self.midi_dropdown, 1)
@@ -928,9 +927,8 @@ class SettingsDialog(QDialog):
         self.scale_dropdown.currentIndexChanged.connect(self.scale_changed)
 
         # Restart button (inserted between label and dropdown when scale changes)
-        self.restart_button = QPushButton("Restart to apply")
+        self.restart_button = QPushButton("Restart")
         self.restart_button.setVisible(False)
-        self.restart_button.setStyleSheet("text-align: left; padding: 4px 8px 4px 6px;")
         self.restart_button.clicked.connect(self.restart_app)
 
         scale_layout.addWidget(scale_label)
