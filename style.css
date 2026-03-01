@@ -1,0 +1,288 @@
+/* ── Font ── */
+@font-face {
+    font-family: 'JetBrains Mono';
+    src: url('JetBrainsMono-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    color: #e0e0e0;
+    background: #121220;
+}
+
+a {
+    color: #5bbfff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* ── Hero ── */
+.hero {
+    background: #1793D1;
+    color: #fff;
+    text-align: center;
+    padding: 3.5rem 1.5rem 2.5rem;
+}
+
+.hero-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+}
+
+.hero-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+}
+
+.hero h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.tagline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.15rem;
+    opacity: 0.92;
+    margin-bottom: 0.3rem;
+}
+
+.promise {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 400;
+    opacity: 0.95;
+    margin-bottom: 0;
+}
+
+/* ── Download Section ── */
+.download-section {
+    background: #181828;
+    padding: 3rem 1.5rem;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.download-section h2 {
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    color: #fff;
+}
+
+/* Platform tabs */
+.platform-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.tab {
+    background: transparent;
+    color: #a0a0b8;
+    border: 2px solid #2a2a40;
+    padding: 0.5rem 1.3rem;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.tab:hover {
+    color: #fff;
+    border-color: #1793D1;
+}
+
+.tab.active {
+    background: #1793D1;
+    color: #fff;
+    border-color: #1793D1;
+}
+
+/* Platform content */
+.platform-content {
+    display: none;
+    animation: fadeIn 0.25s ease;
+}
+
+.platform-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.platform-content ol {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.platform-content li {
+    margin-bottom: 0.6rem;
+    line-height: 1.7;
+}
+
+/* Download button inside steps */
+.btn-download {
+    display: inline-block;
+    background: #1793D1;
+    color: #fff;
+    padding: 0rem 0.5rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s;
+    cursor: pointer;
+}
+
+.btn-download:hover {
+    background: #1480b8;
+    text-decoration: none;
+}
+
+.command {
+    display: inline-block;
+    background: #0d0d18;
+    color: #7ecfff;
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.9rem;
+    user-select: all;
+    margin-top: 0.3rem;
+}
+
+.note {
+    color: #888;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+/* ── How It Works ── */
+.how-it-works {
+    background: #121220;
+    padding: 3rem 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.how-it-works h2 {
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    color: #fff;
+}
+
+.guides {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.guide-card {
+    text-align: center;
+}
+
+.guide-placeholder {
+    background: #1a1a30;
+    border: 2px dashed #2a2a48;
+    border-radius: 10px;
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    color: #555;
+    font-size: 0.95rem;
+}
+
+.guide-caption {
+    color: #c0c0d0;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+/* ── Footer ── */
+footer {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    color: #666;
+    font-size: 0.9rem;
+    border-top: 1px solid #1e1e30;
+}
+
+footer a {
+    color: #888;
+}
+
+footer a:hover {
+    color: #1793D1;
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+    .hero-icon {
+        width: 48px;
+        height: 48px;
+    }
+
+    .hero h1 {
+        font-size: 1.8rem;
+    }
+
+    .tagline {
+        font-size: 1.05rem;
+    }
+
+    .promise {
+        font-size: 1rem;
+    }
+
+    .platform-tabs {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tab {
+        text-align: center;
+    }
+
+    .guides {
+        grid-template-columns: 1fr;
+    }
+
+    .download-section {
+        padding: 2rem 1.2rem;
+    }
+}

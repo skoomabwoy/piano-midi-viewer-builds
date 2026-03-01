@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piano MIDI Viewer — Free tool for music teachers, students, and creators</title>
+    <meta name="description" content="A free, open source piano visualizer for music lessons and streaming. No subscription, no catch.">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Hero -->
+<header class="hero">
+    <div class="hero-title">
+        <img src="icon.svg" alt="Piano MIDI Viewer icon" class="hero-icon">
+        <h1>Piano MIDI Viewer</h1>
+    </div>
+    <p class="tagline">A tool for music teachers, students, and content creators.</p>
+    <p class="promise">Free, open source, no subscription, no catch.</p>
+</header>
+
+<!-- Download / Install -->
+<section id="download" class="download-section">
+    <h2>Get started</h2>
+    <div class="platform-tabs">
+        <button class="tab" data-platform="windows">Windows</button>
+        <button class="tab" data-platform="macos">macOS</button>
+        <button class="tab" data-platform="linux">Linux</button>
+    </div>
+
+    <div class="platform-content" data-platform="windows">
+        <ol>
+            <li><a href="#" class="btn btn-download" data-file="WIN_PianoMIDIViewer.exe">Download PianoMIDIViewer.exe</a></li>
+            <li>Run the file</li>
+            <li>Windows SmartScreen may pop up — click <strong>"More info"</strong>, then <strong>"Run anyway"</strong></li>
+            <li>That's it! The app is ready to use.</li>
+        </ol>
+        <p class="note">SmartScreen warns about unsigned apps. Piano MIDI Viewer is open source and safe — you can <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">read every line of code</a>.</p>
+    </div>
+
+    <div class="platform-content" data-platform="macos">
+        <ol>
+            <li><a href="#" class="btn btn-download" data-file="MAC_PianoMIDIViewer.dmg">Download PianoMIDIViewer.dmg</a></li>
+            <li>Open the DMG and drag <strong>Piano MIDI Viewer</strong> to your <strong>Applications</strong> folder</li>
+            <li>Open <strong>Terminal</strong> (search for it in Spotlight) and paste this command:
+                <code class="command">xattr -cr /Applications/PianoMIDIViewer.app</code>
+            </li>
+            <li>Now open the app from Applications — it's ready!</li>
+        </ol>
+        <p class="note">The xattr command removes macOS quarantine flags. Apple requires a $99/year fee to sign apps — we'd rather keep the app free.</p>
+    </div>
+
+    <div class="platform-content" data-platform="linux">
+        <ol>
+            <li><a href="#" class="btn btn-download" data-file="LINUX_PianoMIDIViewer.AppImage">Download PianoMIDIViewer.AppImage</a></li>
+            <li>Right-click the file → <strong>Properties</strong> → mark it as <strong>executable</strong></li>
+            <li>Double-click to run!</li>
+        </ol>
+        <p class="note">Or in terminal: <code class="command">chmod +x PianoMIDIViewer.AppImage && ./PianoMIDIViewer.AppImage</code></p>
+    </div>
+</section>
+
+<!-- How it works -->
+<section class="how-it-works">
+    <h2>How it works</h2>
+    <div class="guides">
+        <div class="guide-card">
+            <div class="guide-placeholder">
+                <!-- GIF/screenshot will go here -->
+                <span>Guide coming soon</span>
+            </div>
+            <p class="guide-caption">Connect your piano → pick a MIDI device in settings → press a key → it lights up!</p>
+        </div>
+        <div class="guide-card">
+            <div class="guide-placeholder">
+                <!-- GIF/screenshot will go here -->
+                <span>Guide coming soon</span>
+            </div>
+            <p class="guide-caption">Toggle the pencil tool → mark keys → take a screenshot → share with your students!</p>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <p>
+        <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">Open source on Codeberg</a>
+        · GPL-3.0
+        · v8.6.2
+    </p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
