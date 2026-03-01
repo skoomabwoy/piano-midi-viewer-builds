@@ -10,76 +10,112 @@
 </head>
 <body>
 
-<!-- Hero -->
-<header class="hero">
-    <div class="hero-title">
-        <img src="icon.svg" alt="Piano MIDI Viewer icon" class="hero-icon">
-        <h1>Piano MIDI Viewer</h1>
+<!-- Top Banner -->
+<header class="top-banner">
+    <div class="banner-inner">
+        <div class="banner-title">
+            <img src="icon.svg" alt="" class="banner-icon">
+            <h1>Piano MIDI Viewer</h1>
+        </div>
+        <p class="banner-tagline">A tool for music teachers, students, and content creators.</p>
     </div>
-    <p class="tagline">A tool for music teachers, students, and content creators.</p>
-    <p class="promise">Free, open source, no subscription, no catch.</p>
 </header>
 
-<!-- Download / Install -->
-<section id="download" class="download-section">
-    <h2>Get started</h2>
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-text">
+            <p class="promise">Free, open source, no subscription, no catch.</p>
+            <a id="hero-download-btn" href="#download" class="btn btn-primary">Download</a>
+            <p class="also-available">Also available for
+                <a href="#" class="alt-download" data-platform="windows">Windows</a>,
+                <a href="#" class="alt-download" data-platform="macos">macOS</a>, and
+                <a href="#" class="alt-download" data-platform="linux">Linux</a>
+            </p>
+        </div>
+        <div class="hero-screenshot">
+            <img src="screenshots/sustained-blue-2-octaves-velocity.png" alt="Piano MIDI Viewer showing highlighted keys with velocity">
+        </div>
+    </div>
+</section>
+
+<!-- Install Instructions (right below hero, before features) -->
+<section id="download" class="install-section">
     <div class="platform-tabs">
         <button class="tab" data-platform="windows">Windows</button>
         <button class="tab" data-platform="macos">macOS</button>
         <button class="tab" data-platform="linux">Linux</button>
     </div>
 
-    <div class="platform-content" data-platform="windows">
-        <ol>
-            <li><a href="#" class="btn btn-download" data-file="WIN_PianoMIDIViewer.exe">Download PianoMIDIViewer.exe</a></li>
-            <li>Run the file</li>
-            <li>Windows SmartScreen may pop up — click <strong>"More info"</strong>, then <strong>"Run anyway"</strong></li>
-            <li>That's it! The app is ready to use.</li>
-        </ol>
-        <p class="note">SmartScreen warns about unsigned apps. Piano MIDI Viewer is open source and safe — you can <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">read every line of code</a>.</p>
-    </div>
+    <div class="platform-container">
+        <div class="platform-content" data-platform="windows">
+            <ol>
+                <li>Download the app</li>
+                <li>Run the file</li>
+                <li>Windows SmartScreen may pop up — click <strong>"More info"</strong>, then <strong>"Run anyway"</strong></li>
+                <li>That's it! The app is ready to use.</li>
+            </ol>
+            <p class="note">SmartScreen warns about unsigned apps. Piano MIDI Viewer is open source and safe — you can <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">read every line of code</a>.</p>
+        </div>
 
-    <div class="platform-content" data-platform="macos">
-        <ol>
-            <li><a href="#" class="btn btn-download" data-file="MAC_PianoMIDIViewer.dmg">Download PianoMIDIViewer.dmg</a></li>
-            <li>Open the DMG and drag <strong>Piano MIDI Viewer</strong> to your <strong>Applications</strong> folder</li>
-            <li>Open <strong>Terminal</strong> (search for it in Spotlight) and paste this command:
-                <code class="command">xattr -cr /Applications/PianoMIDIViewer.app</code>
-            </li>
-            <li>Now open the app from Applications — it's ready!</li>
-        </ol>
-        <p class="note">The xattr command removes macOS quarantine flags. Apple requires a $99/year fee to sign apps — we'd rather keep the app free.</p>
-    </div>
+        <div class="platform-content" data-platform="macos">
+            <ol>
+                <li>Download the app</li>
+                <li>Open the downloaded file and drag <strong>Piano MIDI Viewer</strong> to your <strong>Applications</strong> folder</li>
+                <li>Open <strong>Terminal</strong> (search for it in Spotlight) and paste this command:
+                    <code class="command">xattr -cr /Applications/PianoMIDIViewer.app</code>
+                </li>
+                <li>Now open the app from Applications — it's ready!</li>
+            </ol>
+            <p class="note">The xattr command removes macOS quarantine flags. Apple requires a $99/year fee to sign apps — we'd rather keep the app free.</p>
+        </div>
 
-    <div class="platform-content" data-platform="linux">
-        <ol>
-            <li><a href="#" class="btn btn-download" data-file="LINUX_PianoMIDIViewer.AppImage">Download PianoMIDIViewer.AppImage</a></li>
-            <li>Right-click the file → <strong>Properties</strong> → mark it as <strong>executable</strong></li>
-            <li>Double-click to run!</li>
-        </ol>
-        <p class="note">Or in terminal: <code class="command">chmod +x PianoMIDIViewer.AppImage && ./PianoMIDIViewer.AppImage</code></p>
+        <div class="platform-content" data-platform="linux">
+            <ol>
+                <li>Download the app</li>
+                <li>Right-click the file → <strong>Properties</strong> → mark it as <strong>executable</strong></li>
+                <li>Double-click to run!</li>
+            </ol>
+            <p class="note">Or in terminal: <code class="command">chmod +x PianoMIDIViewer.AppImage && ./PianoMIDIViewer.AppImage</code></p>
+        </div>
     </div>
 </section>
 
-<!-- How it works -->
-<section class="how-it-works">
-    <h2>How it works</h2>
-    <div class="guides">
-        <div class="guide-card">
-            <div class="guide-placeholder">
-                <!-- GIF/screenshot will go here -->
-                <span>Guide coming soon</span>
-            </div>
-            <p class="guide-caption">Connect your piano → pick a MIDI device in settings → press a key → it lights up!</p>
+<!-- Features -->
+<section class="features">
+
+    <div class="feature feature-img-left">
+        <div class="feature-media">
+            <img src="screenshots/sustained-blue-2-octaves-velocity.png" alt="Keys lighting up in real time">
         </div>
-        <div class="guide-card">
-            <div class="guide-placeholder">
-                <!-- GIF/screenshot will go here -->
-                <span>Guide coming soon</span>
-            </div>
-            <p class="guide-caption">Toggle the pencil tool → mark keys → take a screenshot → share with your students!</p>
+        <div class="feature-text">
+            <h2>See what you play</h2>
+            <p>Connect your MIDI keyboard, press a key — it lights up instantly. Velocity-sensitive: play softly for a gentle glow, play hard for full color. Perfect for lessons over video call.</p>
         </div>
     </div>
+
+    <div class="feature feature-img-right">
+        <div class="feature-text">
+            <h2>Mark any key</h2>
+            <p>Toggle the pencil tool to draw on any key. Mark a scale, a chord, or finger positions. Take a screenshot and share it — no extra software needed.</p>
+        </div>
+        <div class="feature-media">
+            <img src="screenshots/pencil-tool-red-4-octaves.png" alt="Pencil tool marking keys in red">
+        </div>
+    </div>
+
+    <div class="feature feature-img-left">
+        <div class="feature-media">
+            <div class="feature-placeholder">
+                <span>GIF coming soon</span>
+            </div>
+        </div>
+        <div class="feature-text">
+            <h2>Customize everything</h2>
+            <p>Pick your highlight color, show or hide note names, adjust the keyboard range from 1 to 7 octaves. Make it yours.</p>
+        </div>
+    </div>
+
 </section>
 
 <!-- Footer -->
