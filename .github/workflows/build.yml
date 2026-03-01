@@ -29,7 +29,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev librsvg2-bin libxcb-cursor0
+          sudo apt-get install -y libasound2-dev librsvg2-bin libxcb-cursor0 libegl1
 
       - name: Install Python dependencies
         run: |

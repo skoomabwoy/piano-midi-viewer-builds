@@ -20,16 +20,18 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 # Collect rtmidi with all its dependencies
 rtmidi_datas, rtmidi_binaries, rtmidi_hiddenimports = collect_all('rtmidi')
 
-# Qt 6.5+ requires libxcb-cursor0 for the xcb platform plugin, but PyInstaller
-# doesn't detect this dynamic dependency.  Bundle it so AppImages work on distros
-# that don't have it installed (e.g. Linux Mint live session).
-xcb_cursor_path = '/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0'
-xcb_cursor_binaries = [(xcb_cursor_path, '.')] if os.path.exists(xcb_cursor_path) else []
+# PyInstaller treats some libraries as "system" and skips them, but they may be
+# missing on minimal distros.  Bundle them explicitly for AppImage portability.
+extra_libs = [
+    '/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0',   # Qt 6.5+ xcb plugin
+    '/usr/lib/x86_64-linux-gnu/libEGL.so.1',           # PyQt6 import-time dep
+]
+extra_binaries = [(p, '.') for p in extra_libs if os.path.exists(p)]
 
 a = Analysis(
     [os.path.join(PROJECT_ROOT, 'piano_viewer.py')],
     pathex=[],
-    binaries=rtmidi_binaries + xcb_cursor_binaries,
+    binaries=rtmidi_binaries + extra_binaries,
     datas=[
         (os.path.join(PROJECT_ROOT, 'assets', 'JetBrainsMono-Regular.ttf'), 'assets'),
     ] + rtmidi_datas,
