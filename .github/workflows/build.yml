@@ -73,6 +73,15 @@ jobs:
           echo "=== AppImage size ==="
           ls -lh PianoMIDIViewer-x86_64.AppImage
 
+      - name: Smoke test AppImage
+        run: |
+          sudo apt-get install -y xvfb libxcb-cursor0
+          chmod +x PianoMIDIViewer-x86_64.AppImage
+          # Run for 5 seconds — exit code 124 means timeout killed it (success).
+          # Any other non-zero exit means it crashed on startup.
+          timeout 5 xvfb-run ./PianoMIDIViewer-x86_64.AppImage || [ $? -eq 124 ]
+          echo "Smoke test passed — AppImage started without crashing"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
