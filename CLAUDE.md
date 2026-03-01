@@ -36,6 +36,12 @@ packaging/               # PyInstaller build specs
 
 tests/                   # Test suite (pytest)
 
+website/                 # Landing page (HTML/CSS/JS)
+  index.html               # Single page
+  style.css                # Styles (dark theme, Arch Blue hero)
+  script.js                # OS detection, Codeberg API download links
+  deploy.sh                # Deploys to Codeberg Pages (pages branch)
+
 screenshots/             # README screenshots
 .github/workflows/       # GitHub Actions CI (build.yml)
 ```
@@ -174,30 +180,29 @@ ENTRY POINT       - main() function
 
 ## Future Features & Ideas
 
-### High priority
-- ~~**Test suite**: Unit tests for helper functions~~ Done in 8.5.3 — 67 tests in `tests/`
-
-### Accessibility
+### Accessibility (low priority)
 - **High contrast mode**: Thicker key borders, bolder outlines for low vision users and OBS at low resolutions
-- **Color blind safe presets**: Preset highlight colors for protanopia, deuteranopia, tritanopia — needs verification method before implementing
-- **Screen reader labels**: Basic QAccessible labeling
-- **Keyboard shortcuts**: Low priority, may cancel — only P shortcut exists currently
+- **Color blind safe presets**: Needs verification method before implementing
 
-### User-facing improvements
+### User-facing improvements (low priority)
 - ~~**Export drawn notes as image**: "Save as PNG" for teachers~~ Done in 8.6.0
 - **Live UI scaling**: Apply scale changes without restart
 
-### Website (landing page)
-- Single-page static site (HTML/CSS/JS, no frameworks)
-- Hosting: Codeberg Pages -> custom domain later
-- Interactive piano demo, OS-detected downloads, scroll-triggered animations
+### Website (v2 live, collecting feedback)
+- Live at `skoomabwoy.codeberg.page/piano-midi-viewer/`
+- v2: light theme, Arch Blue banner, OS-detected downloads, alternating feature sections
+- Deploy: `./website/deploy.sh` (stash uncommitted changes first)
+- Next: GIF guides, iterate based on user feedback
+- Interactive piano demo widgets (future)
+- Custom domain (future)
 - Strategy doc in memory file `website-strategy.md`
 
-### Distribution
+### Distribution (low priority)
 - **Flatpak packaging**: Investigate for broader Linux desktop integration
 
-### Developer/maintenance
-- ~~**Error reporting dialog**: User-facing "something went wrong" with copy-to-clipboard~~ Done in 8.6.0
+### Done
+- ~~**Test suite**: Unit tests for helper functions~~ Done in 8.5.3
+- ~~**Error reporting dialog**~~ Done in 8.6.0
 
 ## Development Notes
 
