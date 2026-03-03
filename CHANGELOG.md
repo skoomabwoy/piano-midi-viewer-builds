@@ -2,6 +2,14 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 8.6.3
+- **Font fix**: JetBrains Mono font now bundles correctly on all platforms (was missing since 8.6.1 due to spec file path mismatch after project reorganization)
+- **macOS button styling**: Restart and refresh buttons in Settings now use native macOS styling (previously had square corners and cropped text)
+- **AppImage restart**: Restart button now works correctly inside AppImage (uses `$APPIMAGE` env var instead of internal squashfs path)
+- **AppImage portability**: Bundled `libxcb-cursor.so.0` and `libEGL.so.1` for distros that don't ship them (fixes crash on Linux Mint and similar)
+- **CI smoke test**: Linux builds now include an automated smoke test and library verification step
+- **Wording**: Updated tagline to "Made for music teachers, students, and content creators"
+
 ## 8.6.2
 - **Fix links in AppImage**: Clickable links in Settings (update check, project info) now open the browser correctly inside AppImage — falls back to Python's `webbrowser` module when Qt's `QDesktopServices` can't reach the system browser
 

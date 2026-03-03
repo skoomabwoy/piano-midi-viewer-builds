@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. It's designed for music education and online lessons via OBS.
+Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. Made for music teachers, students, and content creators.
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~3000 lines).
 
-**Current Version: 8.6.2**
+**Current Version: 8.6.3**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -105,7 +105,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 3. **`SettingsDialog` (QDialog)** - Configuration interface
    - MIDI device selection, highlight color, UI scale
    - Note display options (octave numbers, key names, accidentals, velocity)
-   - Non-modal (`show()` not `exec()`) so MIDI keeps working while open
+   - Opened with `show()` (not `exec()`) so MIDI keeps working while open
 
 4. **Helper functions** - Pure logic, no GUI dependencies
    - MIDI note utilities: `is_black_key()`, `count_white_keys()`, `get_note_name()`, etc.

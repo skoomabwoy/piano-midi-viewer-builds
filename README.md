@@ -1,8 +1,8 @@
 # Piano MIDI Viewer
 
-A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and streamers.
+A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and content creators.
 
-![Version](https://img.shields.io/badge/version-8.6.2-blue)
+![Version](https://img.shields.io/badge/version-8.6.3-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -111,6 +111,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**8.6.3** — Font fix for all platforms, macOS button styling, AppImage restart and portability fixes, CI smoke test
 **8.6.2** — Fix links not opening in browser from AppImage
 **8.6.1** — Fixed crash on corrupted settings, per-value recovery, camera icon, quick save subfolder
 **8.6.0** — Save keyboard as PNG (file dialog + quick save), error reporting dialog with copy-to-clipboard
