@@ -1119,7 +1119,9 @@ class SettingsDialog(QDialog):
     def restart_app(self):
         """Saves settings and restarts the application.
 
-        Spawns a new process and then quits the current one. Handles two cases:
+        Spawns a new process and then quits the current one. Handles three cases:
+        - AppImage: uses $APPIMAGE path (the .AppImage file itself), because
+          sys.executable points inside the mounted squashfs which unmounts on exit.
         - Frozen (PyInstaller) builds: runs the binary directly, and clears
           PyInstaller's temp-directory env vars so the child process doesn't
           try to reuse the parent's extraction folder (which gets deleted on exit).
@@ -1128,7 +1130,12 @@ class SettingsDialog(QDialog):
         self.main_window.save_settings()
         kwargs = {"creationflags": subprocess.DETACHED_PROCESS} if sys.platform == "win32" else {"start_new_session": True}
         devnull = subprocess.DEVNULL
-        if getattr(sys, "frozen", False):
+        appimage_path = os.environ.get("APPIMAGE")
+        if appimage_path:
+            # AppImage — restart via the .AppImage file, not the internal binary
+            cmd = [appimage_path] + sys.argv[1:]
+            kwargs["cwd"] = os.path.dirname(appimage_path)
+        elif getattr(sys, "frozen", False):
             # PyInstaller frozen build — run the binary directly
             exe = os.path.abspath(sys.executable)
             cmd = [exe] + sys.argv[1:]
