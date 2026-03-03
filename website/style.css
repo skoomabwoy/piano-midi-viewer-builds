@@ -77,26 +77,27 @@ a:hover {
 /* ── Hero ── */
 .hero {
     background: #ffffff;
-    padding: 3rem 2rem 2rem;
+    padding: 3rem 2rem 1.5rem;
 }
 
 .hero-inner {
     max-width: 1000px;
     margin: 0 auto;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 3rem;
 }
 
 .hero-text {
     flex: 1;
+    text-align: center;
 }
 
 .promise {
     font-family: 'JetBrains Mono', monospace;
     font-size: 1rem;
     color: #1793D1;
-    margin-bottom: 1.5rem;
+    margin-top: 1rem;
 }
 
 .btn-primary {
@@ -105,9 +106,12 @@ a:hover {
     color: #fff;
     padding: 0.75rem 2rem;
     border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 1.05rem;
     font-weight: 600;
     text-decoration: none;
+    text-align: center;
+    min-width: 260px;
     transition: background 0.15s, transform 0.15s;
 }
 
@@ -117,24 +121,24 @@ a:hover {
     transform: translateY(-1px);
 }
 
-.also-available {
-    margin-top: 0.8rem;
-    font-size: 0.9rem;
-    color: #888;
+/* Hero platform tabs (compact, centered) */
+.hero-tabs {
+    margin-top: 1rem;
+    margin-bottom: 0;
+    gap: 0.4rem;
 }
 
-.alt-download {
-    color: #1793D1;
-}
-
-.alt-download:hover {
-    text-decoration: underline;
+.hero-tabs .tab {
+    padding: 0.35rem 1rem;
+    font-size: 0.85rem;
+    border-width: 1.5px;
 }
 
 .hero-screenshot {
     flex: 1;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
 }
 
 .hero-screenshot img {
@@ -222,13 +226,6 @@ a:hover {
     font-size: 0.95rem;
 }
 
-/* ── Install Section (right below hero) ── */
-.install-section {
-    background: #ffffff;
-    padding: 2.5rem 2rem 3rem;
-    border-bottom: 1px solid #eee;
-}
-
 /* Platform tabs */
 .platform-tabs {
     display: flex;
@@ -247,7 +244,7 @@ a:hover {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: inherit;
+    font-family: 'JetBrains Mono', monospace;
 }
 
 .tab:hover {
@@ -263,8 +260,8 @@ a:hover {
 
 /* Platform content container (height equalized by JS) */
 .platform-container {
-    max-width: 600px;
-    margin: 0 auto;
+    margin-top: 1.2rem;
+    text-align: left;
 }
 
 .platform-content {
@@ -292,16 +289,41 @@ a:hover {
     color: #444;
 }
 
+.command-wrapper {
+    display: inline-flex;
+    align-items: center;
+    background: #e8ecf0;
+    border-radius: 4px;
+    margin-top: 0.3rem;
+}
+
 .command {
     display: inline-block;
-    background: #e8ecf0;
+    background: none;
     color: #1a6b9e;
-    padding: 0.25rem 0.6rem;
-    border-radius: 4px;
+    padding: 0.25rem 0.4rem 0.25rem 0.6rem;
     font-family: 'JetBrains Mono', 'Consolas', monospace;
     font-size: 0.85rem;
     user-select: all;
-    margin-top: 0.3rem;
+}
+
+.copy-btn {
+    background: none;
+    border: none;
+    color: #8a9bb0;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.15s;
+}
+
+.copy-btn:hover {
+    color: #1793D1;
+}
+
+.copy-btn.copied {
+    color: #2ea043;
 }
 
 .note {
@@ -367,19 +389,7 @@ footer a:hover {
         max-width: 100%;
     }
 
-    .platform-tabs {
-        flex-direction: column;
-        align-items: stretch;
-        max-width: 300px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
-    .tab {
-        text-align: center;
-    }
-
-    .install-section {
-        padding: 2rem 1.2rem;
+    .hero-screenshot {
+        width: 100%;
     }
 }
