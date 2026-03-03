@@ -10,13 +10,20 @@ function detectOS() {
 }
 
 // ── Platform Tabs ──
-function initTabs() {
+function initTabs(urls) {
     const tabs = document.querySelectorAll('.tab');
     const contents = document.querySelectorAll('.platform-content');
+    const btn = document.getElementById('hero-download-btn');
 
     function activate(platform) {
         tabs.forEach(t => t.classList.toggle('active', t.dataset.platform === platform));
         contents.forEach(c => c.classList.toggle('active', c.dataset.platform === platform));
+
+        // Update download button to match selected platform
+        btn.textContent = OS_LABELS[platform] || OS_LABELS.linux;
+        if (urls) {
+            btn.href = urls[platform] || urls.linux;
+        }
     }
 
     tabs.forEach(tab => {
@@ -29,7 +36,7 @@ function initTabs() {
 // ── Fetch latest release from Codeberg API ──
 const REPO_API = 'https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest';
 
-const FALLBACK_TAG = 'v8.6.2';
+const FALLBACK_TAG = 'v8.6.3';
 const FALLBACK_BASE = `https://codeberg.org/skoomabwoy/piano-midi-viewer/releases/download/${FALLBACK_TAG}/`;
 
 const FILE_NAMES = {
@@ -83,43 +90,6 @@ function getFallbackURLs() {
     return urls;
 }
 
-// ── Hero Download Button + Alt Links ──
-function initHeroButton(os, urls, activate) {
-    const btn = document.getElementById('hero-download-btn');
-    btn.textContent = OS_LABELS[os] || OS_LABELS.linux;
-    btn.href = urls[os] || urls.linux;
-
-    // Hide detected OS from "also available" links, set URLs on the others
-    document.querySelectorAll('.alt-download').forEach(link => {
-        const platform = link.dataset.platform;
-        if (platform === os) {
-            // Hide this link and surrounding text (comma/and)
-            link.style.display = 'none';
-        } else {
-            link.href = urls[platform] || '#';
-            link.addEventListener('click', (e) => {
-                // Let the browser follow the download href naturally
-                // but also switch the install tab
-                activate(platform);
-            });
-        }
-    });
-
-    // Clean up "also available" text (remove double commas, leading commas, etc.)
-    const container = document.querySelector('.also-available');
-    if (container) {
-        // Rebuild text with only visible links
-        const visibleLinks = [...container.querySelectorAll('.alt-download')]
-            .filter(l => l.style.display !== 'none');
-        if (visibleLinks.length === 2) {
-            container.innerHTML = 'Also available for ';
-            container.appendChild(visibleLinks[0]);
-            container.appendChild(document.createTextNode(' and '));
-            container.appendChild(visibleLinks[1]);
-        }
-    }
-}
-
 // ── Equalize platform content heights ──
 function equalizePlatformHeights() {
     const container = document.querySelector('.platform-container');
@@ -145,15 +115,28 @@ function equalizePlatformHeights() {
     container.style.minHeight = maxHeight + 'px';
 }
 
+// ── Copy to Clipboard ──
+function initCopyButtons() {
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const code = btn.closest('.command-wrapper').querySelector('.command').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.classList.add('copied');
+                setTimeout(() => btn.classList.remove('copied'), 1500);
+            });
+        });
+    });
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
     const os = detectOS();
-    const activate = initTabs();
+    const urls = (await fetchDownloadURLs()) || getFallbackURLs();
+    const activate = initTabs(urls);
     activate(os);
 
     equalizePlatformHeights();
     window.addEventListener('resize', equalizePlatformHeights);
 
-    const urls = (await fetchDownloadURLs()) || getFallbackURLs();
-    initHeroButton(os, urls, activate);
+    initCopyButtons();
 });

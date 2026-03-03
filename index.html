@@ -25,58 +25,45 @@
 <section class="hero">
     <div class="hero-inner">
         <div class="hero-text">
-            <p class="promise">Free, open source, no subscription, no catch.</p>
-            <a id="hero-download-btn" href="#download" class="btn btn-primary">Download</a>
-            <p class="also-available">Also available for
-                <a href="#" class="alt-download" data-platform="windows">Windows</a>,
-                <a href="#" class="alt-download" data-platform="macos">macOS</a>, and
-                <a href="#" class="alt-download" data-platform="linux">Linux</a>
-            </p>
+            <a id="hero-download-btn" href="#" class="btn btn-primary">Download</a>
+            <div class="platform-tabs hero-tabs">
+                <button class="tab" data-platform="windows">Windows</button>
+                <button class="tab" data-platform="macos">macOS</button>
+                <button class="tab" data-platform="linux">Linux</button>
+            </div>
+            <div class="platform-container">
+                <div class="platform-content" data-platform="windows">
+                    <ol>
+                        <li>Run the downloaded file</li>
+                        <li>If Windows shows a warning, click <strong>More info</strong> → <strong>Run anyway</strong></li>
+                    </ol>
+                    <p class="note">The app is safe — Windows and some antivirus software flag apps without a paid certificate. We skip that cost so the app stays free. Anyone can check the <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">source code</a>.</p>
+                </div>
+
+                <div class="platform-content" data-platform="macos">
+                    <ol>
+                        <li>Open the downloaded file and drag <strong>Piano MIDI Viewer</strong> into the <strong>Applications</strong> folder</li>
+                        <li>Search for <strong>Terminal</strong> on your Mac and open it (only necessary once)</li>
+                        <li>Paste this command into Terminal and press Enter:
+                            <span class="command-wrapper"><code class="command">xattr -cr /Applications/PianoMIDIViewer.app</code><button class="copy-btn" aria-label="Copy to clipboard" title="Copy to clipboard"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></span>
+                        </li>
+                        <li>From now on, you can run <strong>Piano MIDI Viewer</strong> like any other app</li>
+                    </ol>
+                    <p class="note">The app is safe — macOS blocks apps without a paid Apple certificate. We skip that cost so the app stays free. Anyone can check the <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">source code</a>.</p>
+                </div>
+
+                <div class="platform-content" data-platform="linux">
+                    <ol>
+                        <li>Right-click the downloaded file → <strong>Properties</strong> → <strong>Permissions</strong> → mark as <strong>executable</strong> → OK</li>
+                        <li>Double-click to run the app</li>
+                    </ol>
+                    <p class="note">The app is safe — downloaded files just need to be marked as executable before they can run. Anyone can check the <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">source code</a>.</p>
+                </div>
+            </div>
         </div>
         <div class="hero-screenshot">
             <img src="screenshots/sustained-blue-2-octaves-velocity.png" alt="Piano MIDI Viewer showing highlighted keys with velocity">
-        </div>
-    </div>
-</section>
-
-<!-- Install Instructions (right below hero, before features) -->
-<section id="download" class="install-section">
-    <div class="platform-tabs">
-        <button class="tab" data-platform="windows">Windows</button>
-        <button class="tab" data-platform="macos">macOS</button>
-        <button class="tab" data-platform="linux">Linux</button>
-    </div>
-
-    <div class="platform-container">
-        <div class="platform-content" data-platform="windows">
-            <ol>
-                <li>Download the app</li>
-                <li>Run the file</li>
-                <li>Windows SmartScreen may pop up — click <strong>"More info"</strong>, then <strong>"Run anyway"</strong></li>
-                <li>That's it! The app is ready to use.</li>
-            </ol>
-            <p class="note">SmartScreen warns about unsigned apps. Piano MIDI Viewer is open source and safe — you can <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">read every line of code</a>.</p>
-        </div>
-
-        <div class="platform-content" data-platform="macos">
-            <ol>
-                <li>Download the app</li>
-                <li>Open the downloaded file and drag <strong>Piano MIDI Viewer</strong> to your <strong>Applications</strong> folder</li>
-                <li>Open <strong>Terminal</strong> (search for it in Spotlight) and paste this command:
-                    <code class="command">xattr -cr /Applications/PianoMIDIViewer.app</code>
-                </li>
-                <li>Now open the app from Applications — it's ready!</li>
-            </ol>
-            <p class="note">The xattr command removes macOS quarantine flags. Apple requires a $99/year fee to sign apps — we'd rather keep the app free.</p>
-        </div>
-
-        <div class="platform-content" data-platform="linux">
-            <ol>
-                <li>Download the app</li>
-                <li>Right-click the file → <strong>Properties</strong> → mark it as <strong>executable</strong></li>
-                <li>Double-click to run!</li>
-            </ol>
-            <p class="note">Or in terminal: <code class="command">chmod +x PianoMIDIViewer.AppImage && ./PianoMIDIViewer.AppImage</code></p>
+            <p class="promise">Free, open source, no subscription, no catch.</p>
         </div>
     </div>
 </section>
