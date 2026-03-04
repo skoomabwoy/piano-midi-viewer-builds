@@ -38,6 +38,64 @@ log.addHandler(_log_handler)
 # Flushed into an error dialog once the window is ready.
 _startup_errors = []
 
+# --- Translation system ---
+# Translations are stored in JSON files under translations/ (one per language).
+# English is the default and needs no file. The tr() function returns the
+# translated string or falls back to the English original.
+
+LANGUAGES = {
+    "en": "English",
+    "de": "Deutsch",
+    "es": "Español",
+    "fr": "Français",
+    "pl": "Polski",
+    "pt": "Português",
+    "ru": "Русский",
+    "uk": "Українська",
+}
+
+_translations = {}
+_current_language = "en"
+
+def load_translations(lang_code):
+    """Loads translation strings for the given language code."""
+    global _translations, _current_language
+    _current_language = lang_code
+    if lang_code == "en":
+        _translations = {}
+        return
+    translations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "translations")
+    translation_file = os.path.join(translations_dir, f"{lang_code}.json")
+    if os.path.exists(translation_file):
+        try:
+            with open(translation_file, 'r', encoding='utf-8') as f:
+                _translations = json.load(f)
+            log.info(f"Loaded translations: {lang_code}")
+        except Exception as e:
+            log.warning(f"Failed to load translations for {lang_code}: {e}")
+            _translations = {}
+    else:
+        log.warning(f"Translation file not found: {translation_file}")
+        _translations = {}
+
+def tr(text):
+    """Returns the translated string, or the original English text as fallback."""
+    if not _translations:
+        return text
+    return _translations.get(text, text)
+
+def tr_for(lang_code, text):
+    """Returns a translated string for a specific language (without changing global state)."""
+    if lang_code == "en":
+        return text
+    translations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "translations")
+    translation_file = os.path.join(translations_dir, f"{lang_code}.json")
+    try:
+        with open(translation_file, 'r', encoding='utf-8') as f:
+            return json.load(f).get(text, text)
+    except Exception:
+        return text
+
 # --- PyQt6 imports ---
 # QtWidgets: all the visible UI elements (windows, buttons, dropdowns, etc.)
 # QtCore:    non-visual essentials (timers, geometry, signals, threads)
@@ -408,6 +466,23 @@ def load_ui_scale():
     except Exception:
         pass
     return 1.0
+
+
+def load_language_setting():
+    """Loads the language setting from config file. Called before window creation."""
+    config_path = get_config_path()
+    if not config_path.exists():
+        return "en"
+    config = configparser.ConfigParser()
+    try:
+        config.read(config_path)
+        if config.has_option('appearance', 'language'):
+            lang = config.get('appearance', 'language')
+            if lang in LANGUAGES:
+                return lang
+    except Exception:
+        pass
+    return "en"
 
 
 def migrate_settings():
@@ -830,13 +905,13 @@ class UpdateChecker(QThread):
             latest = tag.lstrip("v")
             if latest and self._is_newer(latest, VERSION):
                 self.result.emit(
-                    f"Version {latest} available",
+                    tr("Version {} available").format(latest),
                     "https://codeberg.org/skoomabwoy/piano-midi-viewer/releases"
                 )
             else:
-                self.result.emit("Up to date", "")
+                self.result.emit(tr("Up to date"), "")
         except (URLError, OSError, ValueError, KeyError):
-            self.result.emit("Check failed", "")
+            self.result.emit(tr("Check failed"), "")
 
     @staticmethod
     def _is_newer(remote, local):
@@ -859,7 +934,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Settings")
+        self.setWindowTitle(tr("Settings"))
         self.setModal(True)
         self.setMinimumWidth(300)
         self.main_window = parent  # Reference to PianoMIDIViewer for reading/writing settings
@@ -870,9 +945,32 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout()
         layout.setSpacing(15)
 
+        # LANGUAGE
+        lang_layout = QHBoxLayout()
+        lang_label = QLabel(tr("Language"))
+
+        self.lang_dropdown = QComboBox()
+        for code, name in LANGUAGES.items():
+            self.lang_dropdown.addItem(name, code)
+        # Set current value
+        lang_index = self.lang_dropdown.findData(_current_language)
+        if lang_index >= 0:
+            self.lang_dropdown.setCurrentIndex(lang_index)
+        self.lang_dropdown.currentIndexChanged.connect(self.language_changed)
+
+        self.lang_restart_button = QPushButton(tr("Restart"))
+        self.lang_restart_button.setVisible(False)
+        self.lang_restart_button.clicked.connect(self.restart_app)
+
+        lang_layout.addWidget(lang_label)
+        lang_layout.addStretch()
+        lang_layout.addWidget(self.lang_restart_button)
+        lang_layout.addWidget(self.lang_dropdown)
+        layout.addLayout(lang_layout)
+
         # MIDI INPUT
         midi_header = QHBoxLayout()
-        midi_label = QLabel("MIDI Input Device:")
+        midi_label = QLabel(tr("MIDI Input Device:"))
         self.midi_status = QLabel("")
         self.midi_status.setStyleSheet("color: #cc3333;")
         midi_header.addWidget(midi_label)
@@ -886,7 +984,7 @@ class SettingsDialog(QDialog):
         self.midi_dropdown.currentIndexChanged.connect(self.midi_device_changed)
 
         refresh_btn = QPushButton("🔄")
-        refresh_btn.setToolTip("Refresh MIDI device list")
+        refresh_btn.setToolTip(tr("Refresh MIDI device list"))
         refresh_btn.clicked.connect(self.refresh_midi_devices)
 
         midi_layout.addWidget(self.midi_dropdown, 1)
@@ -897,7 +995,7 @@ class SettingsDialog(QDialog):
 
         # HIGHLIGHT COLOR
         color_layout = QHBoxLayout()
-        color_label = QLabel("Highlight Color")
+        color_label = QLabel(tr("Highlight Color"))
 
         self.color_preview = QPushButton()
         self.color_preview.setFixedSize(30, 30)
@@ -912,7 +1010,7 @@ class SettingsDialog(QDialog):
 
         # UI SCALE
         scale_layout = QHBoxLayout()
-        scale_label = QLabel("UI Scale")
+        scale_label = QLabel(tr("UI Scale"))
 
         self.scale_dropdown = QComboBox()
         scale_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.50, 1.75, 2.0]
@@ -927,7 +1025,7 @@ class SettingsDialog(QDialog):
         self.scale_dropdown.currentIndexChanged.connect(self.scale_changed)
 
         # Restart button (inserted between label and dropdown when scale changes)
-        self.restart_button = QPushButton("Restart")
+        self.restart_button = QPushButton(tr("Restart"))
         self.restart_button.setVisible(False)
         self.restart_button.clicked.connect(self.restart_app)
 
@@ -941,21 +1039,21 @@ class SettingsDialog(QDialog):
         layout.addSpacing(10)
 
         # SHOW OCTAVE NUMBERS CHECKBOX
-        self.octave_numbers_checkbox = QCheckBox("Show Octave Numbers")
+        self.octave_numbers_checkbox = QCheckBox(tr("Show Octave Numbers"))
         self.octave_numbers_checkbox.setChecked(self.main_window.show_octave_numbers)
         self.octave_numbers_checkbox.stateChanged.connect(self.toggle_octave_numbers)
 
         layout.addWidget(self.octave_numbers_checkbox)
 
         # WHITE KEY NAMES CHECKBOX
-        self.white_key_names_checkbox = QCheckBox("Show White Key Names")
+        self.white_key_names_checkbox = QCheckBox(tr("Show White Key Names"))
         self.white_key_names_checkbox.setChecked(self.main_window.show_white_key_names)
         self.white_key_names_checkbox.stateChanged.connect(self.toggle_white_key_names)
 
         layout.addWidget(self.white_key_names_checkbox)
 
         # BLACK KEY NAMES CHECKBOX
-        self.black_key_names_checkbox = QCheckBox("Show Black Key Names")
+        self.black_key_names_checkbox = QCheckBox(tr("Show Black Key Names"))
         self.black_key_names_checkbox.setChecked(self.main_window.show_black_key_names)
         self.black_key_names_checkbox.stateChanged.connect(self.toggle_black_key_names)
 
@@ -966,9 +1064,9 @@ class SettingsDialog(QDialog):
         notation_layout.setContentsMargins(20, 0, 0, 0)  # Indent to show it's related to black keys
 
         self.black_key_notation_dropdown = QComboBox()
-        self.black_key_notation_dropdown.addItem("♭ Flats", "Flats")
-        self.black_key_notation_dropdown.addItem("♯ Sharps", "Sharps")
-        self.black_key_notation_dropdown.addItem("Both", "Both")
+        self.black_key_notation_dropdown.addItem(tr("♭ Flats"), "Flats")
+        self.black_key_notation_dropdown.addItem(tr("♯ Sharps"), "Sharps")
+        self.black_key_notation_dropdown.addItem(tr("Both"), "Both")
 
         # Set current value
         current_notation = self.main_window.black_key_notation
@@ -985,7 +1083,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(notation_layout)
 
         # "Show only when pressed" checkbox
-        self.names_when_pressed_checkbox = QCheckBox("Show note names only when pressed")
+        self.names_when_pressed_checkbox = QCheckBox(tr("Show note names only when pressed"))
         self.names_when_pressed_checkbox.setChecked(self.main_window.show_names_when_pressed)
         self.names_when_pressed_checkbox.stateChanged.connect(self.toggle_names_when_pressed)
         # Enable only if at least one of white/black key names is on
@@ -997,7 +1095,7 @@ class SettingsDialog(QDialog):
         layout.addSpacing(10)
 
         # SHOW VELOCITY CHECKBOX
-        self.velocity_checkbox = QCheckBox("Show Velocity")
+        self.velocity_checkbox = QCheckBox(tr("Show Velocity"))
         self.velocity_checkbox.setChecked(self.main_window.show_velocity)
         self.velocity_checkbox.stateChanged.connect(self.toggle_velocity)
         layout.addWidget(self.velocity_checkbox)
@@ -1005,12 +1103,12 @@ class SettingsDialog(QDialog):
         # VERSION + CHECK FOR UPDATES
         layout.addStretch()
         version_row = QHBoxLayout()
-        self.version_label = QLabel(f"Version {VERSION}")
+        self.version_label = QLabel(tr("Version {}").format(VERSION))
         self.version_label.setTextFormat(Qt.TextFormat.RichText)
         self.version_label.linkActivated.connect(self._open_url)
         self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         version_row.addWidget(self.version_label, 1)
-        self.update_button = QPushButton("Check for Updates")
+        self.update_button = QPushButton(tr("Check for Updates"))
         self.update_button.setFixedWidth(self.update_button.sizeHint().width())
         self.update_button.clicked.connect(self.check_for_updates)
         version_row.addWidget(self.update_button, 0)
@@ -1018,7 +1116,7 @@ class SettingsDialog(QDialog):
 
         # INFO LINK
         info_label = QLabel()
-        info_label.setText('<a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" style="color: #5094d4;">Project Info & Source Code</a>')
+        info_label.setText(f'<a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" style="color: #5094d4;">{tr("Project Info & Source Code")}</a>')
         info_label.linkActivated.connect(self._open_url)
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_label.setTextFormat(Qt.TextFormat.RichText)
@@ -1026,13 +1124,14 @@ class SettingsDialog(QDialog):
         layout.addWidget(info_label)
 
         # CLOSE BUTTON
-        close_button = QPushButton("Close")
+        close_button = QPushButton(tr("Close"))
         close_button.clicked.connect(self.accept)
 
         layout.addWidget(close_button)
         self.setLayout(layout)
 
         self.restart_button.setVisible(self.main_window.pending_ui_scale != UI_SCALE_FACTOR)
+        self.lang_restart_button.setVisible(self.main_window.pending_language != _current_language)
         self.adjustSize()
         self.setFixedSize(self.size())
 
@@ -1048,7 +1147,7 @@ class SettingsDialog(QDialog):
         devices = self.main_window.get_midi_devices()
 
         if not devices:
-            self.midi_dropdown.addItem("No MIDI devices found")
+            self.midi_dropdown.addItem(tr("No MIDI devices found"))
         else:
             for device_name in devices:
                 self.midi_dropdown.addItem(device_name)
@@ -1066,12 +1165,12 @@ class SettingsDialog(QDialog):
     def midi_device_changed(self, index):
         """Called when user selects a different MIDI device."""
         device_name = self.midi_dropdown.currentText()
-        if device_name and device_name != "No MIDI devices found":
+        if device_name and device_name != tr("No MIDI devices found"):
             if self.main_window.connect_midi_device(device_name):
                 self.midi_status.setText("")
             else:
                 # Connection failed — show status, revert dropdown, refresh list
-                self.midi_status.setText("Device not found")
+                self.midi_status.setText(tr("Device not found"))
                 QTimer.singleShot(3000, lambda: self.midi_status.setText(""))
                 self.populate_midi_devices()
 
@@ -1080,7 +1179,7 @@ class SettingsDialog(QDialog):
         color = QColorDialog.getColor(
             self.main_window.piano.highlight_color,
             self,
-            "Choose Highlight Color"
+            tr("Choose Highlight Color")
         )
 
         if color.isValid():
@@ -1114,6 +1213,16 @@ class SettingsDialog(QDialog):
         self.restart_button.setVisible(new_scale != UI_SCALE_FACTOR)
         # Save immediately so it takes effect on next launch
         self.main_window.pending_ui_scale = new_scale
+        self.main_window.save_settings()
+
+    def language_changed(self, index):
+        """Called when user selects a different language."""
+        new_lang = self.lang_dropdown.currentData()
+        changed = new_lang != _current_language
+        self.lang_restart_button.setVisible(changed)
+        if changed:
+            self.lang_restart_button.setText(tr_for(new_lang, "Restart"))
+        self.main_window.pending_language = new_lang
         self.main_window.save_settings()
 
     def restart_app(self):
@@ -1205,7 +1314,7 @@ class SettingsDialog(QDialog):
         requests. The result is handled by _on_update_result().
         """
         self.update_button.setEnabled(False)
-        self.update_button.setText("Checking...")
+        self.update_button.setText(tr("Checking..."))
         self._update_checker = UpdateChecker()
         self._update_checker.result.connect(self._on_update_result)
         self._update_checker.start()
@@ -1213,7 +1322,7 @@ class SettingsDialog(QDialog):
     def _on_update_result(self, text, url):
         """Handles the result from the update checker thread."""
         self.update_button.setEnabled(True)
-        self.update_button.setText("Check for Updates")
+        self.update_button.setText(tr("Check for Updates"))
         if url:
             self.version_label.setText(f'<a href="{url}" style="color: #5094d4;">{text}</a>')
         else:
@@ -1223,7 +1332,7 @@ class SettingsDialog(QDialog):
 
     def _restore_version_label(self):
         """Restores the version label to show the version number."""
-        self.version_label.setText(f"Version {VERSION}")
+        self.version_label.setText(tr("Version {}").format(VERSION))
 
     def _open_url(self, url):
         """Opens a URL in the default browser. On Linux, xdg-open delegates
@@ -1267,8 +1376,8 @@ class ErrorDialog(QDialog):
         layout.setSpacing(10)
 
         # Header
-        header = QLabel("Something went wrong. You can copy the details "
-                        "below and report this issue.")
+        header = QLabel(tr("Something went wrong. You can copy the details "
+                        "below and report this issue."))
         header.setWordWrap(True)
         layout.addWidget(header)
 
@@ -1293,18 +1402,18 @@ class ErrorDialog(QDialog):
         button_layout.addStretch()
 
         if reset_callback:
-            reset_btn = QPushButton("Reset Settings")
+            reset_btn = QPushButton(tr("Reset Settings"))
             reset_btn.setFixedHeight(32)
             reset_btn.setStyleSheet(make_button_style())
             reset_btn.clicked.connect(self._reset_settings)
             button_layout.addWidget(reset_btn)
 
-        self.copy_btn = QPushButton("Copy to Clipboard")
+        self.copy_btn = QPushButton(tr("Copy to Clipboard"))
         self.copy_btn.setFixedHeight(32)
         self.copy_btn.setStyleSheet(make_button_style())
         self.copy_btn.clicked.connect(self._copy_to_clipboard)
 
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("Close"))
         close_btn.setFixedHeight(32)
         close_btn.setStyleSheet(make_button_style())
         close_btn.clicked.connect(self.close)
@@ -1318,8 +1427,8 @@ class ErrorDialog(QDialog):
     def _copy_to_clipboard(self):
         """Copies the error report text to the system clipboard."""
         QApplication.clipboard().setText(self.report_text)
-        self.copy_btn.setText("Copied!")
-        QTimer.singleShot(1500, lambda: self.copy_btn.setText("Copy to Clipboard"))
+        self.copy_btn.setText(tr("Copied!"))
+        QTimer.singleShot(1500, lambda: self.copy_btn.setText(tr("Copy to Clipboard")))
 
     def _reset_settings(self):
         """Deletes the settings file and closes the dialog."""
@@ -2123,6 +2232,7 @@ class PianoMIDIViewer(QMainWindow):
         # The current scale is applied at startup. If the user changes it in
         # settings, the new value is saved here for the NEXT launch (requires restart).
         self.pending_ui_scale = UI_SCALE_FACTOR
+        self.pending_language = _current_language
 
         self.init_ui()
         self.setup_midi_polling()
@@ -2137,8 +2247,8 @@ class PianoMIDIViewer(QMainWindow):
         if _startup_errors:
             errors = "\n".join(_startup_errors)
             QTimer.singleShot(0, lambda: self.show_error_dialog(
-                "Startup Error",
-                f"Errors occurred during startup:\n\n{errors}",
+                tr("Startup Error"),
+                tr("Errors occurred during startup:\n\n{}").format(errors),
                 offer_reset=True))
             _startup_errors.clear()
 
@@ -2187,7 +2297,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Pencil button: click to enter/exit drawing tool
         self.pencil_button = QPushButton()
-        self.pencil_button.setToolTip("Pencil tool — left click to mark, right click to erase\nPress Esc to exit")
+        self.pencil_button.setToolTip(tr("Pencil tool — left click to mark, right click to erase\nPress Esc to exit"))
         self.pencil_button.setFixedSize(btn_sz, btn_sz)
         self.pencil_button.setIcon(create_pencil_icon())
         self.pencil_button.setIconSize(self.pencil_button.size() * 0.7)
@@ -2198,7 +2308,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Save as PNG button: left-click opens file dialog, right-click quick saves
         self.save_button = QPushButton()
-        self.save_button.setToolTip("Save keyboard as image\nRight-click to quick save")
+        self.save_button.setToolTip(tr("Save keyboard as image\nRight-click to quick save"))
         self.save_button.setFixedSize(btn_sz, btn_sz)
         self.save_button.setIcon(create_save_icon())
         self.save_button.setIconSize(self.save_button.size() * 0.7)
@@ -2211,7 +2321,7 @@ class PianoMIDIViewer(QMainWindow):
         left_layout.addStretch()
 
         self.left_plus_btn = QPushButton("+")
-        self.left_plus_btn.setToolTip("Add octave on the left (lower notes)")
+        self.left_plus_btn.setToolTip(tr("Add octave on the left (lower notes)"))
         self.left_plus_btn.setFixedSize(btn_sz, btn_sz)
         self.left_plus_btn.setFont(button_font)
         self.left_plus_btn.setStyleSheet(button_style)
@@ -2220,7 +2330,7 @@ class PianoMIDIViewer(QMainWindow):
         # Using the proper minus sign (−) instead of hyphen (-) because it
         # centers vertically much better in JetBrains Mono.
         self.left_minus_btn = QPushButton("−")
-        self.left_minus_btn.setToolTip("Remove octave on the left (lower notes)")
+        self.left_minus_btn.setToolTip(tr("Remove octave on the left (lower notes)"))
         self.left_minus_btn.setFixedSize(btn_sz, btn_sz)
         self.left_minus_btn.setFont(button_font)
         self.left_minus_btn.setStyleSheet(button_style)
@@ -2242,7 +2352,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Settings button uses SVG icon for consistent cross-platform rendering
         self.settings_button = QPushButton()
-        self.settings_button.setToolTip("Open Settings")
+        self.settings_button.setToolTip(tr("Open Settings"))
         self.settings_button.setFixedSize(btn_sz, btn_sz)
         self.settings_button.setIcon(create_settings_icon(btn_sz, "#000000"))
         self.settings_button.setIconSize(self.settings_button.size() * 0.7)
@@ -2251,7 +2361,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Sustain button: indicator only (lights up when sustain pedal is held)
         self.sustain_button = QPushButton("S")
-        self.sustain_button.setToolTip("Sustain pedal indicator — lights up when your sustain pedal is held")
+        self.sustain_button.setToolTip(tr("Sustain pedal indicator — lights up when your sustain pedal is held"))
         self.sustain_button.setFixedSize(btn_sz, btn_sz)
         self.sustain_button.setFont(button_font)
         self.sustain_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -2261,7 +2371,7 @@ class PianoMIDIViewer(QMainWindow):
         right_layout.addStretch()
 
         self.right_plus_btn = QPushButton("+")
-        self.right_plus_btn.setToolTip("Add octave on the right (higher notes)")
+        self.right_plus_btn.setToolTip(tr("Add octave on the right (higher notes)"))
         self.right_plus_btn.setFixedSize(btn_sz, btn_sz)
         self.right_plus_btn.setFont(button_font)
         self.right_plus_btn.setStyleSheet(button_style)
@@ -2269,7 +2379,7 @@ class PianoMIDIViewer(QMainWindow):
 
         # Same minus sign as left side (see comment there)
         self.right_minus_btn = QPushButton("−")
-        self.right_minus_btn.setToolTip("Remove octave on the right (higher notes)")
+        self.right_minus_btn.setToolTip(tr("Remove octave on the right (higher notes)"))
         self.right_minus_btn.setFixedSize(btn_sz, btn_sz)
         self.right_minus_btn.setFont(button_font)
         self.right_minus_btn.setStyleSheet(button_style)
@@ -2333,9 +2443,9 @@ class PianoMIDIViewer(QMainWindow):
             config.read(config_path)
         except Exception as e:
             log.error(f"Error reading settings file: {e}")
-            error_msg = f"Could not read settings file: {e}\n\nDefault settings will be used."
+            error_msg = tr("Could not read settings file: {}\n\nDefault settings will be used.").format(e)
             QTimer.singleShot(0, lambda: self.show_error_dialog(
-                "Settings Error", error_msg, offer_reset=True))
+                tr("Settings Error"), error_msg, offer_reset=True))
             return
 
         reset_keys = []  # Track which settings had bad values
@@ -2405,7 +2515,7 @@ class PianoMIDIViewer(QMainWindow):
             names = ", ".join(reset_keys)
             log.warning(f"Reset invalid settings to defaults: {names}")
             QTimer.singleShot(0, lambda: self.show_status_message(
-                f"Reset invalid settings: {names}"))
+                tr("Reset invalid settings: {}").format(names)))
             QTimer.singleShot(100, lambda: self.save_settings())
 
     def save_settings(self):
@@ -2436,7 +2546,8 @@ class PianoMIDIViewer(QMainWindow):
             'black_key_notation': self.black_key_notation,
             'show_names_when_pressed': str(self.show_names_when_pressed),
             'show_velocity': str(self.show_velocity),
-            'ui_scale': str(self.pending_ui_scale)
+            'ui_scale': str(self.pending_ui_scale),
+            'language': self.pending_language
         }
 
         # Keyboard range settings
@@ -2465,8 +2576,8 @@ class PianoMIDIViewer(QMainWindow):
         except Exception as e:
             log.error(f"Error saving settings: {e}")
             self.show_error_dialog(
-                "Settings Error",
-                f"Could not save settings: {e}\n\nYour changes may be lost.",
+                tr("Settings Error"),
+                tr("Could not save settings: {}\n\nYour changes may be lost.").format(e),
                 offer_reset=True)
 
     def toggle_pencil(self):
@@ -2513,16 +2624,16 @@ class PianoMIDIViewer(QMainWindow):
     def save_keyboard_image(self):
         """Opens a file dialog to save the piano keyboard as a PNG image."""
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Keyboard Image",
+            self, tr("Save Keyboard Image"),
             os.path.join(os.path.expanduser("~"), "piano_keyboard.png"),
-            "PNG Image (*.png)"
+            tr("PNG Image (*.png)")
         )
         if filename:
             if not filename.lower().endswith('.png'):
                 filename += '.png'
             pixmap = self.piano.grab()
             pixmap.save(filename, "PNG")
-            self.show_status_message(f"Saved to {os.path.basename(filename)}")
+            self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
 
     def quick_save_keyboard_image(self):
         """Quick-saves the piano keyboard as PNG to ~/Pictures with a timestamp."""
@@ -2532,7 +2643,7 @@ class PianoMIDIViewer(QMainWindow):
         filename = os.path.join(save_dir, f"piano_{timestamp}.png")
         pixmap = self.piano.grab()
         pixmap.save(filename, "PNG")
-        self.show_status_message(f"Saved to {os.path.basename(filename)}")
+        self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
 
     def update_pencil_button_visual(self):
         """
@@ -2600,7 +2711,7 @@ class PianoMIDIViewer(QMainWindow):
         except Exception as e:
             log.error(f"Error scanning MIDI devices: {e}")
             self.show_error_dialog(
-                "MIDI Error", f"Could not scan for MIDI devices: {e}")
+                tr("MIDI Error"), tr("Could not scan for MIDI devices: {}").format(e))
             return []
 
     def connect_midi_device(self, device_name):
@@ -2616,7 +2727,7 @@ class PianoMIDIViewer(QMainWindow):
         ports = self.get_midi_devices()
         if device_name not in ports:
             log.warning(f"Device not found: {device_name}")
-            self.show_status_message(f"Not found: {device_name}")
+            self.show_status_message(tr("Not found: {}").format(device_name))
             return False
 
         try:
@@ -2625,7 +2736,7 @@ class PianoMIDIViewer(QMainWindow):
             new_midi_in.open_port(port_index)
         except Exception as e:
             log.error(f"Error connecting to MIDI device: {e}")
-            self.show_status_message(f"Connection failed: {device_name}")
+            self.show_status_message(tr("Connection failed: {}").format(device_name))
             return False
 
         # New connection succeeded — now close the old one
@@ -2639,7 +2750,7 @@ class PianoMIDIViewer(QMainWindow):
         self.midi_in = new_midi_in
         self.current_midi_device = device_name
         log.info(f"Connected to MIDI device: {device_name}")
-        self.show_status_message(f"Connected: {device_name}")
+        self.show_status_message(tr("Connected: {}").format(device_name))
         self.save_settings()
         return True
 
@@ -2733,7 +2844,7 @@ class PianoMIDIViewer(QMainWindow):
             self.update_sustain_button_visual()
 
         self.piano.update()
-        self.show_status_message(f"Disconnected: {device_name}")
+        self.show_status_message(tr("Disconnected: {}").format(device_name))
 
     def show_status_message(self, text):
         """Shows a temporary toast notification centered near the bottom of the piano.
@@ -2787,7 +2898,7 @@ class PianoMIDIViewer(QMainWindow):
         try:
             if config_path.exists():
                 config_path.unlink()
-            self.show_status_message("Settings reset — restart to apply")
+            self.show_status_message(tr("Settings reset — restart to apply"))
         except Exception as e:
             log.error(f"Error resetting settings: {e}")
 
@@ -3239,6 +3350,11 @@ def main():
     UI_SCALE_FACTOR = load_ui_scale()
     if UI_SCALE_FACTOR != 1.0:
         log.info(f"UI Scale: {int(UI_SCALE_FACTOR * 100)}%")
+
+    # Load language before the window is created, since all UI strings
+    # are set during init via tr() calls.
+    lang = load_language_setting()
+    load_translations(lang)
 
     window = PianoMIDIViewer()
     window.show()

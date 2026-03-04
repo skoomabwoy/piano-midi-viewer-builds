@@ -34,6 +34,7 @@ a = Analysis(
     binaries=rtmidi_binaries + extra_binaries,
     datas=[
         (os.path.join(PROJECT_ROOT, 'assets', 'JetBrainsMono-Regular.ttf'), 'assets'),
+        (os.path.join(PROJECT_ROOT, 'translations'), 'translations'),
     ] + rtmidi_datas,
     hiddenimports=rtmidi_hiddenimports,
     hookspath=[],
@@ -158,19 +159,20 @@ print("=" * 60)
 a.binaries = filter_binaries(a.binaries)
 a.binaries = filter_qt_plugins(a.binaries)
 
-# Remove non-English translation files to save space
+# Remove non-English Qt translation files to save space.
+# Our app's translations (translations/*.json) are kept.
 def filter_translations(datas):
-    """Keep only English translations."""
+    """Remove Qt's built-in non-English .qm files, keep our JSON translations."""
     filtered = []
     removed_count = 0
     for item in datas:
         name = item[0] if isinstance(item, tuple) else item
-        # Keep non-translation files and English translations
-        if '/translations/' not in name or '_en' in name or '_en.' in name:
-            filtered.append(item)
-        else:
+        # Only filter Qt's .qm files, not our .json translations
+        if name.endswith('.qm') and '/translations/' in name and '_en' not in name:
             removed_count += 1
-    print(f"  [EXCLUDED] {removed_count} non-English translation files")
+        else:
+            filtered.append(item)
+    print(f"  [EXCLUDED] {removed_count} non-English Qt translation files")
     return filtered
 
 a.datas = filter_translations(a.datas)
