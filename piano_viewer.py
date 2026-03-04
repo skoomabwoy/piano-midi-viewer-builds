@@ -117,7 +117,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # scales proportionally. This makes the layout consistent at any window size.
 
 # --- App version ---
-VERSION = "8.6.3"
+VERSION = "9.0.0"
 # Settings file format version. Increment this when the settings.ini format
 # changes, and add a corresponding migration step in migrate_settings().
 SETTINGS_VERSION = 1

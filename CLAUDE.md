@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Single-file architecture**: The entire application is contained in `piano_viewer.py` (~3000 lines).
 
-**Current Version: 8.6.3**
+**Current Version: 9.0.0**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -33,6 +33,8 @@ assets/                  # SVG icons and embedded font
 packaging/               # PyInstaller build specs
   PianoMIDIViewer.spec         # Linux build spec
   PianoMIDIViewer-macos.spec   # macOS build spec
+
+translations/            # UI translations (JSON, one file per language)
 
 tests/                   # Test suite (pytest)
 
@@ -188,11 +190,11 @@ ENTRY POINT       - main() function
 - ~~**Export drawn notes as image**: "Save as PNG" for teachers~~ Done in 8.6.0
 - **Live UI scaling**: Apply scale changes without restart
 
-### Website (v2 live, collecting feedback)
+### Website (v3 live)
 - Live at `skoomabwoy.codeberg.page/piano-midi-viewer/`
-- v2: light theme, Arch Blue banner, OS-detected downloads, alternating feature sections
-- Deploy: `./website/deploy.sh` (stash uncommitted changes first)
-- Next: GIF guides, iterate based on user feedback
+- v3: unified download flow — platform tabs control download button + install instructions
+- Deploy: `./website/deploy.sh` (pushes to `pages` branch, requires clean working tree)
+- Next: demo videos (embed infrastructure ready), iterate based on user feedback
 - Interactive piano demo widgets (future)
 - Custom domain (future)
 - Strategy doc in memory file `website-strategy.md`
@@ -207,7 +209,7 @@ ENTRY POINT       - main() function
 ## Development Notes
 
 - Settings saved to `~/.config/piano-midi-viewer/settings.ini`
-- All UI strings are hardcoded (no i18n)
+- UI strings wrapped in `tr()` for i18n, translations in `translations/*.json` (en, de, es, fr, pl, pt, ru, uk)
 - MIDI errors logged via `logging` module (replaced print() in 8.5.1)
 - Cross-platform: Linux (AppImage), Windows (.exe), macOS (.dmg)
 - Git hooks: post-commit auto-pushes to both remotes (Codeberg + GitHub)

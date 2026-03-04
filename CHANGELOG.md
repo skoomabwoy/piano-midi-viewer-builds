@@ -2,6 +2,11 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.0.0
+- **7 languages**: Full UI translation — Deutsch, Español, Français, Polski, Português, Русский, Українська. Select your language in Settings; the app restarts in the new language
+- **JSON-based i18n**: Simple `tr()` wrapper with JSON translation files — easy for anyone to contribute new languages
+- **Restart button preview**: When switching languages, the Restart button shows its label in the target language as a preview
+
 ## 8.6.3
 - **Font fix**: JetBrains Mono font now bundles correctly on all platforms (was missing since 8.6.1 due to spec file path mismatch after project reorganization)
 - **macOS button styling**: Restart and refresh buttons in Settings now use native macOS styling (previously had square corners and cropped text)
