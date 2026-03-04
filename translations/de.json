@@ -25,7 +25,7 @@
   "Version {} available": "Version {} verfügbar",
   "Up to date": "Aktuell",
   "Check failed": "Prüfung fehlgeschlagen",
-  "Something went wrong. You can copy the details below and report this issue.": "Etwas ist schiefgelaufen. Du kannst die Details unten kopieren und das Problem melden.",
+  "Something went wrong. You can copy the details below and report this issue.": "Etwas ist schiefgelaufen. Sie können die Details unten kopieren und das Problem melden.",
   "Copy to Clipboard": "In Zwischenablage kopieren",
   "Copied!": "Kopiert!",
   "Reset Settings": "Einstellungen zurücksetzen",
@@ -51,6 +51,6 @@
   "MIDI Error": "MIDI-Fehler",
   "Errors occurred during startup:\n\n{}": "Fehler beim Starten aufgetreten:\n\n{}",
   "Could not read settings file: {}\n\nDefault settings will be used.": "Einstellungsdatei konnte nicht gelesen werden: {}\n\nStandardeinstellungen werden verwendet.",
-  "Could not save settings: {}\n\nYour changes may be lost.": "Einstellungen konnten nicht gespeichert werden: {}\n\nDeine Änderungen gehen möglicherweise verloren.",
+  "Could not save settings: {}\n\nYour changes may be lost.": "Einstellungen konnten nicht gespeichert werden: {}\n\nIhre Änderungen gehen möglicherweise verloren.",
   "Could not scan for MIDI devices: {}": "MIDI-Geräte konnten nicht gesucht werden: {}"
 }
