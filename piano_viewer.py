@@ -84,6 +84,18 @@ def tr(text):
         return text
     return _translations.get(text, text)
 
+def tr_for(lang_code, text):
+    """Returns a translated string for a specific language (without changing global state)."""
+    if lang_code == "en":
+        return text
+    translations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "translations")
+    translation_file = os.path.join(translations_dir, f"{lang_code}.json")
+    try:
+        with open(translation_file, 'r', encoding='utf-8') as f:
+            return json.load(f).get(text, text)
+    except Exception:
+        return text
+
 # --- PyQt6 imports ---
 # QtWidgets: all the visible UI elements (windows, buttons, dropdowns, etc.)
 # QtCore:    non-visual essentials (timers, geometry, signals, threads)
@@ -1206,7 +1218,10 @@ class SettingsDialog(QDialog):
     def language_changed(self, index):
         """Called when user selects a different language."""
         new_lang = self.lang_dropdown.currentData()
-        self.lang_restart_button.setVisible(new_lang != _current_language)
+        changed = new_lang != _current_language
+        self.lang_restart_button.setVisible(changed)
+        if changed:
+            self.lang_restart_button.setText(tr_for(new_lang, "Restart"))
         self.main_window.pending_language = new_lang
         self.main_window.save_settings()
 
