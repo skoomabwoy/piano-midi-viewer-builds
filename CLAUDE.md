@@ -65,6 +65,7 @@ Core dependencies (installed in venv):
 - PyQt6 - GUI framework
 - python-rtmidi - MIDI input handling
 - certifi - CA certificates for HTTPS in PyInstaller builds
+- sounddevice (optional) - Built-in sound output (sine-wave synthesis)
 
 The project uses a Python virtual environment in `venv/`.
 
@@ -124,7 +125,19 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 
 **Pencil Tool**: Independent drawing mode. Left click/drag draws to `drawn_notes` set, right click/drag erases. MIDI Note On toggles drawn_notes, Note Off ignored. Exiting clears all marks.
 
-**Sustain Indicator**: S button is read-only — lights up when CC 64 >= 64, does not affect note highlighting.
+**Sustain Indicator**: S button is read-only — lights up when CC 64 >= 64, does not affect note highlighting. When built-in sound is enabled, the sustain pedal keeps synth voices sounding until released.
+
+**Built-in Sound**: Optional sine-wave synthesizer using `sounddevice` (hidden if not installed). Off by default, toggled via Settings checkbox. Key design:
+- `PianoSynthesizer` class with wavetable-based additive synthesis
+- `_Voice` class with ADSR envelope (5ms attack, 300ms decay, 10ms release — no lingering)
+- 4 pitch-range wavetables (`_HARMONIC_PROFILES`): lower notes get more harmonics for laptop speaker audibility
+- Loudness compensation: `LOUDNESS_MULT_LOW` / `LOUDNESS_MULT_HIGH` constants interpolated across MIDI range
+- Velocity-scaled sustain level: uses same `0.3 + 0.7 * (vel/127)` formula as key coloring (when `show_velocity` is on)
+- Sustain pedal support: `set_sustain()` keeps voices alive while pedal held, releases on pedal lift
+- Thread-safe: `threading.Lock` guards voice dict, audio callback runs in separate thread
+- Max 12 simultaneous voices with oldest-voice stealing
+- Sound triggers: MIDI note on/off, mouse press/release/drag, sustain pedal CC 64
+- Settings persisted in `[audio]` section of settings.ini
 
 **Settings**: Saved to `~/.config/piano-midi-viewer/settings.ini` via configparser. `SETTINGS_VERSION` constant + `migrate_settings()` for format changes. `[meta]` section tracks version.
 
@@ -141,9 +154,10 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 The file is organized in clearly marked sections with comment banners:
 
 ```
-CONSTANTS         - Sizing, colors, MIDI ranges, window margins, cursor sizing/colors
+CONSTANTS         - Sizing, colors, MIDI ranges, window margins, cursor sizing/colors, loudness compensation
 APP ICONS         - SVG-based icons and cursors (piano, settings, pencil, eraser)
 HELPER FUNCTIONS  - MIDI note utilities (is_black_key, count_white_keys, etc.)
+BUILT-IN SOUND    - PianoSynthesizer, _Voice, _HARMONIC_PROFILES (optional, needs sounddevice)
 SETTINGS DIALOG   - Configuration UI (SettingsDialog class)
 PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
 MAIN WINDOW       - Application controller (PianoMIDIViewer class)
