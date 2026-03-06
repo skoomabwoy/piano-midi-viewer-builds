@@ -35,9 +35,9 @@ cp "$REPO_ROOT/screenshots/sustained-blue-2-octaves-velocity.png" "$TMPDIR/scree
 cp "$REPO_ROOT/screenshots/pencil-tool-red-4-octaves.png" "$TMPDIR/screenshots/"
 
 # Fix asset paths for production (../assets/X -> X, ../screenshots/ -> screenshots/)
-sed -i 's|\.\./assets/||g' "$TMPDIR/index.html"
-sed -i 's|\.\./assets/||g' "$TMPDIR/style.css"
-sed -i 's|\.\./screenshots/|screenshots/|g' "$TMPDIR/index.html"
+sed 's|\.\./assets/||g' "$TMPDIR/index.html" > "$TMPDIR/index.html.tmp" && mv "$TMPDIR/index.html.tmp" "$TMPDIR/index.html"
+sed 's|\.\./assets/||g' "$TMPDIR/style.css" > "$TMPDIR/style.css.tmp" && mv "$TMPDIR/style.css.tmp" "$TMPDIR/style.css"
+sed 's|\.\./screenshots/|screenshots/|g' "$TMPDIR/index.html" > "$TMPDIR/index.html.tmp" && mv "$TMPDIR/index.html.tmp" "$TMPDIR/index.html"
 
 # Switch to pages branch
 if ! git show-ref --verify --quiet "refs/heads/$PAGES_BRANCH"; then
