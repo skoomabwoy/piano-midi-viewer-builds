@@ -52,5 +52,7 @@
   "Errors occurred during startup:\n\n{}": "Під час запуску виникли помилки:\n\n{}",
   "Could not read settings file: {}\n\nDefault settings will be used.": "Не вдалося прочитати файл налаштувань: {}\n\nБудуть використані налаштування за замовчуванням.",
   "Could not save settings: {}\n\nYour changes may be lost.": "Не вдалося зберегти налаштування: {}\n\nВаші зміни можуть бути втрачені.",
-  "Could not scan for MIDI devices: {}": "Не вдалося знайти MIDI-пристрої: {}"
+  "Could not scan for MIDI devices: {}": "Не вдалося знайти MIDI-пристрої: {}",
+  "Built-in Sound": "Вбудований звук",
+  "Simple test tones — not a replacement for a piano library": "Прості тестові звуки — не замінює бібліотеку фортепіано"
 }

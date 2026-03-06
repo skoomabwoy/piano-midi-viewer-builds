@@ -12,6 +12,9 @@ import sys
 import os
 import json
 import logging
+import math
+import array
+import threading
 import configparser
 from pathlib import Path
 import subprocess
@@ -24,6 +27,14 @@ import webbrowser
 # --- Third-party imports ---
 import certifi       # Provides CA certificates for HTTPS (needed in PyInstaller builds)
 import rtmidi        # MIDI input handling (python-rtmidi)
+
+# Optional: sounddevice for built-in piano sound (sine wave synthesis).
+# If not installed, the Sound feature is simply unavailable in Settings.
+try:
+    import sounddevice as _sd
+    _SOUND_AVAILABLE = True
+except ImportError:
+    _SOUND_AVAILABLE = False
 
 # --- Logging setup ---
 # Outputs to stderr so it doesn't interfere with stdout.
@@ -117,7 +128,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # scales proportionally. This makes the layout consistent at any window size.
 
 # --- App version ---
-VERSION = "9.0.0"
+VERSION = "9.1.0"
 # Settings file format version. Increment this when the settings.ini format
 # changes, and add a corresponding migration step in migrate_settings().
 SETTINGS_VERSION = 1
@@ -237,6 +248,13 @@ MIN_FONT_SIZE = 6                   # text is hidden entirely below this point s
 # The font family name is set in main() after loading JetBrains Mono.
 # Falls back to "monospace" if the font file is missing.
 LOADED_FONT_FAMILY = None
+
+# --- Loudness compensation ---
+# Higher notes sound perceptually louder than lower ones at the same amplitude.
+# These multipliers compensate by boosting low notes and taming high notes.
+# The value is linearly interpolated across the MIDI range (21–108).
+LOUDNESS_MULT_LOW = 2.0    # multiplier for the lowest note (A0, MIDI 21)
+LOUDNESS_MULT_HIGH = 0.2   # multiplier for the highest note (C8, MIDI 108)
 
 
 # ============================================================================
@@ -880,6 +898,221 @@ def make_button_style(bg_color="#f5f5f5", text_color="#2a2a2a", interactive=True
 
 
 # ============================================================================
+# BUILT-IN SOUND (optional sine-wave synthesizer)
+# ============================================================================
+# Provides simple piano-like tones using wavetable synthesis and sounddevice.
+# The feature is entirely optional — if sounddevice is not installed, the
+# Sound checkbox in Settings is hidden and no audio code runs.
+
+class _Voice:
+    """A single synthesizer voice with phase accumulator and ASR envelope."""
+    __slots__ = ('phase', 'phase_inc', 'amplitude', 'env_stage', 'env_level',
+                 'sustain_level', 'release_rate', 'wavetable')
+
+    def __init__(self, freq, sustain_level, wavetable, sample_rate, loudness=1.0):
+        self.phase = 0.0
+        self.phase_inc = freq / sample_rate
+        self.amplitude = 0.15 * loudness  # Base scaler × loudness compensation
+        self.wavetable = wavetable
+        self.env_stage = 'sustain'     # Instant attack — start at sustain level
+        self.env_level = sustain_level
+        self.sustain_level = sustain_level
+        # Release rate (per sample)
+        release_time = 0.05   # 50ms — smooth release without clicks
+        self.release_rate = max(self.sustain_level, 0.01) / (release_time * sample_rate)
+
+    def release(self):
+        self.env_stage = 'release'
+
+    def is_finished(self):
+        return self.env_stage == 'done'
+
+
+# Harmonic profiles for different pitch ranges.
+# Uses 1/n amplitude rolloff (organ pipe harmonic series) for a warm tone.
+# Lower notes get more harmonics for body on laptop speakers;
+# higher notes use fewer to avoid piercing overtones.
+_HARMONIC_PROFILES = [
+    # (max_midi_note, [harmonic_amplitudes — 1/n rolloff])
+    (40,  [1.0, 1/2, 1/3, 1/4, 1/5, 1/6, 1/7, 1/8]),    # A0–E2: full organ
+    (60,  [1.0, 1/2, 1/3, 1/4, 1/5, 1/6]),                # F2–C4: warm organ
+    (84,  [1.0, 1/2, 1/3, 1/4]),                            # C#4–C6: mellow
+    (MIDI_NOTE_MAX, [1.0, 1/3]),                             # C#6+: near-sine
+]
+
+
+class PianoSynthesizer:
+    """Wavetable synthesizer with polyphony and sustain pedal support.
+
+    Uses per-range wavetables (richer harmonics for lower notes) and an
+    ADSR envelope with velocity-based sustain level. The sustain pedal
+    keeps notes sounding until released.
+    """
+    SAMPLE_RATE = 44100
+    WAVETABLE_SIZE = 4096
+    MAX_VOICES = 12
+
+    def __init__(self):
+        self._voices = {}        # note_number -> _Voice
+        self._sustained = set()  # notes held only by sustain pedal
+        self.sustain_active = False
+        self._lock = threading.Lock()
+        self._stream = None
+        self._smooth_gain = 1.0  # current gain, smoothly interpolated toward target
+        self._wavetables = self._build_wavetables()
+
+    def _build_wavetables(self):
+        """Pre-compute one wavetable per harmonic profile."""
+        tables = []
+        two_pi = 2.0 * math.pi
+        for _, harmonics in _HARMONIC_PROFILES:
+            table = []
+            norm = sum(harmonics)
+            for i in range(self.WAVETABLE_SIZE):
+                t = i / self.WAVETABLE_SIZE
+                sample = 0.0
+                for h, amp in enumerate(harmonics, 1):
+                    sample += amp * math.sin(two_pi * h * t)
+                table.append(sample / norm)
+            tables.append(table)
+        return tables
+
+    def _wavetable_for_note(self, note):
+        """Returns the wavetable matching the note's pitch range."""
+        for i, (max_note, _) in enumerate(_HARMONIC_PROFILES):
+            if note <= max_note:
+                return self._wavetables[i]
+        return self._wavetables[-1]
+
+    def start(self):
+        """Opens the audio stream. Call when sound is enabled."""
+        if self._stream is not None:
+            return
+        try:
+            self._stream = _sd.RawOutputStream(
+                samplerate=self.SAMPLE_RATE,
+                channels=1,
+                dtype='float32',
+                callback=self._callback,
+                blocksize=256,
+            )
+            self._stream.start()
+            log.info("Built-in sound: audio stream started")
+        except Exception as e:
+            log.error(f"Built-in sound: failed to start audio stream: {e}")
+            self._stream = None
+
+    def stop(self):
+        """Closes the audio stream. Call when sound is disabled."""
+        if self._stream is not None:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception:
+                pass
+            self._stream = None
+            log.info("Built-in sound: audio stream stopped")
+        with self._lock:
+            self._voices.clear()
+            self._sustained.clear()
+            self._smooth_gain = 1.0
+
+    def note_on(self, note, velocity_scale=1.0):
+        """Starts a new voice for the given MIDI note number.
+
+        velocity_scale: sustain level (0.3–1.0), matching the app's
+        velocity visualization formula: 0.3 + 0.7 * (velocity / 127).
+        Pass 1.0 when velocity display is off.
+        """
+        if self._stream is None:
+            return
+        freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
+        wt = self._wavetable_for_note(note)
+        # Loudness compensation: interpolate between LOW and HIGH across MIDI range
+        t = (note - MIDI_NOTE_MIN) / (MIDI_NOTE_MAX - MIDI_NOTE_MIN)
+        loudness = LOUDNESS_MULT_LOW + t * (LOUDNESS_MULT_HIGH - LOUDNESS_MULT_LOW)
+        voice = _Voice(freq, velocity_scale, wt, self.SAMPLE_RATE, loudness)
+        with self._lock:
+            self._sustained.discard(note)  # Re-struck — no longer pedal-only
+            # Voice stealing: drop oldest voice if at capacity
+            if len(self._voices) >= self.MAX_VOICES and note not in self._voices:
+                oldest_key = next(iter(self._voices))
+                del self._voices[oldest_key]
+            self._voices[note] = voice
+
+    def note_off(self, note):
+        """Handles key release — respects sustain pedal state."""
+        with self._lock:
+            if self.sustain_active:
+                self._sustained.add(note)  # Keep sounding, pedal holds it
+            elif note in self._voices:
+                self._voices[note].release()
+
+    def set_sustain(self, active):
+        """Updates sustain pedal state. Releases held notes when pedal lifts."""
+        self.sustain_active = active
+        if not active:
+            with self._lock:
+                for note in self._sustained:
+                    if note in self._voices:
+                        self._voices[note].release()
+                self._sustained.clear()
+
+    def _callback(self, outdata, frames, time_info, status):
+        """Audio callback — runs in a separate thread by sounddevice."""
+        wt_size = self.WAVETABLE_SIZE
+        buf = array.array('f', bytes(frames * 4))  # pre-allocate zeroed float32 buffer
+
+        with self._lock:
+            # Snapshot voice list — we hold references but the lock prevents
+            # note_on from replacing a voice mid-render (dict swap is atomic,
+            # but we need a consistent set of voices for this buffer).
+            voices = list(self._voices.values())
+
+        # Attenuate when multiple voices overlap so chords don't clip.
+        # 1 voice = full volume, 4 voices = ~63%, 12 voices = ~41%.
+        # Gain is smoothly interpolated to avoid clicks when voice count changes.
+        voice_count = len(voices)
+        target_gain = 1.0 / math.sqrt(voice_count) if voice_count > 1 else 1.0
+        gain = self._smooth_gain
+        # Interpolate toward target over this buffer (~5.8ms at 256 frames)
+        gain_step = (target_gain - gain) / frames if frames > 0 else 0.0
+
+        for i in range(frames):
+            sample = 0.0
+            for v in voices:
+                # Wavetable lookup with linear phase
+                wt = v.wavetable
+                idx = int(v.phase * wt_size) % wt_size
+                sample += wt[idx] * v.env_level * v.amplitude
+
+                # Advance phase
+                v.phase += v.phase_inc
+                if v.phase >= 1.0:
+                    v.phase -= 1.0
+
+                # Advance envelope (ASR: sustain until released)
+                if v.env_stage == 'release':
+                    v.env_level -= v.release_rate
+                    if v.env_level <= 0.0:
+                        v.env_level = 0.0
+                        v.env_stage = 'done'
+
+            gain += gain_step
+            buf[i] = sample * gain
+
+        self._smooth_gain = target_gain
+
+        # Remove finished voices
+        with self._lock:
+            finished = [n for n, v in self._voices.items() if v.is_finished()]
+            for n in finished:
+                del self._voices[n]
+
+        outdata[:] = buf.tobytes()
+
+
+# ============================================================================
 # SETTINGS DIALOG
 # ============================================================================
 # The settings dialog lets users configure MIDI devices, highlight color,
@@ -1100,6 +1333,16 @@ class SettingsDialog(QDialog):
         self.velocity_checkbox.stateChanged.connect(self.toggle_velocity)
         layout.addWidget(self.velocity_checkbox)
 
+        # BUILT-IN SOUND CHECKBOX
+        # Only shown when sounddevice is installed. Off by default.
+        if _SOUND_AVAILABLE:
+            layout.addSpacing(10)
+            self.sound_checkbox = QCheckBox(tr("Built-in Sound"))
+            self.sound_checkbox.setToolTip(tr("Simple test tones — not a replacement for a piano library"))
+            self.sound_checkbox.setChecked(self.main_window.sound_enabled)
+            self.sound_checkbox.stateChanged.connect(self.toggle_sound)
+            layout.addWidget(self.sound_checkbox)
+
         # VERSION + CHECK FOR UPDATES
         layout.addStretch()
         version_row = QHBoxLayout()
@@ -1305,6 +1548,17 @@ class SettingsDialog(QDialog):
         """Toggles velocity visualization."""
         self.main_window.show_velocity = (state == Qt.CheckState.Checked.value)
         self.main_window.piano.update()
+        self.main_window.save_settings()
+
+    def toggle_sound(self, state):
+        """Toggles built-in piano sound on/off."""
+        enabled = (state == Qt.CheckState.Checked.value)
+        self.main_window.sound_enabled = enabled
+        if self.main_window.synth:
+            if enabled:
+                self.main_window.synth.start()
+            else:
+                self.main_window.synth.stop()
         self.main_window.save_settings()
 
     def check_for_updates(self):
@@ -2128,6 +2382,8 @@ class PianoKeyboard(QWidget):
                 self.active_notes[note] = 127  # Mouse clicks = full velocity
                 self.mouse_held_note = note
                 self.glissando_mode = None
+                if main_window and main_window.sound_enabled and main_window.synth:
+                    main_window.synth.note_on(note)
                 self.update()
 
     def mouseMoveEvent(self, event):
@@ -2156,6 +2412,9 @@ class PianoKeyboard(QWidget):
                         self.drawn_notes.discard(note)
                 else:
                     # Playing: move active note to new key
+                    if main_window and main_window.sound_enabled and main_window.synth:
+                        main_window.synth.note_off(self.mouse_held_note)
+                        main_window.synth.note_on(note)
                     self.active_notes.pop(self.mouse_held_note, None)
                     self.active_notes[note] = 127
 
@@ -2180,6 +2439,8 @@ class PianoKeyboard(QWidget):
                 # Playing: remove from active_notes
                 if self.mouse_held_note in self.active_notes:
                     self.active_notes.pop(self.mouse_held_note, None)
+                    if main_window and main_window.sound_enabled and main_window.synth:
+                        main_window.synth.note_off(self.mouse_held_note)
 
             self.mouse_held_note = None
             self.glissando_mode = None
@@ -2227,6 +2488,12 @@ class PianoMIDIViewer(QMainWindow):
         self.black_key_notation = "Flats"     # "Flats", "Sharps", or "Both"
         self.show_names_when_pressed = False  # only show names on highlighted keys
         self.show_velocity = False            # brightness reflects how hard each key is pressed
+
+        # --- Built-in sound ---
+        # Optional sine-wave synthesizer for basic piano tones.
+        # Disabled by default; toggled via Settings checkbox.
+        self.sound_enabled = False
+        self.synth = PianoSynthesizer() if _SOUND_AVAILABLE else None
 
         # --- UI scale ---
         # The current scale is applied at startup. If the user changes it in
@@ -2504,6 +2771,15 @@ class PianoMIDIViewer(QMainWindow):
             except ValueError:
                 reset_keys.append('start_note/end_note')
 
+        # Load audio settings
+        if _SOUND_AVAILABLE and config.has_option('audio', 'sound_enabled'):
+            try:
+                self.sound_enabled = config.getboolean('audio', 'sound_enabled')
+                if self.sound_enabled and self.synth:
+                    self.synth.start()
+            except ValueError:
+                reset_keys.append('sound_enabled')
+
         # Load window geometry (size and position)
         if config.has_option('window', 'geometry'):
             geometry_string = config.get('window', 'geometry')
@@ -2554,6 +2830,11 @@ class PianoMIDIViewer(QMainWindow):
         config['keyboard'] = {
             'start_note': str(self.piano.start_note),
             'end_note': str(self.piano.end_note)
+        }
+
+        # Audio settings
+        config['audio'] = {
+            'sound_enabled': str(self.sound_enabled)
         }
 
         # Window settings
@@ -2956,6 +3237,8 @@ class PianoMIDIViewer(QMainWindow):
             if controller_number == 64:  # Sustain pedal
                 self.sustain_pedal_active = (controller_value >= 64)
                 self.update_sustain_button_visual()
+                if self.sound_enabled and self.synth:
+                    self.synth.set_sustain(self.sustain_pedal_active)
 
         # Note On/Off messages
         elif message_type == 0x90 and data2 > 0:
@@ -2981,6 +3264,12 @@ class PianoMIDIViewer(QMainWindow):
                 self.piano.update()
             # Out-of-range notes ignored in drawing mode
             return
+
+        # Play sound (regardless of visible range)
+        if self.sound_enabled and self.synth:
+            # Use same 0.3–1.0 velocity formula as the key color rendering
+            vel_scale = (0.3 + 0.7 * (velocity / 127.0)) if self.show_velocity else 1.0
+            self.synth.note_on(note_number, vel_scale)
 
         # Playing mode: highlight the note while it is physically pressed
         if self.piano.start_note <= note_number <= self.piano.end_note:
@@ -3010,6 +3299,10 @@ class PianoMIDIViewer(QMainWindow):
         if self.pencil_active:
             # Drawing: ignore Note Off entirely
             return
+
+        # Release sound
+        if self.sound_enabled and self.synth:
+            self.synth.note_off(note_number)
 
         # Handle notes within visible range
         if note_number in self.piano.active_notes:
@@ -3270,6 +3563,10 @@ class PianoMIDIViewer(QMainWindow):
         garbage collector doesn't guarantee timely cleanup.
         """
         self.save_settings()
+
+        # Stop audio stream
+        if self.synth:
+            self.synth.stop()
 
         if self.midi_timer:
             self.midi_timer.stop()

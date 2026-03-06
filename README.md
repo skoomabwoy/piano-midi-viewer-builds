@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and content creators.
 
-![Version](https://img.shields.io/badge/version-9.0.0-blue)
+![Version](https://img.shields.io/badge/version-9.1.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -18,6 +18,7 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 - 🎵 **Sustain indicator** — the S button lights up when your MIDI sustain pedal is held
 - 📷 **Save as image** — click the camera button to save the keyboard as a PNG; right-click to quick save to your Pictures folder
 - 🌍 **7 languages** — English, Deutsch, Español, Français, Polski, Português, Русский, Українська — switch in Settings
+- 🔊 **Built-in sound** — optional test tones so you can hear what you press; off by default, enable in Settings
 - ↔️ **Octave range** — use the + and − buttons to show more or fewer octaves (from A0 up to C8)
 
 ## Screenshots
@@ -112,6 +113,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**9.1.0** — Built-in sound: optional test tones with sustain pedal support, velocity sensitivity, and redesigned app icon
 **9.0.0** — 7 languages: Deutsch, Español, Français, Polski, Português, Русский, Українська — select in Settings, app restarts in the new language
 **8.6.3** — Font fix for all platforms, macOS button styling, AppImage restart and portability fixes, CI smoke test
 **8.6.2** — Fix links not opening in browser from AppImage

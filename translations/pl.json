@@ -52,5 +52,7 @@
   "Errors occurred during startup:\n\n{}": "Wystąpiły błędy podczas uruchamiania:\n\n{}",
   "Could not read settings file: {}\n\nDefault settings will be used.": "Nie udało się odczytać pliku ustawień: {}\n\nZostaną użyte ustawienia domyślne.",
   "Could not save settings: {}\n\nYour changes may be lost.": "Nie udało się zapisać ustawień: {}\n\nZmiany mogą zostać utracone.",
-  "Could not scan for MIDI devices: {}": "Nie udało się wyszukać urządzeń MIDI: {}"
+  "Could not scan for MIDI devices: {}": "Nie udało się wyszukać urządzeń MIDI: {}",
+  "Built-in Sound": "Wbudowany dźwięk",
+  "Simple test tones — not a replacement for a piano library": "Proste dźwięki testowe — nie zastępują biblioteki fortepianowej"
 }
