@@ -1139,7 +1139,7 @@ class UpdateChecker(QThread):
             if latest and self._is_newer(latest, VERSION):
                 self.result.emit(
                     tr("Version {} available").format(latest),
-                    "https://codeberg.org/skoomabwoy/piano-midi-viewer/releases"
+                    "https://skoomabwoy.codeberg.page/piano-midi-viewer/"
                 )
             else:
                 self.result.emit(tr("Up to date"), "")

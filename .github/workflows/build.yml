@@ -15,7 +15,33 @@ on:
           - macos
 
 jobs:
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete artifacts older than 3 days
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner: context.repo.owner, repo: context.repo.repo }
+            );
+            for (const artifact of artifacts) {
+              if (new Date(artifact.created_at).getTime() < cutoff) {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id,
+                });
+                console.log(`Deleted: ${artifact.name} (${artifact.created_at})`);
+              }
+            }
+
   build-linux:
+    needs: cleanup-artifacts
     if: inputs.platform == 'all' || inputs.platform == 'linux'
     runs-on: ubuntu-22.04
     steps:
@@ -98,6 +124,7 @@ jobs:
           path: PianoMIDIViewer-x86_64.AppImage
 
   build-windows:
+    needs: cleanup-artifacts
     if: inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-latest
     steps:
@@ -136,6 +163,7 @@ jobs:
   # upload-artifact resolves symlinks into full copies (2x bloat).
 
   build-macos-arm:
+    needs: cleanup-artifacts
     if: inputs.platform == 'all' || inputs.platform == 'macos'
     runs-on: macos-14  # M1 Apple Silicon
     steps:
@@ -184,6 +212,7 @@ jobs:
           path: arm64-app.tar.gz
 
   build-macos-intel:
+    needs: cleanup-artifacts
     if: inputs.platform == 'all' || inputs.platform == 'macos'
     runs-on: macos-15-intel  # Intel x86_64
     steps:
