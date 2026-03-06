@@ -1,3 +1,5 @@
 PyQt6>=6.6.0
 python-rtmidi>=1.5.0
 certifi
+# Optional: enables built-in sound (sine-wave synth) — app works fine without it
+sounddevice>=0.5.0

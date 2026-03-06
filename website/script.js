@@ -36,7 +36,7 @@ function initTabs(urls) {
 // ── Fetch latest release from Codeberg API ──
 const REPO_API = 'https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest';
 
-const FALLBACK_TAG = 'v8.6.3';
+const FALLBACK_TAG = 'v9.1.0';
 const FALLBACK_BASE = `https://codeberg.org/skoomabwoy/piano-midi-viewer/releases/download/${FALLBACK_TAG}/`;
 
 const FILE_NAMES = {

@@ -13,7 +13,7 @@ import os
 import json
 import logging
 import math
-import struct
+import array
 import threading
 import configparser
 from pathlib import Path
@@ -128,7 +128,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QIc
 # scales proportionally. This makes the layout consistent at any window size.
 
 # --- App version ---
-VERSION = "9.0.0"
+VERSION = "9.1.0"
 # Settings file format version. Increment this when the settings.ini format
 # changes, and add a corresponding migration step in migrate_settings().
 SETTINGS_VERSION = 1
@@ -905,25 +905,20 @@ def make_button_style(bg_color="#f5f5f5", text_color="#2a2a2a", interactive=True
 # Sound checkbox in Settings is hidden and no audio code runs.
 
 class _Voice:
-    """A single synthesizer voice with phase accumulator and ADSR envelope."""
+    """A single synthesizer voice with phase accumulator and ASR envelope."""
     __slots__ = ('phase', 'phase_inc', 'amplitude', 'env_stage', 'env_level',
-                 'attack_rate', 'decay_rate', 'sustain_level', 'release_rate',
-                 'wavetable')
+                 'sustain_level', 'release_rate', 'wavetable')
 
     def __init__(self, freq, sustain_level, wavetable, sample_rate, loudness=1.0):
         self.phase = 0.0
         self.phase_inc = freq / sample_rate
         self.amplitude = 0.15 * loudness  # Base scaler × loudness compensation
         self.wavetable = wavetable
-        self.env_stage = 'attack'
-        self.env_level = 0.0
+        self.env_stage = 'sustain'     # Instant attack — start at sustain level
+        self.env_level = sustain_level
         self.sustain_level = sustain_level
-        # ADSR rates (per sample)
-        attack_time = 0.005   # 5ms — quick attack
-        decay_time = 0.3      # 300ms — fade to sustain level
-        release_time = 0.01   # 10ms — just enough to avoid clicks
-        self.attack_rate = 1.0 / (attack_time * sample_rate)
-        self.decay_rate = (1.0 - self.sustain_level) / (decay_time * sample_rate) if sustain_level < 1.0 else 0.0
+        # Release rate (per sample)
+        release_time = 0.05   # 50ms — smooth release without clicks
         self.release_rate = max(self.sustain_level, 0.01) / (release_time * sample_rate)
 
     def release(self):
@@ -934,14 +929,15 @@ class _Voice:
 
 
 # Harmonic profiles for different pitch ranges.
-# Lower notes get more harmonics so they're audible on laptop speakers;
-# higher notes need fewer since their fundamentals are already clear.
+# Uses 1/n amplitude rolloff (organ pipe harmonic series) for a warm tone.
+# Lower notes get more harmonics for body on laptop speakers;
+# higher notes use fewer to avoid piercing overtones.
 _HARMONIC_PROFILES = [
-    # (max_midi_note, [harmonic_amplitudes])
-    (40,  [1.0, 0.8, 0.7, 0.5, 0.4, 0.3, 0.2, 0.15]),  # A0–E2: very rich
-    (60,  [1.0, 0.6, 0.4, 0.3, 0.2, 0.1]),               # F2–C4: moderately rich
-    (84,  [1.0, 0.5, 0.25, 0.125]),                        # C#4–C6: balanced
-    (999, [1.0, 0.3, 0.1]),                                 # C#6+: mostly fundamental
+    # (max_midi_note, [harmonic_amplitudes — 1/n rolloff])
+    (40,  [1.0, 1/2, 1/3, 1/4, 1/5, 1/6, 1/7, 1/8]),    # A0–E2: full organ
+    (60,  [1.0, 1/2, 1/3, 1/4, 1/5, 1/6]),                # F2–C4: warm organ
+    (84,  [1.0, 1/2, 1/3, 1/4]),                            # C#4–C6: mellow
+    (MIDI_NOTE_MAX, [1.0, 1/3]),                             # C#6+: near-sine
 ]
 
 
@@ -962,6 +958,7 @@ class PianoSynthesizer:
         self.sustain_active = False
         self._lock = threading.Lock()
         self._stream = None
+        self._smooth_gain = 1.0  # current gain, smoothly interpolated toward target
         self._wavetables = self._build_wavetables()
 
     def _build_wavetables(self):
@@ -1018,6 +1015,7 @@ class PianoSynthesizer:
         with self._lock:
             self._voices.clear()
             self._sustained.clear()
+            self._smooth_gain = 1.0
 
     def note_on(self, note, velocity_scale=1.0):
         """Starts a new voice for the given MIDI note number.
@@ -1063,12 +1061,24 @@ class PianoSynthesizer:
     def _callback(self, outdata, frames, time_info, status):
         """Audio callback — runs in a separate thread by sounddevice."""
         wt_size = self.WAVETABLE_SIZE
-        buf = []
+        buf = array.array('f', bytes(frames * 4))  # pre-allocate zeroed float32 buffer
 
         with self._lock:
+            # Snapshot voice list — we hold references but the lock prevents
+            # note_on from replacing a voice mid-render (dict swap is atomic,
+            # but we need a consistent set of voices for this buffer).
             voices = list(self._voices.values())
 
-        for _ in range(frames):
+        # Attenuate when multiple voices overlap so chords don't clip.
+        # 1 voice = full volume, 4 voices = ~63%, 12 voices = ~41%.
+        # Gain is smoothly interpolated to avoid clicks when voice count changes.
+        voice_count = len(voices)
+        target_gain = 1.0 / math.sqrt(voice_count) if voice_count > 1 else 1.0
+        gain = self._smooth_gain
+        # Interpolate toward target over this buffer (~5.8ms at 256 frames)
+        gain_step = (target_gain - gain) / frames if frames > 0 else 0.0
+
+        for i in range(frames):
             sample = 0.0
             for v in voices:
                 # Wavetable lookup with linear phase
@@ -1081,24 +1091,17 @@ class PianoSynthesizer:
                 if v.phase >= 1.0:
                     v.phase -= 1.0
 
-                # Advance envelope
-                if v.env_stage == 'attack':
-                    v.env_level += v.attack_rate
-                    if v.env_level >= 1.0:
-                        v.env_level = 1.0
-                        v.env_stage = 'decay'
-                elif v.env_stage == 'decay':
-                    v.env_level -= v.decay_rate
-                    if v.env_level <= v.sustain_level:
-                        v.env_level = v.sustain_level
-                        v.env_stage = 'sustain'
-                elif v.env_stage == 'release':
+                # Advance envelope (ASR: sustain until released)
+                if v.env_stage == 'release':
                     v.env_level -= v.release_rate
                     if v.env_level <= 0.0:
                         v.env_level = 0.0
                         v.env_stage = 'done'
 
-            buf.append(sample)
+            gain += gain_step
+            buf[i] = sample * gain
+
+        self._smooth_gain = target_gain
 
         # Remove finished voices
         with self._lock:
@@ -1106,8 +1109,7 @@ class PianoSynthesizer:
             for n in finished:
                 del self._voices[n]
 
-        # Write float32 samples to the output buffer
-        outdata[:] = struct.pack(f'{frames}f', *buf)
+        outdata[:] = buf.tobytes()
 
 
 # ============================================================================
@@ -1336,7 +1338,7 @@ class SettingsDialog(QDialog):
         if _SOUND_AVAILABLE:
             layout.addSpacing(10)
             self.sound_checkbox = QCheckBox(tr("Built-in Sound"))
-            self.sound_checkbox.setToolTip(tr("Play simple piano tones through your speakers"))
+            self.sound_checkbox.setToolTip(tr("Simple test tones — not a replacement for a piano library"))
             self.sound_checkbox.setChecked(self.main_window.sound_enabled)
             self.sound_checkbox.stateChanged.connect(self.toggle_sound)
             layout.addWidget(self.sound_checkbox)

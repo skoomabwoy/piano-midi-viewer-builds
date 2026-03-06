@@ -2,6 +2,11 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.1.0
+- **Built-in sound**: Optional test tones via wavetable synthesis — enable in Settings. Off by default. Supports sustain pedal, velocity sensitivity, and polyphony (up to 12 voices). Requires `sounddevice` (checkbox hidden if not installed)
+- **Redesigned app icon**: Gradient background with ivory keys, proper macOS sizing
+- **Deploy script**: Portable `sed` for macOS compatibility
+
 ## 9.0.0
 - **7 languages**: Full UI translation — Deutsch, Español, Français, Polski, Português, Русский, Українська. Select your language in Settings; the app restarts in the new language
 - **JSON-based i18n**: Simple `tr()` wrapper with JSON translation files — easy for anyone to contribute new languages
