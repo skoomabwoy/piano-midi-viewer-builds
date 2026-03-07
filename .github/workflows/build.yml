@@ -24,7 +24,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+            const cutoff = Date.now() - 1 * 24 * 60 * 60 * 1000;
             const artifacts = await github.paginate(
               github.rest.actions.listArtifactsForRepo,
               { owner: context.repo.owner, repo: context.repo.repo }
