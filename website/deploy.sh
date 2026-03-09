@@ -22,6 +22,7 @@ fi
 # Stage files to temp dir BEFORE switching branches
 echo "Staging files..."
 cp "$WEBSITE_DIR/index.html" "$TMPDIR/"
+cp "$WEBSITE_DIR/guide.html" "$TMPDIR/"
 cp "$WEBSITE_DIR/style.css" "$TMPDIR/"
 cp "$WEBSITE_DIR/script.js" "$TMPDIR/"
 
@@ -35,9 +36,12 @@ cp "$REPO_ROOT/screenshots/sustained-blue-2-octaves-velocity.png" "$TMPDIR/scree
 cp "$REPO_ROOT/screenshots/pencil-tool-red-4-octaves.png" "$TMPDIR/screenshots/"
 
 # Fix asset paths for production (../assets/X -> X, ../screenshots/ -> screenshots/)
-sed 's|\.\./assets/||g' "$TMPDIR/index.html" > "$TMPDIR/index.html.tmp" && mv "$TMPDIR/index.html.tmp" "$TMPDIR/index.html"
+# Use portable sed (no -i flag) for macOS compatibility
+for f in index.html guide.html; do
+    sed 's|\.\./assets/||g' "$TMPDIR/$f" > "$TMPDIR/$f.tmp" && mv "$TMPDIR/$f.tmp" "$TMPDIR/$f"
+    sed 's|\.\./screenshots/|screenshots/|g' "$TMPDIR/$f" > "$TMPDIR/$f.tmp" && mv "$TMPDIR/$f.tmp" "$TMPDIR/$f"
+done
 sed 's|\.\./assets/||g' "$TMPDIR/style.css" > "$TMPDIR/style.css.tmp" && mv "$TMPDIR/style.css.tmp" "$TMPDIR/style.css"
-sed 's|\.\./screenshots/|screenshots/|g' "$TMPDIR/index.html" > "$TMPDIR/index.html.tmp" && mv "$TMPDIR/index.html.tmp" "$TMPDIR/index.html"
 
 # Switch to pages branch
 if ! git show-ref --verify --quiet "refs/heads/$PAGES_BRANCH"; then

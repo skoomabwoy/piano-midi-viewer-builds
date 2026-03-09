@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual piano keyboard responding to MIDI input in real-time. Made for music teachers, students, and content creators.
 
-**Single-file architecture**: The entire application is contained in `piano_viewer.py` (~3000 lines).
+**Package architecture**: The application is split into the `piano_viewer/` Python package with focused modules.
 
 **Current Version: 9.1.0**
 
@@ -15,35 +15,35 @@ For full version history, see [CHANGELOG.md](CHANGELOG.md).
 ## Project Structure
 
 ```
-piano_viewer.py          # Entire application (single-file architecture)
-README.md                # User-facing documentation
-CLAUDE.md                # Developer documentation (this file)
-CHANGELOG.md             # Full version history
-requirements.txt         # Python dependencies (loose)
-requirements-lock.txt    # Pinned dependency versions (reproducible builds)
-LICENSE                  # GPL-3.0
+piano_viewer.py          # Thin launcher (delegates to piano_viewer package)
+piano_viewer/            # Application package
+  __init__.py            # VERSION, paths, logger, _SOUND_AVAILABLE, re-exports
+  __main__.py            # Entry point (main function, font loading, startup)
+  constants.py           # Sizing, colors, MIDI ranges, layout helpers, mutable globals
+  i18n.py                # Translation system (tr(), load_translations(), LANGUAGES)
+  helpers.py             # Config management, MIDI math, colors, fonts, button styles
+  icons.py               # SVG loading from assets/, icon/cursor creation
+  synth.py               # Wavetable synthesizer (PianoSynthesizer, _Voice)
+  dialogs.py             # ErrorDialog
+  settings.py            # SettingsDialog, UpdateChecker
+  keyboard.py            # PianoKeyboard widget (rendering, mouse interaction)
+  main_window.py         # PianoMIDIViewer (QMainWindow, MIDI, layout, app state)
 
-assets/                  # SVG icons and embedded font
+assets/                  # SVG icons and font (loaded at runtime by icons.py)
   icon.svg               # App icon (used by CI for .ico/.icns generation)
+  settings.svg           # Cogwheel settings icon
+  pencil.svg             # Pencil cursor/icon (two-layer: white fill + black outline)
+  eraser.svg             # Eraser cursor (two-layer, CC0)
+  camera.svg             # Camera/save icon (CC0)
   JetBrainsMono-Regular.ttf  # Bundled font for note labels
-  pencil.svg             # Pencil cursor source SVG (CC0)
-  eraser.svg             # Eraser cursor source SVG (CC0)
-  camera.svg             # Camera/save icon source SVG (CC0)
 
 packaging/               # PyInstaller build specs
   PianoMIDIViewer.spec         # Linux build spec
   PianoMIDIViewer-macos.spec   # macOS build spec
 
 translations/            # UI translations (JSON, one file per language)
-
-tests/                   # Test suite (pytest)
-
+tests/                   # Test suite (pytest, 67 tests)
 website/                 # Landing page (HTML/CSS/JS)
-  index.html               # Single page
-  style.css                # Styles (dark theme, Arch Blue hero)
-  script.js                # OS detection, Codeberg API download links
-  deploy.sh                # Deploys to Codeberg Pages (pages branch)
-
 screenshots/             # README screenshots
 .github/workflows/       # GitHub Actions CI (build.yml)
 ```
@@ -53,10 +53,9 @@ screenshots/             # README screenshots
 ```bash
 # Using the Python virtual environment
 source venv/bin/activate
-python piano_viewer.py
-
-# Or directly (has shebang)
-./piano_viewer.py
+python piano_viewer.py      # Thin launcher
+# or
+python -m piano_viewer      # Package entry point
 ```
 
 ## Dependencies
@@ -88,38 +87,47 @@ The project uses a Python virtual environment in `venv/`.
 
 ## Architecture
 
-### Component Structure
+### Module Structure
 
-The application follows a **single-file, class-based PyQt6 architecture** with four main components:
+The application is a Python package (`piano_viewer/`) with focused modules:
 
-1. **`PianoKeyboard` (QWidget)** - Custom widget that renders the piano keyboard
-   - Draws white and black keys using QPainter
+- **`__init__.py`** — Package root: VERSION, SETTINGS_VERSION, directory paths, logger, `_startup_errors`, `_SOUND_AVAILABLE`. Re-exports helper functions for backwards-compatible `from piano_viewer import X`.
+- **`constants.py`** — All sizing, colors, MIDI ranges, layout helpers. Mutable globals: `UI_SCALE_FACTOR`, `LOADED_FONT_FAMILY` (set in `__main__.py`, accessed via `constants.X`).
+- **`i18n.py`** — Translation system: `LANGUAGES`, `tr()`, `tr_for()`, `load_translations()`, `get_current_language()`.
+- **`helpers.py`** — Pure logic: config management, MIDI math, color blending, font sizing, button styling. No widget creation.
+- **`icons.py`** — Loads SVGs from `assets/` directory, renders to QPixmap/QIcon/QCursor via `_render_svg_to_pixmap()`.
+- **`synth.py`** — Optional wavetable synthesizer (`PianoSynthesizer`, `_Voice`). Conditional on `_SOUND_AVAILABLE`.
+- **`dialogs.py`** — `ErrorDialog` with copy-to-clipboard and optional settings reset.
+- **`settings.py`** — `SettingsDialog` (QDialog) and `UpdateChecker` (QThread).
+- **`keyboard.py`** — `PianoKeyboard` (QWidget): rendering, mouse interaction, note tracking.
+- **`main_window.py`** — `PianoMIDIViewer` (QMainWindow): MIDI, layout, app state, octave management.
+- **`__main__.py`** — Entry point: startup logging, font loading, UI scale, language, window creation.
+
+### Cross-module patterns
+
+- **Mutable globals**: `constants.UI_SCALE_FACTOR` and `constants.LOADED_FONT_FAMILY` are set once during startup. Other modules access them via `import piano_viewer.constants as constants; constants.X`.
+- **Circular import avoidance**: `keyboard.py` uses `isinstance(parent, QMainWindow)` instead of importing `PianoMIDIViewer`. `i18n.py` uses lazy import of `get_config_path` inside `load_language_setting()`.
+- **SVG assets**: Icons loaded from `assets/` files at runtime. Two-layer SVGs (white fill + black outline) enable color customization via string replacement.
+
+### Component Details
+
+1. **`PianoKeyboard`** (`keyboard.py`)
    - Note tracking: `active_notes` (dict: note -> velocity), `drawn_notes` (set), `active_notes_left/right` (sets for out-of-range)
    - Mouse interaction tracking (`mouse_held_note`, `glissando_mode`)
-   - Text rendering: `_draw_white_key_text()`, `_draw_black_key_text()`
    - Hit detection: `_get_note_at_position()`, `_find_closest_note_to_position()`
 
-2. **`PianoMIDIViewer` (QMainWindow)** - Main application window
-   - MIDI connection and polling via QTimer
-   - Keyboard note range control (start_note, end_note, +/- buttons)
+2. **`PianoMIDIViewer`** (`main_window.py`)
+   - Three-column layout: pencil/save/+/- (left) | piano (center) | settings/S/+/- (right)
    - State: `sustain_pedal_active`, `pencil_active`, `show_velocity`, display settings
-   - Three-column layout: pencil/+/- (left) | piano (center) | settings/S/+/- (right)
 
-3. **`SettingsDialog` (QDialog)** - Configuration interface
-   - MIDI device selection, highlight color, UI scale
-   - Note display options (octave numbers, key names, accidentals, velocity)
+3. **`SettingsDialog`** (`settings.py`)
    - Opened with `show()` (not `exec()`) so MIDI keeps working while open
-
-4. **Helper functions** - Pure logic, no GUI dependencies
-   - MIDI note utilities: `is_black_key()`, `count_white_keys()`, `get_note_name()`, etc.
-   - Text rendering: `get_text_color_for_highlight()`, `calculate_font_size_for_width/height()`
-   - Config: `get_config_path()`, `migrate_settings()`
 
 ### Key Architectural Concepts
 
 **Sizing System**: Everything derives from white key width. Constants define initial size, window size = key count x key dimensions. Ratio limits and absolute minimums always enforced.
 
-**MIDI Handling**: Polling-based (not callback). QTimer at 10ms. Handles Note On (0x90), Note Off (0x80), Control Change (0xB0 for CC 64 sustain). Out-of-range notes trigger +button glow.
+**MIDI Handling**: Polling-based (not callback). QTimer at 10ms. Handles Note On (0x90), Note Off (0x80), Control Change (0xB0 for CC 64 sustain). Out-of-range notes trigger +button glow. Auto-select: if no saved device and exactly one real (non-virtual) device available, connect automatically. Virtual ports (e.g. ALSA "Midi Through") are filtered via `_VIRTUAL_MIDI_PREFIXES` — only affects auto-select, never hides devices from Settings. Device scanning every 3 seconds handles hot-plug/unplug.
 
 **Velocity**: `active_notes` is a dict (note -> velocity 1-127). `blend_colors()` interpolates between base and highlight color. Factor range 0.3-1.0 (soft notes always visible at 30%).
 
@@ -144,7 +152,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 
 **Logging**: Python `logging` module. Logger named `piano-midi-viewer`, levels: info (startup, connections), warning (fallbacks), error (failures).
 
-**Icons**: All generated at runtime from embedded SVG strings (`PENCIL_SVG`, `ERASER_SVG`, etc.). `_render_svg_to_pixmap()` shared renderer. No external icon files needed at runtime.
+**Icons**: Loaded from SVG files in `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` injects size and renders to QPixmap. Two-layer SVGs (pencil, eraser) support fill/outline color replacement.
 
 **Text Rendering**: JetBrains Mono (embedded, fallback to system monospace). Font size scales with key width. Minimum 8pt (hidden if smaller). Dynamic contrast: black text on light, white on dark.
 
@@ -152,18 +160,7 @@ The application follows a **single-file, class-based PyQt6 architecture** with f
 
 ## Code Organization
 
-The file is organized in clearly marked sections with comment banners:
-
-```
-CONSTANTS         - Sizing, colors, MIDI ranges, window margins, cursor sizing/colors, loudness compensation
-APP ICONS         - SVG-based icons and cursors (piano, settings, pencil, eraser)
-HELPER FUNCTIONS  - MIDI note utilities (is_black_key, count_white_keys, etc.)
-BUILT-IN SOUND    - PianoSynthesizer, _Voice, _HARMONIC_PROFILES (optional, needs sounddevice)
-SETTINGS DIALOG   - Configuration UI (SettingsDialog class)
-PIANO KEYBOARD    - Custom rendering widget (PianoKeyboard class)
-MAIN WINDOW       - Application controller (PianoMIDIViewer class)
-ENTRY POINT       - main() function
-```
+Each module has a single responsibility (see Module Structure above). The `piano_viewer.py` file at the repo root is a thin launcher that delegates to `piano_viewer.__main__.main()`.
 
 ## Styling Conventions
 
@@ -197,32 +194,10 @@ ENTRY POINT       - main() function
 
 ## Future Features & Ideas
 
-### Accessibility (low priority)
-- **High contrast mode**: Thicker key borders, bolder outlines for low vision users and OBS at low resolutions
-- **Color blind safe presets**: Needs verification method before implementing
-
-### User-facing improvements (low priority)
-- ~~**Export drawn notes as image**: "Save as PNG" for teachers~~ Done in 8.6.0
-- **Live UI scaling**: Apply scale changes without restart
-
-### Website (v3 live)
-- Live at `skoomabwoy.codeberg.page/piano-midi-viewer/`
-- v3: unified download flow — platform tabs control download button + install instructions
-- Deploy: `./website/deploy.sh` (pushes to `pages` branch, requires clean working tree)
-- **Online lesson guide** (`guide.html`): WIP, local draft not yet published
-  - Two sections: (1) window sharing (Zoom, Meet, Discord, Telegram, Signal), (2) OBS Virtual Camera setup
-  - Link from main page between hero and features
-- Next: finish guide (screenshots needed), demo videos (embed infrastructure ready)
-- Interactive piano demo widgets (future)
-- Custom domain (future)
-- Strategy doc in memory file `website-strategy.md`
-
-### Distribution (low priority)
-- **Flatpak packaging**: Investigate for broader Linux desktop integration
-
-### Done
-- ~~**Test suite**: Unit tests for helper functions~~ Done in 8.5.3
-- ~~**Error reporting dialog**~~ Done in 8.6.0
+Tracked in Claude Code memory files:
+- **App todo** (`app-todo.md`): Pre-video polish, app improvements
+- **Website todo** (`website-todo.md`): Content strategy, demos, guide, FAQ, contact
+- **Website strategy** (`website-strategy.md`): Design philosophy, visual language, page structure
 
 ## Development Notes
 

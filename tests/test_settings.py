@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import piano_viewer
+import piano_viewer.helpers
 
 
 def _write_ini(path, sections):
@@ -31,7 +32,7 @@ def _read_ini(path):
 def settings_file(tmp_path, monkeypatch):
     """Provides a temporary settings.ini path and patches get_config_path()."""
     ini_path = tmp_path / "settings.ini"
-    monkeypatch.setattr(piano_viewer, "get_config_path", lambda: ini_path)
+    monkeypatch.setattr(piano_viewer.helpers, "get_config_path", lambda: ini_path)
     return ini_path
 
 

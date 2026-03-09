@@ -146,7 +146,7 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --name PianoMIDIViewer --icon=icon.ico --add-data "assets/JetBrainsMono-Regular.ttf;assets" --add-data "translations;translations" --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtPdfWidgets --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtWebEngineCore --exclude-module PyQt6.QtWebEngineWidgets --exclude-module PyQt6.QtQuick --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtDesigner --exclude-module PyQt6.QtMultimedia --exclude-module tkinter --exclude-module unittest piano_viewer.py
+          pyinstaller --onefile --windowed --name PianoMIDIViewer --icon=icon.ico --add-data "assets;assets" --add-data "translations;translations" --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtPdfWidgets --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtWebEngineCore --exclude-module PyQt6.QtWebEngineWidgets --exclude-module PyQt6.QtQuick --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtDesigner --exclude-module PyQt6.QtMultimedia --exclude-module tkinter --exclude-module unittest piano_viewer.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

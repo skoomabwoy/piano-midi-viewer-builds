@@ -148,6 +148,20 @@ a:hover {
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
 }
 
+/* ── Guide Link ── */
+.guide-link-section {
+    text-align: center;
+    padding: 1.5rem 2rem;
+    background: #f5f7fa;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+}
+
+.guide-link-section p {
+    font-size: 1.05rem;
+    color: #555;
+}
+
 /* ── Features ── */
 .features {
     padding: 0;
@@ -218,12 +232,35 @@ a:hover {
     background: #eef1f5;
     border: 2px dashed #ccd0d8;
     border-radius: 8px;
-    aspect-ratio: 16 / 5;
+    aspect-ratio: 16 / 9;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #999;
     font-size: 0.95rem;
+    text-align: center;
+    padding: 1rem;
+}
+
+/* Text-only feature (no media, centered) */
+.feature-text-only {
+    justify-content: center;
+    text-align: center;
+}
+
+.feature-text-centered {
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.feature-link {
+    margin-top: 1rem;
+}
+
+.feature-link a {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 1rem;
 }
 
 /* Platform tabs */
@@ -336,6 +373,296 @@ a:hover {
     color: #1793D1;
 }
 
+/* ── Guide Page ── */
+.back-link {
+    color: rgba(255, 255, 255, 0.85);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+
+.back-link:hover {
+    color: #ffffff;
+    text-decoration: none;
+}
+
+.guide-intro {
+    background: #ffffff;
+    padding: 3rem 2rem 1.5rem;
+    text-align: center;
+}
+
+.guide-intro h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    color: #1a1a1a;
+    margin-bottom: 1rem;
+}
+
+.guide-intro p {
+    font-size: 1.1rem;
+    color: #555;
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.7;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.guide-section {
+    background: #ffffff;
+    padding: 3rem 2rem;
+}
+
+.guide-section-alt {
+    background: #f5f7fa;
+}
+
+.guide-section h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    color: #1a1a1a;
+    margin-bottom: 0.3rem;
+}
+
+.section-subtitle {
+    font-size: 1.05rem;
+    color: #888;
+    margin-bottom: 2rem;
+}
+
+/* Guide explainer (intro block with text + image) */
+.guide-explainer {
+    display: flex;
+    align-items: flex-start;
+    gap: 2.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.guide-explainer-text {
+    flex: 1;
+}
+
+.guide-explainer-text p {
+    font-size: 1.05rem;
+    color: #555;
+    line-height: 1.7;
+    margin-bottom: 0.8rem;
+}
+
+.guide-explainer-text ol,
+.guide-explainer-text ul {
+    padding-left: 1.5rem;
+    margin-bottom: 0.8rem;
+}
+
+.guide-explainer-text li {
+    margin-bottom: 0.5rem;
+    color: #555;
+    line-height: 1.7;
+}
+
+.guide-explainer-img {
+    flex: 0 0 40%;
+}
+
+.guide-explainer-img img {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+}
+
+.guide-disclaimer {
+    font-size: 0.95rem;
+    color: #888;
+    font-style: italic;
+    margin-bottom: 1.2rem;
+}
+
+/* App cards (expandable per-app instructions) */
+.app-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.app-card {
+    border: 1.5px solid #dde0e4;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+
+.app-card[open] {
+    border-color: #1793D1;
+}
+
+.app-card summary {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.9rem 1.2rem;
+    cursor: pointer;
+    font-size: 1rem;
+    list-style: none;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+.app-card summary::-webkit-details-marker {
+    display: none;
+}
+
+.app-card summary::before {
+    content: '▸';
+    font-size: 0.85rem;
+    color: #999;
+    transition: transform 0.15s;
+}
+
+.app-card[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.app-card summary:hover {
+    background: #f8f9fb;
+}
+
+.app-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: #2a2a2a;
+}
+
+.app-badge {
+    font-size: 0.8rem;
+    color: #2ea043;
+    background: #e6f9ec;
+    padding: 0.15rem 0.6rem;
+    border-radius: 4px;
+    margin-left: auto;
+}
+
+.badge-limited {
+    color: #b08800;
+    background: #fef6e0;
+}
+
+.app-steps {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+    padding: 0 1.2rem 1.2rem;
+}
+
+.app-steps-text {
+    flex: 1;
+}
+
+.app-steps-text ol {
+    padding-left: 1.5rem;
+    margin-bottom: 0.8rem;
+}
+
+.app-steps-text li {
+    margin-bottom: 0.5rem;
+    color: #444;
+    line-height: 1.7;
+}
+
+.app-steps-img {
+    flex: 0 0 35%;
+}
+
+.app-steps-img img {
+    width: 100%;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Guide steps (numbered OBS steps) */
+.guide-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 2.5rem;
+    margin-bottom: 2.5rem;
+}
+
+.guide-step-text {
+    flex: 1;
+}
+
+.guide-step-text h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.15rem;
+    color: #1a1a1a;
+    margin-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    background: #1793D1;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.guide-step-text p {
+    font-size: 1.05rem;
+    color: #555;
+    line-height: 1.7;
+    margin-bottom: 0.6rem;
+}
+
+.guide-step-text ul {
+    padding-left: 1.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.guide-step-text li {
+    margin-bottom: 0.4rem;
+    color: #555;
+    line-height: 1.7;
+}
+
+.guide-step-img {
+    flex: 0 0 35%;
+}
+
+.guide-step-img img {
+    width: 100%;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Guide tip box */
+.guide-tip {
+    background: #e8f4fd;
+    border-left: 4px solid #1793D1;
+    padding: 1rem 1.2rem;
+    border-radius: 0 6px 6px 0;
+    margin-top: 1rem;
+}
+
+.guide-tip p {
+    font-size: 0.95rem;
+    color: #2a2a2a;
+    line-height: 1.7;
+    margin: 0;
+}
+
 /* ── Footer ── */
 footer {
     text-align: center;
@@ -390,6 +717,38 @@ footer a:hover {
     }
 
     .hero-screenshot {
+        width: 100%;
+    }
+
+    /* Guide responsive */
+    .guide-intro h2 {
+        font-size: 1.4rem;
+    }
+
+    .guide-explainer {
+        flex-direction: column;
+    }
+
+    .guide-explainer-img {
+        flex: none;
+        width: 100%;
+    }
+
+    .guide-step {
+        flex-direction: column;
+    }
+
+    .guide-step-img {
+        flex: none;
+        width: 100%;
+    }
+
+    .app-steps {
+        flex-direction: column;
+    }
+
+    .app-steps-img {
+        flex: none;
         width: 100%;
     }
 }
