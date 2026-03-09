@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and content creators.
 
-![Version](https://img.shields.io/badge/version-9.1.0-blue)
+![Version](https://img.shields.io/badge/version-9.1.1-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -15,7 +15,8 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 - 👇 **Show on press** — only show labels on keys that you are currently pressing
 - 🎨 **Custom colors** — pick any highlight color; text adjusts automatically so it's always easy to read
 - 🎶 **Velocity sensitivity** — optionally show how hard you press each key (brighter = harder); off by default
-- 🎵 **Sustain indicator** — the S button lights up when your MIDI sustain pedal is held
+- 🎵 **Sustain indicator** — the pedal icon lights up when your MIDI sustain pedal is held
+- 🔌 **Auto-detect** — if you have one MIDI device, the app connects to it automatically; virtual ports are ignored
 - 📷 **Save as image** — click the camera button to save the keyboard as a PNG; right-click to quick save to your Pictures folder
 - 🌍 **7 languages** — English, Deutsch, Español, Français, Polski, Português, Русский, Українська — switch in Settings
 - 🔊 **Built-in sound** — optional test tones so you can hear what you press; off by default, enable in Settings
@@ -103,7 +104,7 @@ python piano_viewer.py
 
 | | |
 |-|-|
-| Architecture | Single file (`piano_viewer.py`, ~3000 lines) |
+| Architecture | `piano_viewer/` package (11 focused modules) |
 | Framework | PyQt6, python-rtmidi |
 | Font | JetBrains Mono (embedded) |
 | MIDI range | A0–C8 (notes 21–108) |
@@ -113,6 +114,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**9.1.1** — Phosphor icons for all buttons, MIDI auto-select, package refactor
 **9.1.0** — Built-in sound: optional test tones with sustain pedal support, velocity sensitivity, and redesigned app icon
 **9.0.0** — 7 languages: Deutsch, Español, Français, Polski, Português, Русский, Українська — select in Settings, app restarts in the new language
 **8.6.3** — Font fix for all platforms, macOS button styling, AppImage restart and portability fixes, CI smoke test

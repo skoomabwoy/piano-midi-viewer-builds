@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Package architecture**: The application is split into the `piano_viewer/` Python package with focused modules.
 
-**Current Version: 9.1.0**
+**Current Version: 9.1.1**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -22,7 +22,7 @@ piano_viewer/            # Application package
   constants.py           # Sizing, colors, MIDI ranges, layout helpers, mutable globals
   i18n.py                # Translation system (tr(), load_translations(), LANGUAGES)
   helpers.py             # Config management, MIDI math, colors, fonts, button styles
-  icons.py               # SVG loading from assets/, icon/cursor creation
+  icons.py               # SVG loading from assets/, icon creation (Phosphor Bold set)
   synth.py               # Wavetable synthesizer (PianoSynthesizer, _Voice)
   dialogs.py             # ErrorDialog
   settings.py            # SettingsDialog, UpdateChecker
@@ -31,10 +31,14 @@ piano_viewer/            # Application package
 
 assets/                  # SVG icons and font (loaded at runtime by icons.py)
   icon.svg               # App icon (used by CI for .ico/.icns generation)
-  settings.svg           # Cogwheel settings icon
-  pencil.svg             # Pencil cursor/icon (two-layer: white fill + black outline)
-  eraser.svg             # Eraser cursor (two-layer, CC0)
-  camera.svg             # Camera/save icon (CC0)
+  pencil.svg             # Pencil icon (Phosphor Bold)
+  eraser.svg             # Eraser icon (Phosphor Bold)
+  camera.svg             # Camera/save icon (Phosphor Bold)
+  settings.svg           # Cogwheel/gear icon (Phosphor Bold)
+  plus.svg               # Plus icon for octave buttons (Phosphor Bold)
+  minus.svg              # Minus icon for octave buttons (Phosphor Bold)
+  refresh.svg            # Refresh icon for MIDI device list (Phosphor Bold)
+  pedal.svg              # Sustain pedal icon (custom, stroke-based)
   JetBrainsMono-Regular.ttf  # Bundled font for note labels
 
 packaging/               # PyInstaller build specs
@@ -95,7 +99,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 - **`constants.py`** — All sizing, colors, MIDI ranges, layout helpers. Mutable globals: `UI_SCALE_FACTOR`, `LOADED_FONT_FAMILY` (set in `__main__.py`, accessed via `constants.X`).
 - **`i18n.py`** — Translation system: `LANGUAGES`, `tr()`, `tr_for()`, `load_translations()`, `get_current_language()`.
 - **`helpers.py`** — Pure logic: config management, MIDI math, color blending, font sizing, button styling. No widget creation.
-- **`icons.py`** — Loads SVGs from `assets/` directory, renders to QPixmap/QIcon/QCursor via `_render_svg_to_pixmap()`.
+- **`icons.py`** — Loads Phosphor Bold SVGs from `assets/` directory, renders to QPixmap/QIcon via `_render_svg_to_pixmap()`. Color customization via string replacement.
 - **`synth.py`** — Optional wavetable synthesizer (`PianoSynthesizer`, `_Voice`). Conditional on `_SOUND_AVAILABLE`.
 - **`dialogs.py`** — `ErrorDialog` with copy-to-clipboard and optional settings reset.
 - **`settings.py`** — `SettingsDialog` (QDialog) and `UpdateChecker` (QThread).
@@ -107,7 +111,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 - **Mutable globals**: `constants.UI_SCALE_FACTOR` and `constants.LOADED_FONT_FAMILY` are set once during startup. Other modules access them via `import piano_viewer.constants as constants; constants.X`.
 - **Circular import avoidance**: `keyboard.py` uses `isinstance(parent, QMainWindow)` instead of importing `PianoMIDIViewer`. `i18n.py` uses lazy import of `get_config_path` inside `load_language_setting()`.
-- **SVG assets**: Icons loaded from `assets/` files at runtime. Two-layer SVGs (white fill + black outline) enable color customization via string replacement.
+- **SVG assets**: Phosphor Bold icons loaded from `assets/` at runtime. Color customization via `#000000` string replacement. Custom cursors are temporarily disabled (placeholder Qt cursor).
 
 ### Component Details
 
@@ -133,7 +137,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Pencil Tool**: Independent drawing mode. Left click/drag draws to `drawn_notes` set, right click/drag erases. MIDI Note On toggles drawn_notes, Note Off ignored. Exiting clears all marks.
 
-**Sustain Indicator**: S button is read-only — lights up when CC 64 >= 64, does not affect note highlighting. When built-in sound is enabled, the sustain pedal keeps synth voices sounding until released.
+**Sustain Indicator**: Pedal icon button is read-only — lights up when CC 64 >= 64, does not affect note highlighting. Icon color swaps to contrast with highlight background. When built-in sound is enabled, the sustain pedal keeps synth voices sounding until released.
 
 **Built-in Sound**: Optional wavetable synthesizer using `sounddevice` (hidden if not installed). Off by default, toggled via Settings checkbox. Key design:
 - `PianoSynthesizer` class with wavetable-based additive synthesis
@@ -152,7 +156,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Logging**: Python `logging` module. Logger named `piano-midi-viewer`, levels: info (startup, connections), warning (fallbacks), error (failures).
 
-**Icons**: Loaded from SVG files in `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` injects size and renders to QPixmap. Two-layer SVGs (pencil, eraser) support fill/outline color replacement.
+**Icons**: Phosphor Bold SVG set loaded from `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement. Pedal icon is custom (stroke-based). Custom SVG cursors temporarily removed — pencil/eraser tools use `Qt.CursorShape.CrossCursor` as placeholder.
 
 **Text Rendering**: JetBrains Mono (embedded, fallback to system monospace). Font size scales with key width. Minimum 8pt (hidden if smaller). Dynamic contrast: black text on light, white on dark.
 
@@ -166,8 +170,7 @@ Each module has a single responsibility (see Module Structure above). The `piano
 
 - **Arch Blue** default highlight: `#5094d4` (QColor(80, 148, 212))
 - **Button size**: Fixed 36px (BUTTON_SIZE constant)
-- **Button icons**: Font size 90% of button size; pencil uses SVG at 70%
-- **Cursor colors**: outline `#707070`, fill `#ffffff`
+- **Button icons**: All SVG (Phosphor Bold), displayed at 70% of button size via `setIconSize()`
 - **Layout margins**: 5px (LAYOUT_MARGIN), don't scale with window
 - **Key corner radius**: 8% of key width, 4px minimum
 - **Canvas**: Grey background (120, 120, 120), 4px margin, 6px rounded corners

@@ -2,6 +2,19 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.1.1
+- **Phosphor icons**: All buttons now use the Phosphor Bold icon set — pencil, eraser, camera, settings (gear), plus, minus, sustain pedal, and refresh. Consistent visual style across the entire UI
+- **Sustain pedal icon**: Replaced the "S" letter with a custom piano pedal icon — language-independent, immediately recognizable
+- **Plus/minus SVG icons**: Octave buttons use SVG icons instead of text glyphs for better alignment
+- **Refresh SVG icon**: MIDI device refresh in Settings uses SVG icon instead of emoji
+- **MIDI auto-select**: Automatically connects when exactly one real MIDI device is available; virtual ports (e.g. ALSA "Midi Through") are filtered out
+- **MIDI hot-plug filter**: New devices go through virtual port filter; previously used devices reconnect regardless
+- **Package refactor**: Split monolithic `piano_viewer.py` (~3600 lines) into `piano_viewer/` package with 11 focused modules
+- **Code review fixes**: Fixed modal Settings blocking MIDI, broadened sounddevice exception handling, thread safety fix in synth sustain, removed dead code
+- **Website v4 draft**: 8 feature sections with placeholder animations, guide page draft
+- **CI update**: Spec files and workflow updated to bundle full `assets/` directory
+- **Custom cursors removed**: SVG cursor system temporarily removed (will be redesigned); pencil tool uses standard Qt cursor as placeholder
+
 ## 9.1.0
 - **Built-in sound**: Optional test tones via wavetable synthesis — enable in Settings. Off by default. Supports sustain pedal, velocity sensitivity, and polyphony (up to 12 voices). Requires `sounddevice` (checkbox hidden if not installed)
 - **Redesigned app icon**: Gradient background with ivory keys, proper macOS sizing
