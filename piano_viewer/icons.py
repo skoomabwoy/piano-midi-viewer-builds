@@ -1,19 +1,21 @@
 """Icon and cursor creation — loads SVGs from assets/ and renders them.
 
 All icons are loaded from SVG files in the assets/ directory at runtime.
+They use the Phosphor icon set (Bold weight, 256x256 viewBox, single fill).
 Color customization is done via string replacement on the SVG source before
 rendering to a QPixmap.
+
+The pedal icon is custom (stroke-based, not from Phosphor).
 """
 
 import os
+import re
 
-from PyQt6.QtGui import QPixmap, QIcon, QCursor
+from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt
 
 from piano_viewer import ASSETS_DIR
-from piano_viewer.constants import (
-    scaled, CURSOR_SIZE, CURSOR_OUTLINE_COLOR, CURSOR_FILL_COLOR, BUTTON_SIZE,
-)
+from piano_viewer.constants import scaled, BUTTON_SIZE
 
 
 def _load_svg(filename):
@@ -26,10 +28,13 @@ def _load_svg(filename):
 def _render_svg_to_pixmap(svg_data, size):
     """Renders an SVG string to a QPixmap at the given pixel size.
 
-    Injects width/height attributes into the SVG so Qt renders it at the
-    exact size we want, regardless of the SVG's original viewBox dimensions.
+    Replaces or injects width/height attributes so Qt renders at the exact
+    size we want. Handles SVGs both with and without existing dimensions.
     """
-    svg = svg_data.replace('viewBox=', f'width="{size}" height="{size}" viewBox=')
+    # Strip any existing width/height so we can set our own
+    svg = re.sub(r'\bwidth="[^"]*"', '', svg_data, count=1)
+    svg = re.sub(r'\bheight="[^"]*"', '', svg, count=1)
+    svg = svg.replace('viewBox=', f'width="{size}" height="{size}" viewBox=')
     pixmap = QPixmap()
     pixmap.loadFromData(svg.encode())
     return pixmap
@@ -46,52 +51,52 @@ def create_piano_icon():
     return QIcon(pixmap)
 
 
-def create_settings_icon(size=64, color="#000000"):
+def _create_icon(filename, size=None, color="#000000"):
+    """Creates a QIcon from an SVG file with the given color.
+
+    Generic helper — most icon functions delegate here.
+    """
+    if size is None:
+        size = scaled(BUTTON_SIZE)
+    svg_data = _load_svg(filename)
+    svg = svg_data.replace('#000000', color)
+    return QIcon(_render_svg_to_pixmap(svg, size))
+
+
+def create_settings_icon(size=None, color="#000000"):
     """Creates a cogwheel/gear settings icon as a QIcon."""
-    svg_data = _load_svg('settings.svg')
-    svg_data = svg_data.replace('#000000', color)
-    return QIcon(_render_svg_to_pixmap(svg_data, size))
-
-
-def create_pencil_cursor():
-    """Creates a pencil cursor with hotspot at the pencil tip (bottom-left).
-
-    Hotspot coordinates are fractions of cursor size, derived from the SVG layout:
-    the pencil tip sits at ~0% from left edge and ~90% from top edge.
-    """
-    size = max(16, scaled(CURSOR_SIZE))
-    svg_data = _load_svg('pencil.svg')
-    svg = svg_data.replace('#ffffff', CURSOR_FILL_COLOR).replace('#000000', CURSOR_OUTLINE_COLOR)
-    pixmap = _render_svg_to_pixmap(svg, size)
-    return QCursor(pixmap, max(0, int(size * 0.004)), int(size * 0.90))
-
-
-def create_eraser_cursor():
-    """Creates an eraser cursor with hotspot at bottom-left erasing edge.
-
-    Hotspot coordinates are fractions of cursor size, derived from the SVG layout:
-    the eraser's working edge sits at ~9% from left and ~94% from top.
-    """
-    size = max(16, scaled(CURSOR_SIZE))
-    svg_data = _load_svg('eraser.svg')
-    svg = svg_data.replace('#ffffff', CURSOR_FILL_COLOR).replace('#000000', CURSOR_OUTLINE_COLOR)
-    pixmap = _render_svg_to_pixmap(svg, size)
-    return QCursor(pixmap, max(0, int(size * 0.09)), int(size * 0.94))
+    return _create_icon('settings.svg', size, color)
 
 
 def create_pencil_icon(size=None, color="#000000"):
-    """Creates a pencil QIcon — transparent interior, colored outline."""
-    if size is None:
-        size = scaled(BUTTON_SIZE)
-    svg_data = _load_svg('pencil.svg')
-    svg = svg_data.replace('fill="#ffffff"', 'fill="none"').replace('#000000', color)
-    return QIcon(_render_svg_to_pixmap(svg, size))
+    """Creates a pencil QIcon for the drawing tool button."""
+    return _create_icon('pencil.svg', size, color)
 
 
 def create_save_icon(size=None, color="#000000"):
     """Creates a camera/save QIcon for the 'Save as PNG' button."""
-    if size is None:
-        size = scaled(BUTTON_SIZE)
-    svg_data = _load_svg('camera.svg')
-    svg = svg_data.replace('#000000', color)
-    return QIcon(_render_svg_to_pixmap(svg, size))
+    return _create_icon('camera.svg', size, color)
+
+
+def create_plus_icon(size=None, color="#000000"):
+    """Creates a plus QIcon for the 'add octave' buttons."""
+    return _create_icon('plus.svg', size, color)
+
+
+def create_minus_icon(size=None, color="#000000"):
+    """Creates a minus QIcon for the 'remove octave' buttons."""
+    return _create_icon('minus.svg', size, color)
+
+
+def create_refresh_icon(size=None, color="#000000"):
+    """Creates a refresh/reload QIcon for the MIDI device refresh button."""
+    return _create_icon('refresh.svg', size, color)
+
+
+def create_pedal_icon(size=None, color="#000000"):
+    """Creates a sustain pedal QIcon.
+
+    Unlike Phosphor icons (which use fill), the pedal is stroke-based.
+    The same #000000 replacement works because it targets the stroke color.
+    """
+    return _create_icon('pedal.svg', size, color)

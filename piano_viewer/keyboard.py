@@ -26,7 +26,6 @@ from piano_viewer.helpers import (
     get_text_color_for_highlight, blend_colors,
     calculate_font_size_for_width, calculate_font_size_for_height,
 )
-from piano_viewer.icons import create_pencil_cursor, create_eraser_cursor
 
 
 class PianoKeyboard(QWidget):
@@ -487,7 +486,7 @@ class PianoKeyboard(QWidget):
                 elif event.button() == Qt.MouseButton.RightButton:
                     self.glissando_mode = 'off'
                     self.drawn_notes.discard(note)
-                    self.setCursor(create_eraser_cursor())
+                    self.setCursor(Qt.CursorShape.CrossCursor)
                 else:
                     return
                 self._drag_button = event.button()
@@ -535,7 +534,7 @@ class PianoKeyboard(QWidget):
                     return
                 self._drag_button = None
                 if self.glissando_mode == 'off':
-                    self.setCursor(create_pencil_cursor())
+                    self.setCursor(Qt.CursorShape.CrossCursor)
             else:
                 if self.mouse_held_note in self.active_notes:
                     self.active_notes.pop(self.mouse_held_note, None)

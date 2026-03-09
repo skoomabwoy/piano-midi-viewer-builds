@@ -27,6 +27,7 @@ import piano_viewer.constants as constants
 import piano_viewer.i18n as i18n
 from piano_viewer.i18n import tr, tr_for, LANGUAGES
 from piano_viewer.helpers import make_button_style
+from piano_viewer.icons import create_refresh_icon
 
 
 class UpdateChecker(QThread):
@@ -115,8 +116,11 @@ class SettingsDialog(QDialog):
         self.populate_midi_devices()
         self.midi_dropdown.currentIndexChanged.connect(self.midi_device_changed)
 
-        refresh_btn = QPushButton("🔄")
+        refresh_btn = QPushButton()
         refresh_btn.setToolTip(tr("Refresh MIDI device list"))
+        refresh_btn.setIcon(create_refresh_icon())
+        refresh_btn.setFixedSize(30, 30)
+        refresh_btn.setIconSize(refresh_btn.size() * 0.7)
         refresh_btn.clicked.connect(self.refresh_midi_devices)
 
         midi_layout.addWidget(self.midi_dropdown, 1)

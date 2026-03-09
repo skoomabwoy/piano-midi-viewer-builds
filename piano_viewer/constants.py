@@ -46,11 +46,6 @@ KEY_CORNER_RADIUS_MIN = 4
 KEYBOARD_CANVAS_MARGIN = 4
 KEYBOARD_CANVAS_RADIUS = 6
 
-# --- Custom cursor sizing and colors (pencil/eraser tool) ---
-CURSOR_SIZE = 24
-CURSOR_OUTLINE_COLOR = '#010101'
-CURSOR_FILL_COLOR = '#ffffff'
-
 # --- UI scale ---
 # Set in main() from saved settings before the window is created.
 # Mutable: other modules should access via `constants.UI_SCALE_FACTOR`,
@@ -65,7 +60,6 @@ def scaled(px):
 
 # --- Button sizing (base values before scaling) ---
 BUTTON_SIZE = 36
-ICON_SIZE_RATIO = 0.9
 BUTTON_AREA_WIDTH = 50
 BUTTON_SPACING = 5
 

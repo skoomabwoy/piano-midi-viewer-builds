@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
     QLabel, QFileDialog, QApplication,
 )
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QTimer, QByteArray
 
 from piano_viewer import (
@@ -24,7 +24,7 @@ from piano_viewer.constants import (
     INITIAL_KEY_WIDTH, INITIAL_KEY_HEIGHT,
     PRACTICAL_MIN_KEY_WIDTH, MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO,
     KEYBOARD_CANVAS_MARGIN, WINDOW_VERTICAL_MARGIN,
-    LAYOUT_MARGIN, BUTTON_SIZE, ICON_SIZE_RATIO, BUTTON_AREA_WIDTH,
+    LAYOUT_MARGIN, BUTTON_SIZE, BUTTON_AREA_WIDTH,
     BUTTON_SPACING, MIDI_POLL_INTERVAL, MIDI_SCAN_INTERVAL,
     STATUS_MESSAGE_DURATION,
 )
@@ -34,8 +34,8 @@ from piano_viewer.helpers import (
     count_white_keys, get_text_color_for_highlight, make_button_style,
 )
 from piano_viewer.icons import (
-    create_settings_icon, create_pencil_icon,
-    create_pencil_cursor, create_save_icon,
+    create_settings_icon, create_pencil_icon, create_save_icon,
+    create_plus_icon, create_minus_icon, create_pedal_icon,
 )
 from piano_viewer.synth import PianoSynthesizer
 from piano_viewer.dialogs import ErrorDialog
@@ -138,10 +138,6 @@ class PianoMIDIViewer(QMainWindow):
         button_style = make_button_style()
         btn_sz = scaled(BUTTON_SIZE)
 
-        button_font_family = constants.LOADED_FONT_FAMILY or "monospace"
-        button_font = QFont(button_font_family)
-        button_font.setPixelSize(int(btn_sz * ICON_SIZE_RATIO))
-
         # LEFT SIDE (pencil button + save + octave controls)
         left_container = QWidget()
         left_container.setFixedWidth(scaled(BUTTON_AREA_WIDTH))
@@ -172,18 +168,19 @@ class PianoMIDIViewer(QMainWindow):
 
         left_layout.addStretch()
 
-        self.left_plus_btn = QPushButton("+")
+        self.left_plus_btn = QPushButton()
         self.left_plus_btn.setToolTip(tr("Add octave on the left (lower notes)"))
         self.left_plus_btn.setFixedSize(btn_sz, btn_sz)
-        self.left_plus_btn.setFont(button_font)
+        self.left_plus_btn.setIcon(create_plus_icon())
+        self.left_plus_btn.setIconSize(self.left_plus_btn.size() * 0.7)
         self.left_plus_btn.setStyleSheet(button_style)
         self.left_plus_btn.clicked.connect(self.add_octave_left)
 
-        # Using the proper minus sign (not hyphen) — centers better in JetBrains Mono
-        self.left_minus_btn = QPushButton("\u2212")
+        self.left_minus_btn = QPushButton()
         self.left_minus_btn.setToolTip(tr("Remove octave on the left (lower notes)"))
         self.left_minus_btn.setFixedSize(btn_sz, btn_sz)
-        self.left_minus_btn.setFont(button_font)
+        self.left_minus_btn.setIcon(create_minus_icon())
+        self.left_minus_btn.setIconSize(self.left_minus_btn.size() * 0.7)
         self.left_minus_btn.setStyleSheet(button_style)
         self.left_minus_btn.clicked.connect(self.remove_octave_left)
 
@@ -209,27 +206,30 @@ class PianoMIDIViewer(QMainWindow):
         self.settings_button.setStyleSheet(button_style)
         self.settings_button.clicked.connect(self.open_settings)
 
-        self.sustain_button = QPushButton("S")
+        self.sustain_button = QPushButton()
         self.sustain_button.setToolTip(tr("Sustain pedal indicator — lights up when your sustain pedal is held"))
         self.sustain_button.setFixedSize(btn_sz, btn_sz)
-        self.sustain_button.setFont(button_font)
+        self.sustain_button.setIcon(create_pedal_icon())
+        self.sustain_button.setIconSize(self.sustain_button.size() * 0.7)
         self.sustain_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         right_layout.addWidget(self.settings_button, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.sustain_button, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addStretch()
 
-        self.right_plus_btn = QPushButton("+")
+        self.right_plus_btn = QPushButton()
         self.right_plus_btn.setToolTip(tr("Add octave on the right (higher notes)"))
         self.right_plus_btn.setFixedSize(btn_sz, btn_sz)
-        self.right_plus_btn.setFont(button_font)
+        self.right_plus_btn.setIcon(create_plus_icon())
+        self.right_plus_btn.setIconSize(self.right_plus_btn.size() * 0.7)
         self.right_plus_btn.setStyleSheet(button_style)
         self.right_plus_btn.clicked.connect(self.add_octave_right)
 
-        self.right_minus_btn = QPushButton("\u2212")
+        self.right_minus_btn = QPushButton()
         self.right_minus_btn.setToolTip(tr("Remove octave on the right (higher notes)"))
         self.right_minus_btn.setFixedSize(btn_sz, btn_sz)
-        self.right_minus_btn.setFont(button_font)
+        self.right_minus_btn.setIcon(create_minus_icon())
+        self.right_minus_btn.setIconSize(self.right_minus_btn.size() * 0.7)
         self.right_minus_btn.setStyleSheet(button_style)
         self.right_minus_btn.clicked.connect(self.remove_octave_right)
 
@@ -431,7 +431,7 @@ class PianoMIDIViewer(QMainWindow):
             if self.piano.glow_right_plus:
                 self.piano.glow_right_plus = False
                 self.apply_button_glow(self.right_plus_btn, False)
-            self.piano.setCursor(create_pencil_cursor())
+            self.piano.setCursor(Qt.CursorShape.CrossCursor)
 
         self.update_pencil_button_visual()
         self.piano.update()
@@ -479,18 +479,26 @@ class PianoMIDIViewer(QMainWindow):
         """Updates the sustain button appearance based on the MIDI sustain pedal state."""
         if self.sustain_pedal_active:
             bg_color = self.piano.highlight_color.name()
-            text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
-            self.sustain_button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=text_color, interactive=False))
+            icon_color = get_text_color_for_highlight(self.piano.highlight_color).name()
+            self.sustain_button.setIcon(create_pedal_icon(color=icon_color))
+            self.sustain_button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=icon_color, interactive=False))
         else:
+            self.sustain_button.setIcon(create_pedal_icon())
             self.sustain_button.setStyleSheet(make_button_style(interactive=False))
 
     def apply_button_glow(self, button, glow):
-        """Applies or removes a highlight glow on a + button."""
+        """Applies or removes a highlight glow on a + button.
+
+        Updates both the stylesheet (background) and the SVG icon color
+        so the icon stays visible against the highlighted background.
+        """
         if glow:
             bg_color = self.piano.highlight_color.name()
-            text_color = get_text_color_for_highlight(self.piano.highlight_color).name()
-            button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=text_color, interactive=False))
+            icon_color = get_text_color_for_highlight(self.piano.highlight_color).name()
+            button.setIcon(create_plus_icon(color=icon_color))
+            button.setStyleSheet(make_button_style(bg_color=bg_color, text_color=icon_color, interactive=False))
         else:
+            button.setIcon(create_plus_icon())
             button.setStyleSheet(make_button_style())
 
     def get_current_key_dimensions(self):
