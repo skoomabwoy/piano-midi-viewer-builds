@@ -21,7 +21,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 rtmidi_datas, rtmidi_binaries, rtmidi_hiddenimports = collect_all('rtmidi')
 
 # sounddevice is a single .py file (not a package), so collect_all() skips it.
-# We need: sounddevice.py, _sounddevice.py (CFFI binding), and libportaudio.
+# We need: sounddevice.py and _sounddevice.py (CFFI binding).
+# libportaudio must NOT be bundled — it needs the host's PipeWire/PulseAudio stack.
 sd_hiddenimports = ['sounddevice', '_sounddevice']
 
 # PyInstaller treats some libraries as "system" and skips them, but they may be
@@ -29,7 +30,6 @@ sd_hiddenimports = ['sounddevice', '_sounddevice']
 extra_libs = [
     '/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0',   # Qt 6.5+ xcb plugin
     '/usr/lib/x86_64-linux-gnu/libEGL.so.1',           # PyQt6 import-time dep
-    '/usr/lib/x86_64-linux-gnu/libportaudio.so.2',     # sounddevice audio backend
 ]
 extra_binaries = [(p, '.') for p in extra_libs if os.path.exists(p)]
 
@@ -122,6 +122,11 @@ def filter_binaries(binaries):
         'libavutil',     # FFmpeg util
         'libswresample', # FFmpeg audio
         'libswscale',    # FFmpeg video scaling
+        # Audio backend — must use host libs for PipeWire/PulseAudio compatibility.
+        # Bundling the CI's Ubuntu 22.04 versions breaks audio on modern desktops.
+        'libportaudio',
+        'libasound.so',
+        'libjack',
     ]
 
     filtered = []
