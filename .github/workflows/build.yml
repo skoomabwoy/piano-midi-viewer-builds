@@ -55,7 +55,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev librsvg2-bin libxcb-cursor0 libegl1 libportaudio2
+          sudo apt-get install -y libasound2-dev imagemagick libxcb-cursor0 libegl1 libportaudio2
 
       - name: Install Python dependencies
         run: |
@@ -67,7 +67,7 @@ jobs:
         run: pyinstaller packaging/PianoMIDIViewer.spec
 
       - name: Generate icon
-        run: rsvg-convert -w 256 -h 256 assets/icon.svg -o piano-midi-viewer.png
+        run: magick assets/icon.png -resize 256x256 piano-midi-viewer.png
 
       - name: Create AppDir
         run: |
@@ -116,6 +116,7 @@ jobs:
           echo "=== Checking bundled libraries ==="
           test -f squashfs-root/usr/bin/_internal/libxcb-cursor.so.0 && echo "OK: libxcb-cursor.so.0" || echo "MISSING: libxcb-cursor.so.0"
           test -f squashfs-root/usr/bin/_internal/assets/JetBrainsMono-Regular.ttf && echo "OK: JetBrainsMono-Regular.ttf" || echo "MISSING: JetBrainsMono-Regular.ttf"
+          ls squashfs-root/usr/bin/_internal/_sounddevice_data/portaudio-binaries/libportaudio.so* 2>/dev/null && echo "OK: libportaudio (sounddevice)" || ls squashfs-root/usr/bin/_internal/libportaudio.so* 2>/dev/null && echo "OK: libportaudio (system)" || echo "MISSING: libportaudio"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -142,7 +143,7 @@ jobs:
           pip install pyinstaller
 
       - name: Generate icon
-        run: magick assets/icon.svg -define icon:auto-resize=256,128,64,48,32,16 icon.ico
+        run: magick assets/icon.png -define icon:auto-resize=256,128,64,48,32,16 icon.ico
 
       - name: Build with PyInstaller
         run: |
@@ -182,12 +183,11 @@ jobs:
 
       - name: Generate icon
         run: |
-          brew install librsvg
           mkdir icon.iconset
           for size in 16 32 128 256 512; do
             retina=$((size * 2))
-            rsvg-convert -w $size -h $size assets/icon.svg -o icon.iconset/icon_${size}x${size}.png
-            rsvg-convert -w $retina -h $retina assets/icon.svg -o icon.iconset/icon_${size}x${size}@2x.png
+            sips -z $size $size assets/icon.png --out icon.iconset/icon_${size}x${size}.png
+            sips -z $retina $retina assets/icon.png --out icon.iconset/icon_${size}x${size}@2x.png
           done
           iconutil -c icns icon.iconset -o icon.icns
 
@@ -231,12 +231,11 @@ jobs:
 
       - name: Generate icon
         run: |
-          brew install librsvg
           mkdir icon.iconset
           for size in 16 32 128 256 512; do
             retina=$((size * 2))
-            rsvg-convert -w $size -h $size assets/icon.svg -o icon.iconset/icon_${size}x${size}.png
-            rsvg-convert -w $retina -h $retina assets/icon.svg -o icon.iconset/icon_${size}x${size}@2x.png
+            sips -z $size $size assets/icon.png --out icon.iconset/icon_${size}x${size}.png
+            sips -z $retina $retina assets/icon.png --out icon.iconset/icon_${size}x${size}@2x.png
           done
           iconutil -c icns icon.iconset -o icon.icns
 

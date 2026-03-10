@@ -43,11 +43,9 @@ def _render_svg_to_pixmap(svg_data, size):
 
 
 def create_piano_icon():
-    """Creates the app icon from assets/icon.svg."""
-    svg_data = _load_svg('icon.svg')
-    # icon.svg has its own width/height, load directly
-    pixmap = QPixmap()
-    pixmap.loadFromData(svg_data.encode())
+    """Creates the app icon from assets/icon.png."""
+    path = os.path.join(ASSETS_DIR, 'icon.png')
+    pixmap = QPixmap(path)
     if pixmap.isNull():
         return QIcon()
     return QIcon(pixmap)
