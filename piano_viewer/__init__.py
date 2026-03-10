@@ -30,6 +30,7 @@ _startup_errors = []
 try:
     import sounddevice as _sd
     _SOUND_AVAILABLE = True
+    log.info("Sound backend: %s", _sd.query_hostapis())
 except Exception as e:
     # ImportError if sounddevice is not installed, or PortAudioError / OSError
     # if the audio subsystem is broken (e.g. no ALSA/PulseAudio on headless Linux).
