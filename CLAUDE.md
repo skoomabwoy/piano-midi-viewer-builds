@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Package architecture**: The application is split into the `piano_viewer/` Python package with focused modules.
 
-**Current Version: 9.2.0**
+**Current Version: 9.3.0**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -22,17 +22,20 @@ piano_viewer/            # Application package
   constants.py           # Sizing, colors, MIDI ranges, layout helpers, mutable globals
   i18n.py                # Translation system (tr(), load_translations(), LANGUAGES)
   helpers.py             # Config management, MIDI math, colors, fonts, button styles
-  icons.py               # SVG loading from assets/, icon creation (Phosphor Bold set)
+  icons.py               # SVG/PNG loading from assets/, icon + cursor creation
   synth.py               # Wavetable synthesizer (PianoSynthesizer, _Voice)
   dialogs.py             # ErrorDialog
   settings.py            # SettingsDialog, UpdateChecker
   keyboard.py            # PianoKeyboard widget (rendering, mouse interaction)
   main_window.py         # PianoMIDIViewer (QMainWindow, MIDI, layout, app state)
 
-assets/                  # SVG icons and font (loaded at runtime by icons.py)
-  icon.svg               # App icon (used by CI for .ico/.icns generation)
+assets/                  # SVG icons, cursors, and font (loaded at runtime by icons.py)
+  icon.png               # App icon (1024x1024 PNG, used by CI for .ico/.icns generation)
+  icon.svg               # App icon (SVG, used by website)
   pencil.svg             # Pencil icon (Phosphor Bold)
+  pencil-cursor.svg      # Pencil cursor (white-filled Bold, 32x32)
   eraser.svg             # Eraser icon (Phosphor Bold)
+  eraser-cursor.svg      # Eraser cursor (white-filled Bold, 32x32)
   camera.svg             # Camera/save icon (Phosphor Bold)
   settings.svg           # Cogwheel/gear icon (Phosphor Bold)
   plus.svg               # Plus icon for octave buttons (Phosphor Bold)
@@ -99,7 +102,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 - **`constants.py`** — All sizing, colors, MIDI ranges, layout helpers. Mutable globals: `UI_SCALE_FACTOR`, `LOADED_FONT_FAMILY` (set in `__main__.py`, accessed via `constants.X`).
 - **`i18n.py`** — Translation system: `LANGUAGES`, `tr()`, `tr_for()`, `load_translations()`, `get_current_language()`.
 - **`helpers.py`** — Pure logic: config management, MIDI math, color blending, font sizing, button styling. No widget creation.
-- **`icons.py`** — Loads Phosphor Bold SVGs from `assets/` directory, renders to QPixmap/QIcon via `_render_svg_to_pixmap()`. Color customization via string replacement.
+- **`icons.py`** — Loads Phosphor Bold SVGs from `assets/` directory, renders to QPixmap/QIcon via `_render_svg_to_pixmap()`. Color customization via string replacement. Also creates pencil/eraser cursors from cursor SVGs and loads the PNG app icon.
 - **`synth.py`** — Optional wavetable synthesizer (`PianoSynthesizer`, `_Voice`). Conditional on `_SOUND_AVAILABLE`.
 - **`dialogs.py`** — `ErrorDialog` with copy-to-clipboard and optional settings reset.
 - **`settings.py`** — `SettingsDialog` (QDialog) and `UpdateChecker` (QThread).
@@ -156,7 +159,11 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Logging**: Python `logging` module. Logger named `piano-midi-viewer`, levels: info (startup, connections), warning (fallbacks), error (failures).
 
-**Icons**: Phosphor Bold SVG set loaded from `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement — all SVGs must use full `#000000` hex (not shorthand `#000`). Pedal icon is custom (stroke-based, artist-designed). Custom SVG cursors temporarily removed — pencil/eraser tools use `Qt.CursorShape.CrossCursor` as placeholder.
+**Icons**: Phosphor Bold SVG set loaded from `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement — all SVGs must use full `#000000` hex (not shorthand `#000`). Pedal icon is custom (stroke-based, artist-designed). App icon loaded from `icon.png` (PNG, not SVG).
+
+**Cursors**: Pencil and eraser tools use custom SVG cursors (`pencil-cursor.svg`, `eraser-cursor.svg`). These are Phosphor Bold icons with a white fill layer behind the black compound path, rendered at `CURSOR_SIZE = 24px`. Hotspots are at the pencil tip (1, 23) and eraser edge (4, 21). Default mode shows pencil cursor; holding RMB shows eraser cursor. Cursors are cached on `PianoMIDIViewer.__init__`.
+
+**Computer Keyboard**: Optional feature (off by default) allowing the computer keyboard to act as a MIDI input. Home row A–K maps one octave (A=C, W=C#, S=D, ... K=C+1), Z/X shift octave down/up. Caps Lock toggles on/off globally. Also controllable via Settings checkbox. State: `computer_keyboard_enabled`, `computer_keyboard_octave` (default 4), `_computer_keys_held` (dict: Qt key → MIDI note). Key repeat filtered via `event.isAutoRepeat()`. Velocity fixed at 100. Persisted in `[input]` section of settings.ini.
 
 **Text Rendering**: JetBrains Mono (embedded, fallback to system monospace). Font size scales with key width. Minimum 8pt (hidden if smaller). Dynamic contrast: black text on light, white on dark.
 
@@ -185,7 +192,8 @@ Each module has a single responsibility (see Module Structure above). The `piano
 - macOS: `--onedir` (NOT `--onefile`) for proper universal2 lipo. ARM + Intel combined with lipo per Mach-O file
 - Linux: `--onedir` + AppImage (appimagetool with static runtime, no FUSE dependency)
 - Windows: `--onefile` with icon generated via ImageMagick
-- App icon: `assets/icon.svg` -> .ico (Windows) / .icns (macOS via librsvg + iconutil) / .png (Linux)
+- App icon: `assets/icon.png` -> .ico (Windows via ImageMagick) / .icns (macOS via sips + iconutil) / .png (Linux via ImageMagick)
+- Audio libs (libportaudio, libasound, libjack) NOT bundled on Linux — must use host's PipeWire/PulseAudio stack
 - macOS DMG includes `README.txt` with xattr install instructions
 - `create-release` job only runs on tag push
 

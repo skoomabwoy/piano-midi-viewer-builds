@@ -2,7 +2,7 @@
 
 A piano keyboard on your screen that lights up when you play. Made for music teachers, students, and content creators.
 
-![Version](https://img.shields.io/badge/version-9.2.0-blue)
+![Version](https://img.shields.io/badge/version-9.3.0-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
 
@@ -21,6 +21,7 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 - 🌍 **7 languages** — English, Deutsch, Español, Français, Polski, Português, Русский, Українська — switch in Settings, applies instantly
 - 🔊 **Built-in sound** — optional test tones so you can hear what you press; off by default, enable in Settings
 - ↔️ **Octave range** — use the + and − buttons to show more or fewer octaves (from A0 up to C8)
+- ⌨️ **Computer keyboard** — use your computer keyboard as a piano (A–K = one octave, Z/X = shift octave); toggle with Caps Lock or in Settings
 - 🔧 **UI scaling** — make buttons and margins bigger or smaller (50–200%) — changes apply instantly
 
 ## Screenshots
@@ -115,6 +116,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
+**9.3.0** — Computer keyboard input, custom pencil/eraser cursors, new app icon, AppImage sound fix
 **9.2.0** — Live UI scaling and language switching (no restart needed), professional pedal icon, pencil tool marks out-of-range MIDI notes
 **9.1.1** — Phosphor icons for all buttons, MIDI auto-select, package refactor
 **9.1.0** — Built-in sound: optional test tones with sustain pedal support, velocity sensitivity, and redesigned app icon

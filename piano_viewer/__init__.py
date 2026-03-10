@@ -3,7 +3,7 @@
 import os
 import logging
 
-VERSION = "9.2.0"
+VERSION = "9.3.0"
 SETTINGS_VERSION = 1
 
 # Package paths — used by i18n.py and icons.py to locate resources.
