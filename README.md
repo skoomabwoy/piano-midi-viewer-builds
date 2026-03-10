@@ -116,7 +116,7 @@ python piano_viewer.py
 
 See [releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases) for full history.
 
-**9.3.0** — Computer keyboard input, custom pencil/eraser cursors, new app icon, AppImage sound fix
+**9.3.0** — Computer keyboard input, custom pencil/eraser cursors, new app icon, AppImage sound fix (Fedora, Mint, Ubuntu)
 **9.2.0** — Live UI scaling and language switching (no restart needed), professional pedal icon, pencil tool marks out-of-range MIDI notes
 **9.1.1** — Phosphor icons for all buttons, MIDI auto-select, package refactor
 **9.1.0** — Built-in sound: optional test tones with sustain pedal support, velocity sensitivity, and redesigned app icon

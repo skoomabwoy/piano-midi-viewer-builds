@@ -6,7 +6,7 @@ Full release history for Piano MIDI Viewer. For download links, see [Releases](h
 - **Computer keyboard input**: Use your computer keyboard as a piano — home row (A–K) plays one octave, upper row (W/E/T/Y/U) plays sharps/flats. Z/X shift octave down/up. Caps Lock toggles on/off. Also controllable via Settings checkbox
 - **Custom cursors**: Pencil and eraser tools now show proper pencil/eraser cursors instead of a generic crosshair. Right-click in pencil mode shows the eraser cursor
 - **New app icon**: Updated app icon (PNG-based), CI pipeline simplified — no longer depends on librsvg
-- **AppImage sound fix**: Built-in sound now works in AppImage builds — audio libraries use the host system's PipeWire/PulseAudio stack instead of bundling incompatible Ubuntu 22.04 versions
+- **AppImage sound fix**: Built-in sound now works in AppImage builds on all tested distros (Fedora, Mint, Ubuntu). libportaudio is bundled; libasound, libjack, and libstdc++ use the host system's versions for PipeWire/PulseAudio compatibility
 - **Updated pedal icon**: Artist's v2 design with thinner lines
 - **Website refresh**: Updated landing page design deployed to Codeberg Pages
 

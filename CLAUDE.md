@@ -114,7 +114,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 - **Mutable globals**: `constants.UI_SCALE_FACTOR` and `constants.LOADED_FONT_FAMILY` are set once during startup. Other modules access them via `import piano_viewer.constants as constants; constants.X`.
 - **Circular import avoidance**: `keyboard.py` uses `isinstance(parent, QMainWindow)` instead of importing `PianoMIDIViewer`. `i18n.py` uses lazy import of `get_config_path` inside `load_language_setting()`.
-- **SVG assets**: Phosphor Bold icons loaded from `assets/` at runtime. Color customization via `#000000` string replacement. Custom cursors are temporarily disabled (placeholder Qt cursor).
+- **SVG assets**: Phosphor Bold icons loaded from `assets/` at runtime. Color customization via `#000000` string replacement. Custom pencil/eraser cursors from cursor SVGs.
 
 ### Component Details
 
@@ -193,7 +193,7 @@ Each module has a single responsibility (see Module Structure above). The `piano
 - Linux: `--onedir` + AppImage (appimagetool with static runtime, no FUSE dependency)
 - Windows: `--onefile` with icon generated via ImageMagick
 - App icon: `assets/icon.png` -> .ico (Windows via ImageMagick) / .icns (macOS via sips + iconutil) / .png (Linux via ImageMagick)
-- Audio libs (libportaudio, libasound, libjack) NOT bundled on Linux — must use host's PipeWire/PulseAudio stack
+- Linux audio bundling: libportaudio IS bundled (explicit in spec `extra_libs`); libasound, libjack, libstdc++ are excluded — must use host's PipeWire/PulseAudio stack and C++ runtime
 - macOS DMG includes `README.txt` with xattr install instructions
 - `create-release` job only runs on tag push
 
