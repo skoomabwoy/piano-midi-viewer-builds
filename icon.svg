@@ -1,6 +1,41 @@
-<svg width="512" height="512" viewBox="-31.4 -31.4 376.84 376.84" xmlns="http://www.w3.org/2000/svg">
-    <rect x="-31.4" y="-31.4" width="376.84" height="376.84" rx="0" fill="#1793D1"/>
-    <g fill="#ffffff">
-        <path d="M89.859,314.043h60.092h14.142h60.092h14.142h74.233V0h-74.233h-14.142h-60.092h-14.142H89.859H75.717H1.484v314.043 h74.233H89.859z M296.652,298.136h-56.561v-91.021h18.559V15.907h38.002V298.136z M222.418,207.115v91.021h-56.561v-91.021h18.559 V15.907h17.673v191.208H222.418z M148.185,207.115v91.021H91.625v-91.021h18.559V15.907h17.673v191.208H148.185z M73.952,298.136 H17.391V15.907h36.231v191.208h20.33V298.136z"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <!-- Background gradient: bright top-left to dark bottom-right, Arch Blue in middle -->
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3BB0F0"/>
+            <stop offset="50%" stop-color="#1793D1"/>
+            <stop offset="100%" stop-color="#0D6DA3"/>
+        </linearGradient>
+        <!-- Piano keys gradient: ivory with subtle 3D feel -->
+        <linearGradient id="keysGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#FFFFF5"/>
+            <stop offset="40%" stop-color="#F5F0E6"/>
+            <stop offset="100%" stop-color="#E0D8C8"/>
+        </linearGradient>
+        <!-- Glossy highlight overlay -->
+        <linearGradient id="glossGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+            <stop offset="35%" stop-color="#ffffff" stop-opacity="0.10"/>
+            <stop offset="50%" stop-color="#ffffff" stop-opacity="0"/>
+            <stop offset="100%" stop-color="#000000" stop-opacity="0.08"/>
+        </linearGradient>
+        <!-- Drop shadow for 3D depth -->
+        <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+            <feDropShadow dx="2" dy="3" stdDeviation="4" flood-color="#0a4a70" flood-opacity="0.4"/>
+        </filter>
+        <!-- Clip to rounded squircle shape -->
+        <clipPath id="iconClip">
+            <rect x="52" y="52" width="408" height="408" rx="90"/>
+        </clipPath>
+    </defs>
+    <!-- Rounded background with padding (~10% inset, ~22% corner radius) -->
+    <rect x="52" y="52" width="408" height="408" rx="90" fill="url(#bgGrad)"/>
+    <!-- Piano keys scaled and centered within the rounded background -->
+    <g clip-path="url(#iconClip)">
+        <g transform="translate(256, 256) scale(0.75) translate(-149, -157)" filter="url(#shadow)">
+            <path fill="url(#keysGrad)" d="M89.859,314.043h60.092h14.142h60.092h14.142h74.233V0h-74.233h-14.142h-60.092h-14.142H89.859H75.717H1.484v314.043 h74.233H89.859z M296.652,298.136h-56.561v-91.021h18.559V15.907h38.002V298.136z M222.418,207.115v91.021h-56.561v-91.021h18.559 V15.907h17.673v191.208H222.418z M148.185,207.115v91.021H91.625v-91.021h18.559V15.907h17.673v191.208H148.185z M73.952,298.136 H17.391V15.907h36.231v191.208h20.33V298.136z"/>
+            <!-- Glossy overlay on the piano -->
+            <path fill="url(#glossGrad)" d="M89.859,314.043h60.092h14.142h60.092h14.142h74.233V0h-74.233h-14.142h-60.092h-14.142H89.859H75.717H1.484v314.043 h74.233H89.859z M296.652,298.136h-56.561v-91.021h18.559V15.907h38.002V298.136z M222.418,207.115v91.021h-56.561v-91.021h18.559 V15.907h17.673v191.208H222.418z M148.185,207.115v91.021H91.625v-91.021h18.559V15.907h17.673v191.208H148.185z M73.952,298.136 H17.391V15.907h36.231v191.208h20.33V298.136z"/>
+        </g>
     </g>
 </svg>

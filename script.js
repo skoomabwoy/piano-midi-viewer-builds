@@ -36,7 +36,7 @@ function initTabs(urls) {
 // ── Fetch latest release from Codeberg API ──
 const REPO_API = 'https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest';
 
-const FALLBACK_TAG = 'v8.6.3';
+const FALLBACK_TAG = 'v9.1.0';
 const FALLBACK_BASE = `https://codeberg.org/skoomabwoy/piano-midi-viewer/releases/download/${FALLBACK_TAG}/`;
 
 const FILE_NAMES = {
@@ -66,9 +66,11 @@ async function fetchDownloadURLs() {
             }
         }
 
-        // Update footer version from API
+        // Update version from API (hero + footer)
         const version = data.tag_name;
         if (version) {
+            const heroVersion = document.getElementById('hero-version');
+            if (heroVersion) heroVersion.textContent = version;
             const footer = document.querySelector('footer p');
             if (footer) {
                 footer.innerHTML = footer.innerHTML.replace(/v[\d.]+/, version);
