@@ -127,6 +127,10 @@ def filter_binaries(binaries):
         'libportaudio',
         'libasound.so',
         'libjack.so',  # Generic JACK only — rtmidi's private libjack-*.so must stay
+        # libstdc++ — host version required. The bundled copy (from Ubuntu 22.04)
+        # is too old for some host libs (e.g. Mint's libjack needs GLIBCXX_3.4.32).
+        # All target distros (Ubuntu 22.04+) ship a sufficient libstdc++.
+        'libstdc++',
     ]
 
     filtered = []

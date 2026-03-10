@@ -27,19 +27,8 @@ _startup_errors = []
 
 # Optional: sounddevice for built-in piano sound (wavetable synthesis).
 # If not installed, the Sound feature is simply unavailable in Settings.
-#
-# In PyInstaller/AppImage builds, LD_LIBRARY_PATH points to bundled libs first.
-# We don't bundle libportaudio (host PipeWire/PulseAudio is needed), but when the
-# host's libportaudio loads its own dependencies (e.g. libjack), they pick up the
-# bundled libstdc++ which may be too old. Temporarily clearing LD_LIBRARY_PATH
-# lets the host's library chain resolve entirely from the system.
 try:
-    _saved_ldpath = os.environ.pop('LD_LIBRARY_PATH', None)
-    try:
-        import sounddevice as _sd
-    finally:
-        if _saved_ldpath is not None:
-            os.environ['LD_LIBRARY_PATH'] = _saved_ldpath
+    import sounddevice as _sd
     _SOUND_AVAILABLE = True
     log.info("Sound backend: %s", _sd.query_hostapis())
 except Exception as e:
