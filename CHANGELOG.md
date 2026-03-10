@@ -2,6 +2,14 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.2.0
+- **Live UI scaling**: Change UI scale (50–200%) without restarting — applies instantly
+- **Live language switching**: Change language without restarting — all UI text updates immediately
+- **Pencil tool: out-of-range MIDI marks**: Notes played outside the visible range via MIDI are now marked in pencil mode, with +button glow indicating hidden marks
+- **Professional pedal icon**: New sustain pedal icon designed by artist (replaces proof-of-concept)
+- **SVG color fix**: Pedal icon now properly switches to white on dark highlight colors
+- **Removed 25% scale**: Minimum scale raised to 50% to prevent accidentally unusable UI
+
 ## 9.1.1
 - **Phosphor icons**: All buttons now use the Phosphor Bold icon set — pencil, eraser, camera, settings (gear), plus, minus, sustain pedal, and refresh. Consistent visual style across the entire UI
 - **Sustain pedal icon**: Replaced the "S" letter with a custom piano pedal icon — language-independent, immediately recognizable

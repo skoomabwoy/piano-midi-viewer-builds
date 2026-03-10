@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Package architecture**: The application is split into the `piano_viewer/` Python package with focused modules.
 
-**Current Version: 9.1.1**
+**Current Version: 9.2.0**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -135,7 +135,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Velocity**: `active_notes` is a dict (note -> velocity 1-127). `blend_colors()` interpolates between base and highlight color. Factor range 0.3-1.0 (soft notes always visible at 30%).
 
-**Pencil Tool**: Independent drawing mode. Left click/drag draws to `drawn_notes` set, right click/drag erases. MIDI Note On toggles drawn_notes, Note Off ignored. Exiting clears all marks.
+**Pencil Tool**: Independent drawing mode. Left click/drag draws to `drawn_notes` set, right click/drag erases. MIDI Note On toggles drawn_notes (including out-of-range notes, with +button glow), Note Off ignored. Exiting clears all marks.
 
 **Sustain Indicator**: Pedal icon button is read-only — lights up when CC 64 >= 64, does not affect note highlighting. Icon color swaps to contrast with highlight background. When built-in sound is enabled, the sustain pedal keeps synth voices sounding until released.
 
@@ -156,11 +156,11 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Logging**: Python `logging` module. Logger named `piano-midi-viewer`, levels: info (startup, connections), warning (fallbacks), error (failures).
 
-**Icons**: Phosphor Bold SVG set loaded from `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement. Pedal icon is custom (stroke-based). Custom SVG cursors temporarily removed — pencil/eraser tools use `Qt.CursorShape.CrossCursor` as placeholder.
+**Icons**: Phosphor Bold SVG set loaded from `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement — all SVGs must use full `#000000` hex (not shorthand `#000`). Pedal icon is custom (stroke-based, artist-designed). Custom SVG cursors temporarily removed — pencil/eraser tools use `Qt.CursorShape.CrossCursor` as placeholder.
 
 **Text Rendering**: JetBrains Mono (embedded, fallback to system monospace). Font size scales with key width. Minimum 8pt (hidden if smaller). Dynamic contrast: black text on light, white on dark.
 
-**UI Scaling**: `UI_SCALE_FACTOR` global, `scaled(px)` helper. 25-200% range. Requires restart to apply.
+**UI Scaling**: `UI_SCALE_FACTOR` global, `scaled(px)` helper. 50-200% range. Applied live via `rebuild_ui()` — tears down and recreates the layout around the existing `PianoKeyboard` widget, preserving all state (MIDI, notes, synth). Language changes also apply live the same way.
 
 ## Code Organization
 
