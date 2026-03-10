@@ -126,7 +126,7 @@ def filter_binaries(binaries):
         # Bundling the CI's Ubuntu 22.04 versions breaks audio on modern desktops.
         'libportaudio',
         'libasound.so',
-        'libjack',
+        'libjack.so',  # Generic JACK only — rtmidi's private libjack-*.so must stay
     ]
 
     filtered = []
