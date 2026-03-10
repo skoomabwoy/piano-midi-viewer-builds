@@ -11,11 +11,13 @@ The pedal icon is custom (stroke-based, not from Phosphor).
 import os
 import re
 
-from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtGui import QPixmap, QIcon, QCursor
 from PyQt6.QtCore import Qt
 
 from piano_viewer import ASSETS_DIR
 from piano_viewer.constants import scaled, BUTTON_SIZE
+
+CURSOR_SIZE = 24
 
 
 def _load_svg(filename):
@@ -100,3 +102,17 @@ def create_pedal_icon(size=None, color="#000000"):
     The same #000000 replacement works because it targets the stroke color.
     """
     return _create_icon('pedal.svg', size, color)
+
+
+def create_pencil_cursor():
+    """Creates a pencil QCursor from the cursor SVG. Hotspot at the pencil tip (bottom-left)."""
+    svg_data = _load_svg('pencil-cursor.svg')
+    pixmap = _render_svg_to_pixmap(svg_data, CURSOR_SIZE)
+    return QCursor(pixmap, 1, 23)
+
+
+def create_eraser_cursor():
+    """Creates an eraser QCursor from the cursor SVG. Hotspot at the eraser edge (bottom-left)."""
+    svg_data = _load_svg('eraser-cursor.svg')
+    pixmap = _render_svg_to_pixmap(svg_data, CURSOR_SIZE)
+    return QCursor(pixmap, 4, 21)

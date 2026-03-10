@@ -486,7 +486,8 @@ class PianoKeyboard(QWidget):
                 elif event.button() == Qt.MouseButton.RightButton:
                     self.glissando_mode = 'off'
                     self.drawn_notes.discard(note)
-                    self.setCursor(Qt.CursorShape.CrossCursor)
+                    if main_window:
+                        self.setCursor(main_window._eraser_cursor)
                 else:
                     return
                 self._drag_button = event.button()
@@ -533,8 +534,8 @@ class PianoKeyboard(QWidget):
                 if event.button() != getattr(self, '_drag_button', None):
                     return
                 self._drag_button = None
-                if self.glissando_mode == 'off':
-                    self.setCursor(Qt.CursorShape.CrossCursor)
+                if self.glissando_mode == 'off' and main_window:
+                    self.setCursor(main_window._pencil_cursor)
             else:
                 if self.mouse_held_note in self.active_notes:
                     self.active_notes.pop(self.mouse_held_note, None)

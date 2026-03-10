@@ -36,6 +36,7 @@ from piano_viewer.helpers import (
 from piano_viewer.icons import (
     create_settings_icon, create_pencil_icon, create_save_icon,
     create_plus_icon, create_minus_icon, create_pedal_icon,
+    create_pencil_cursor, create_eraser_cursor,
 )
 from piano_viewer.synth import PianoSynthesizer
 from piano_viewer.dialogs import ErrorDialog
@@ -68,6 +69,8 @@ class PianoMIDIViewer(QMainWindow):
 
         # --- Pencil tool state ---
         self.pencil_active = False
+        self._pencil_cursor = create_pencil_cursor()
+        self._eraser_cursor = create_eraser_cursor()
 
         # --- Note display settings (all saved to settings.ini) ---
         self.show_octave_numbers = True
@@ -264,7 +267,7 @@ class PianoMIDIViewer(QMainWindow):
         if self.piano.glow_right_plus:
             self.apply_button_glow(self.right_plus_btn, True)
         if self.pencil_active:
-            self.piano.setCursor(Qt.CursorShape.CrossCursor)
+            self.piano.setCursor(self._pencil_cursor)
 
     def apply_scale(self, new_scale):
         """Applies a new UI scale factor live, without restart."""
@@ -456,7 +459,7 @@ class PianoMIDIViewer(QMainWindow):
             if self.piano.glow_right_plus:
                 self.piano.glow_right_plus = False
                 self.apply_button_glow(self.right_plus_btn, False)
-            self.piano.setCursor(Qt.CursorShape.CrossCursor)
+            self.piano.setCursor(self._pencil_cursor)
 
         self.update_pencil_button_visual()
         self.piano.update()

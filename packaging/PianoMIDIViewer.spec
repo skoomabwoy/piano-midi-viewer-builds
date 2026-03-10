@@ -20,6 +20,11 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 # Collect rtmidi with all its dependencies
 rtmidi_datas, rtmidi_binaries, rtmidi_hiddenimports = collect_all('rtmidi')
 
+# Collect sounddevice — on Linux the wheel is pure Python, so the PyInstaller hook
+# must find and bundle the system libportaudio.so.  Without this, sounddevice silently
+# fails to import inside the AppImage (macOS/Windows wheels ship their own portaudio).
+sd_datas, sd_binaries, sd_hiddenimports = collect_all('sounddevice')
+
 # PyInstaller treats some libraries as "system" and skips them, but they may be
 # missing on minimal distros.  Bundle them explicitly for AppImage portability.
 extra_libs = [
@@ -31,12 +36,12 @@ extra_binaries = [(p, '.') for p in extra_libs if os.path.exists(p)]
 a = Analysis(
     [os.path.join(PROJECT_ROOT, 'piano_viewer.py')],
     pathex=[],
-    binaries=rtmidi_binaries + extra_binaries,
+    binaries=rtmidi_binaries + sd_binaries + extra_binaries,
     datas=[
         (os.path.join(PROJECT_ROOT, 'assets'), 'assets'),
         (os.path.join(PROJECT_ROOT, 'translations'), 'translations'),
-    ] + rtmidi_datas,
-    hiddenimports=rtmidi_hiddenimports,
+    ] + rtmidi_datas + sd_datas,
+    hiddenimports=rtmidi_hiddenimports + sd_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
