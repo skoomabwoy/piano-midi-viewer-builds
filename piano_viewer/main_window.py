@@ -709,12 +709,29 @@ class PianoMIDIViewer(QMainWindow):
     def handle_note_on(self, note_number, velocity=127):
         """Handles a Note On MIDI event."""
         if self.pencil_active:
+            if note_number in self.piano.drawn_notes:
+                self.piano.drawn_notes.discard(note_number)
+            else:
+                self.piano.drawn_notes.add(note_number)
+
             if self.piano.start_note <= note_number <= self.piano.end_note:
-                if note_number in self.piano.drawn_notes:
-                    self.piano.drawn_notes.discard(note_number)
-                else:
-                    self.piano.drawn_notes.add(note_number)
                 self.piano.update()
+            elif note_number < self.piano.start_note:
+                has_drawn_left = any(n < self.piano.start_note for n in self.piano.drawn_notes)
+                if has_drawn_left and not self.piano.glow_left_plus:
+                    self.piano.glow_left_plus = True
+                    self.apply_button_glow(self.left_plus_btn, True)
+                elif not has_drawn_left and self.piano.glow_left_plus:
+                    self.piano.glow_left_plus = False
+                    self.apply_button_glow(self.left_plus_btn, False)
+            else:
+                has_drawn_right = any(n > self.piano.end_note for n in self.piano.drawn_notes)
+                if has_drawn_right and not self.piano.glow_right_plus:
+                    self.piano.glow_right_plus = True
+                    self.apply_button_glow(self.right_plus_btn, True)
+                elif not has_drawn_right and self.piano.glow_right_plus:
+                    self.piano.glow_right_plus = False
+                    self.apply_button_glow(self.right_plus_btn, False)
             return
 
         if self.sound_enabled and self.synth:
