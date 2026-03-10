@@ -30,6 +30,7 @@ sd_hiddenimports = ['sounddevice', '_sounddevice']
 extra_libs = [
     '/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0',   # Qt 6.5+ xcb plugin
     '/usr/lib/x86_64-linux-gnu/libEGL.so.1',           # PyQt6 import-time dep
+    '/usr/lib/x86_64-linux-gnu/libportaudio.so.2',     # sounddevice audio output
 ]
 extra_binaries = [(p, '.') for p in extra_libs if os.path.exists(p)]
 
@@ -122,9 +123,9 @@ def filter_binaries(binaries):
         'libavutil',     # FFmpeg util
         'libswresample', # FFmpeg audio
         'libswscale',    # FFmpeg video scaling
-        # Audio backend — must use host libs for PipeWire/PulseAudio compatibility.
-        # Bundling the CI's Ubuntu 22.04 versions breaks audio on modern desktops.
-        'libportaudio',
+        # Audio backend — libasound/libjack must use host versions for
+        # PipeWire/PulseAudio compatibility. libportaudio IS bundled (in extra_libs)
+        # so sounddevice works even if the host doesn't have it installed.
         'libasound.so',
         'libjack.so',  # Generic JACK only — rtmidi's private libjack-*.so must stay
         # libstdc++ — host version required. The bundled copy (from Ubuntu 22.04)
