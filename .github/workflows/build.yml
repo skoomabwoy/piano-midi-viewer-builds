@@ -55,7 +55,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev imagemagick libxcb-cursor0 libegl1 libportaudio2
+          sudo apt-get install -y libasound2-dev libxcb-cursor0 libegl1 libportaudio2
 
       - name: Install Python dependencies
         run: |
@@ -67,7 +67,7 @@ jobs:
         run: pyinstaller packaging/PianoMIDIViewer.spec
 
       - name: Generate icon
-        run: magick assets/icon.png -resize 256x256 piano-midi-viewer.png
+        run: convert assets/icon.png -resize 256x256 piano-midi-viewer.png
 
       - name: Create AppDir
         run: |
