@@ -225,6 +225,15 @@ class SettingsDialog(QDialog):
             self.sound_checkbox.stateChanged.connect(self.toggle_sound)
             layout.addWidget(self.sound_checkbox)
 
+        # COMPUTER KEYBOARD
+        layout.addSpacing(10)
+        self.computer_keyboard_checkbox = QCheckBox(tr("Computer Keyboard Input"))
+        self.computer_keyboard_checkbox.setToolTip(
+            tr("Use your computer keyboard as a piano — toggle with Caps Lock"))
+        self.computer_keyboard_checkbox.setChecked(self.main_window.computer_keyboard_enabled)
+        self.computer_keyboard_checkbox.stateChanged.connect(self.toggle_computer_keyboard)
+        layout.addWidget(self.computer_keyboard_checkbox)
+
         # VERSION + CHECK FOR UPDATES
         layout.addStretch()
         version_row = QHBoxLayout()
@@ -370,6 +379,15 @@ class SettingsDialog(QDialog):
                 self.main_window.synth.start()
             else:
                 self.main_window.synth.stop()
+        self.main_window.save_settings()
+
+    def toggle_computer_keyboard(self, state):
+        self.main_window.computer_keyboard_enabled = (state == Qt.CheckState.Checked.value)
+        if not self.main_window.computer_keyboard_enabled:
+            # Release all held notes
+            for held_note in list(self.main_window._computer_keys_held.values()):
+                self.main_window.handle_note_off(held_note)
+            self.main_window._computer_keys_held.clear()
         self.main_window.save_settings()
 
     def check_for_updates(self):

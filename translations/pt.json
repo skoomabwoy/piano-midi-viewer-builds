@@ -54,5 +54,10 @@
   "Could not save settings: {}\n\nYour changes may be lost.": "Não foi possível salvar as configurações: {}\n\nSuas alterações podem ser perdidas.",
   "Could not scan for MIDI devices: {}": "Não foi possível buscar dispositivos MIDI: {}",
   "Built-in Sound": "Som integrado",
-  "Simple test tones — not a replacement for a piano library": "Sons de teste simples — não substitui uma biblioteca de piano"
+  "Simple test tones — not a replacement for a piano library": "Sons de teste simples — não substitui uma biblioteca de piano",
+  "Computer Keyboard Input": "Entrada pelo teclado",
+  "Use your computer keyboard as a piano — toggle with Caps Lock": "Use o teclado como piano — alterne com Caps Lock",
+  "Computer keyboard: ON ({})": "Teclado: LIGADO ({})",
+  "Computer keyboard: OFF": "Teclado: DESLIGADO",
+  "Keyboard: {}": "Teclado: {}"
 }

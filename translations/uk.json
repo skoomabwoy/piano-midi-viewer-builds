@@ -54,5 +54,10 @@
   "Could not save settings: {}\n\nYour changes may be lost.": "Не вдалося зберегти налаштування: {}\n\nВаші зміни можуть бути втрачені.",
   "Could not scan for MIDI devices: {}": "Не вдалося знайти MIDI-пристрої: {}",
   "Built-in Sound": "Вбудований звук",
-  "Simple test tones — not a replacement for a piano library": "Прості тестові звуки — не замінює бібліотеку фортепіано"
+  "Simple test tones — not a replacement for a piano library": "Прості тестові звуки — не замінює бібліотеку фортепіано",
+  "Computer Keyboard Input": "Введення з клавіатури",
+  "Use your computer keyboard as a piano — toggle with Caps Lock": "Використовуйте клавіатуру як піаніно — перемикання через Caps Lock",
+  "Computer keyboard: ON ({})": "Клавіатура: УВІМК ({})",
+  "Computer keyboard: OFF": "Клавіатура: ВИМК",
+  "Keyboard: {}": "Клавіатура: {}"
 }

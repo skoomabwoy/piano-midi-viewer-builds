@@ -72,6 +72,11 @@ class PianoMIDIViewer(QMainWindow):
         self._pencil_cursor = create_pencil_cursor()
         self._eraser_cursor = create_eraser_cursor()
 
+        # --- Computer keyboard input ---
+        self.computer_keyboard_enabled = False
+        self.computer_keyboard_octave = 4  # C4–C5 by default
+        self._computer_keys_held = {}  # Qt key code → MIDI note
+
         # --- Note display settings (all saved to settings.ini) ---
         self.show_octave_numbers = True
         self.show_white_key_names = True
@@ -370,6 +375,12 @@ class PianoMIDIViewer(QMainWindow):
             except ValueError:
                 reset_keys.append('sound_enabled')
 
+        if config.has_option('input', 'computer_keyboard'):
+            try:
+                self.computer_keyboard_enabled = config.getboolean('input', 'computer_keyboard')
+            except ValueError:
+                reset_keys.append('computer_keyboard')
+
         if config.has_option('window', 'geometry'):
             geometry_string = config.get('window', 'geometry')
             geometry_bytes = QByteArray.fromBase64(geometry_string.encode())
@@ -410,6 +421,10 @@ class PianoMIDIViewer(QMainWindow):
 
         config['audio'] = {
             'sound_enabled': str(self.sound_enabled),
+        }
+
+        config['input'] = {
+            'computer_keyboard': str(self.computer_keyboard_enabled),
         }
 
         geometry_bytes = self.saveGeometry()
@@ -985,12 +1000,101 @@ class PianoMIDIViewer(QMainWindow):
         finally:
             self._in_resize_event = False
 
+    # Computer keyboard → MIDI note offset mapping (one octave + C above).
+    # Home row = white keys, row above = black keys (standard DAW layout).
+    _COMPUTER_KEY_MAP = {
+        Qt.Key.Key_A: 0,   # C
+        Qt.Key.Key_W: 1,   # C#
+        Qt.Key.Key_S: 2,   # D
+        Qt.Key.Key_E: 3,   # D#
+        Qt.Key.Key_D: 4,   # E
+        Qt.Key.Key_F: 5,   # F
+        Qt.Key.Key_T: 6,   # F#
+        Qt.Key.Key_G: 7,   # G
+        Qt.Key.Key_Y: 8,   # G#
+        Qt.Key.Key_H: 9,   # A
+        Qt.Key.Key_U: 10,  # A#
+        Qt.Key.Key_J: 11,  # B
+        Qt.Key.Key_K: 12,  # C (next octave)
+    }
+
+    def _computer_key_to_note(self, key):
+        """Converts a Qt key code to a MIDI note number, or None if unmapped."""
+        offset = self._COMPUTER_KEY_MAP.get(key)
+        if offset is None:
+            return None
+        note = (self.computer_keyboard_octave + 1) * 12 + offset
+        if MIDI_NOTE_MIN <= note <= MIDI_NOTE_MAX:
+            return note
+        return None
+
+    def _octave_label(self):
+        """Returns a string like 'C4–C5' for the current computer keyboard octave."""
+        return f"C{self.computer_keyboard_octave}\u2013C{self.computer_keyboard_octave + 1}"
+
     def keyPressEvent(self, event):
-        """Handle keyboard shortcuts (Esc/P for pencil tool)."""
-        if event.key() == Qt.Key.Key_Escape and self.pencil_active:
+        """Handle keyboard shortcuts and computer keyboard input."""
+        if event.isAutoRepeat():
+            return
+
+        key = event.key()
+
+        # Caps Lock toggles computer keyboard
+        if key == Qt.Key.Key_CapsLock:
+            self.computer_keyboard_enabled = not self.computer_keyboard_enabled
+            if self.computer_keyboard_enabled:
+                self.show_status_message(
+                    tr("Computer keyboard: ON ({})").format(self._octave_label()))
+            else:
+                # Release all held computer keyboard notes
+                for held_note in list(self._computer_keys_held.values()):
+                    self.handle_note_off(held_note)
+                self._computer_keys_held.clear()
+                self.show_status_message(tr("Computer keyboard: OFF"))
+            self.save_settings()
+            return
+
+        # Pencil shortcuts (always active)
+        if key == Qt.Key.Key_Escape and self.pencil_active:
             self.toggle_pencil()
-        elif event.key() == Qt.Key.Key_P and not event.modifiers():
+            return
+        if key == Qt.Key.Key_P and not event.modifiers():
             self.toggle_pencil()
+            return
+
+        # Everything below requires computer keyboard to be enabled
+        if not self.computer_keyboard_enabled:
+            return
+
+        # Z/X shift octave
+        if key == Qt.Key.Key_Z:
+            if self.computer_keyboard_octave > 1:
+                self.computer_keyboard_octave -= 1
+                self.show_status_message(
+                    tr("Keyboard: {}").format(self._octave_label()))
+            return
+        if key == Qt.Key.Key_X:
+            if self.computer_keyboard_octave < 7:
+                self.computer_keyboard_octave += 1
+                self.show_status_message(
+                    tr("Keyboard: {}").format(self._octave_label()))
+            return
+
+        # Piano keys
+        note = self._computer_key_to_note(key)
+        if note is not None and key not in self._computer_keys_held:
+            self._computer_keys_held[key] = note
+            self.handle_note_on(note, 100)
+
+    def keyReleaseEvent(self, event):
+        """Handle computer keyboard note-off on key release."""
+        if event.isAutoRepeat():
+            return
+
+        key = event.key()
+        if key in self._computer_keys_held:
+            note = self._computer_keys_held.pop(key)
+            self.handle_note_off(note)
 
     def closeEvent(self, event):
         """Saves settings and frees MIDI resources on close."""
