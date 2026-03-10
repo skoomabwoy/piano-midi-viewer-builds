@@ -6,7 +6,6 @@ non-modal window so MIDI input keeps working while settings are open.
 """
 
 import os
-import sys
 import subprocess
 import ssl
 import json
@@ -18,14 +17,14 @@ import certifi
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QComboBox, QPushButton, QLabel,
-    QCheckBox, QColorDialog, QApplication,
+    QCheckBox, QColorDialog,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 
 from piano_viewer import VERSION, _SOUND_AVAILABLE, log
 import piano_viewer.constants as constants
 import piano_viewer.i18n as i18n
-from piano_viewer.i18n import tr, tr_for, LANGUAGES
+from piano_viewer.i18n import tr, LANGUAGES
 from piano_viewer.helpers import make_button_style
 from piano_viewer.icons import create_refresh_icon
 
@@ -91,13 +90,8 @@ class SettingsDialog(QDialog):
             self.lang_dropdown.setCurrentIndex(lang_index)
         self.lang_dropdown.currentIndexChanged.connect(self.language_changed)
 
-        self.lang_restart_button = QPushButton(tr("Restart"))
-        self.lang_restart_button.setVisible(False)
-        self.lang_restart_button.clicked.connect(self.restart_app)
-
         lang_layout.addWidget(lang_label)
         lang_layout.addStretch()
-        lang_layout.addWidget(self.lang_restart_button)
         lang_layout.addWidget(self.lang_dropdown)
         layout.addLayout(lang_layout)
 
@@ -149,7 +143,7 @@ class SettingsDialog(QDialog):
         scale_label = QLabel(tr("UI Scale"))
 
         self.scale_dropdown = QComboBox()
-        scale_values = [0.25, 0.50, 0.75, 1.0, 1.25, 1.50, 1.75, 2.0]
+        scale_values = [0.50, 0.75, 1.0, 1.25, 1.50, 1.75, 2.0]
         for val in scale_values:
             self.scale_dropdown.addItem(f"{int(val * 100)}%", val)
 
@@ -159,13 +153,8 @@ class SettingsDialog(QDialog):
 
         self.scale_dropdown.currentIndexChanged.connect(self.scale_changed)
 
-        self.restart_button = QPushButton(tr("Restart"))
-        self.restart_button.setVisible(False)
-        self.restart_button.clicked.connect(self.restart_app)
-
         scale_layout.addWidget(scale_label)
         scale_layout.addStretch()
-        scale_layout.addWidget(self.restart_button)
         scale_layout.addWidget(self.scale_dropdown)
         layout.addLayout(scale_layout)
 
@@ -266,8 +255,6 @@ class SettingsDialog(QDialog):
 
         self.setLayout(layout)
 
-        self.restart_button.setVisible(self.main_window.pending_ui_scale != constants.UI_SCALE_FACTOR)
-        self.lang_restart_button.setVisible(self.main_window.pending_language != i18n.get_current_language())
         self.adjustSize()
         self.setFixedSize(self.size())
 
@@ -327,40 +314,17 @@ class SettingsDialog(QDialog):
 
     def scale_changed(self, index):
         new_scale = self.scale_dropdown.currentData()
-        self.restart_button.setVisible(new_scale != constants.UI_SCALE_FACTOR)
-        self.main_window.pending_ui_scale = new_scale
-        self.main_window.save_settings()
+        if new_scale != constants.UI_SCALE_FACTOR:
+            self.close()
+            self.main_window.apply_scale(new_scale)
+            self.main_window.open_settings()
 
     def language_changed(self, index):
         new_lang = self.lang_dropdown.currentData()
-        changed = new_lang != i18n.get_current_language()
-        self.lang_restart_button.setVisible(changed)
-        if changed:
-            self.lang_restart_button.setText(tr_for(new_lang, "Restart"))
-        self.main_window.pending_language = new_lang
-        self.main_window.save_settings()
-
-    def restart_app(self):
-        """Saves settings and restarts the application."""
-        self.main_window.save_settings()
-        kwargs = {"creationflags": subprocess.DETACHED_PROCESS} if sys.platform == "win32" else {"start_new_session": True}
-        devnull = subprocess.DEVNULL
-        appimage_path = os.environ.get("APPIMAGE")
-        if appimage_path:
-            cmd = [appimage_path] + sys.argv[1:]
-            kwargs["cwd"] = os.path.dirname(appimage_path)
-        elif getattr(sys, "frozen", False):
-            exe = os.path.abspath(sys.executable)
-            cmd = [exe] + sys.argv[1:]
-            kwargs["cwd"] = os.path.dirname(exe)
-            env = os.environ.copy()
-            env.pop("_MEIPASS2", None)
-            env.pop("_PYI_ARCHIVE_FILE", None)
-            kwargs["env"] = env
-        else:
-            cmd = [sys.executable] + sys.argv
-        subprocess.Popen(cmd, stdin=devnull, stdout=devnull, stderr=devnull, **kwargs)
-        QApplication.instance().quit()
+        if new_lang != i18n.get_current_language():
+            self.close()
+            self.main_window.apply_language(new_lang)
+            self.main_window.open_settings()
 
     def toggle_octave_numbers(self, state):
         self.main_window.show_octave_numbers = (state == Qt.CheckState.Checked.value)

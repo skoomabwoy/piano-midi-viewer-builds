@@ -81,10 +81,6 @@ class PianoMIDIViewer(QMainWindow):
         self.sound_enabled = False
         self.synth = PianoSynthesizer() if _SOUND_AVAILABLE else None
 
-        # --- Pending settings (applied on restart) ---
-        self.pending_ui_scale = constants.UI_SCALE_FACTOR
-        self.pending_language = i18n.get_current_language()
-
         self.init_ui()
         self.setup_midi_polling()
         self.setup_device_scanning()
@@ -115,17 +111,10 @@ class PianoMIDIViewer(QMainWindow):
         self.setWindowTitle("Piano MIDI Viewer")
         # App-level icon is set in __main__.py; no need to set it per-window.
 
-        initial_width, initial_height = calculate_initial_window_size()
-        self.resize(initial_width, initial_height)
-
-        # Set minimum size
-        num_white_keys = count_white_keys(DEFAULT_START_NOTE, DEFAULT_END_NOTE)
-        min_key_width = PRACTICAL_MIN_KEY_WIDTH
-        min_key_height = min_key_width * MIN_HEIGHT_RATIO
-        min_width = (min_key_width * num_white_keys) + total_horizontal_margin()
-        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + scaled(WINDOW_VERTICAL_MARGIN)
-        min_height = max(key_based_height, min_window_height())
-        self.setMinimumSize(int(min_width), int(min_height))
+        # Only set initial size on first call; rebuilds keep the current window size.
+        if not self.centralWidget():
+            initial_width, initial_height = calculate_initial_window_size()
+            self.resize(initial_width, initial_height)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -187,8 +176,9 @@ class PianoMIDIViewer(QMainWindow):
         left_layout.addWidget(self.left_plus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(self.left_minus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # CENTER
-        self.piano = PianoKeyboard()
+        # CENTER — reuse existing piano widget on rebuild (preserves state)
+        if not hasattr(self, 'piano') or self.piano is None:
+            self.piano = PianoKeyboard()
 
         # RIGHT SIDE (settings + sustain + octave controls)
         right_container = QWidget()
@@ -251,7 +241,42 @@ class PianoMIDIViewer(QMainWindow):
         main_layout.addWidget(right_container)
 
         self.update_button_states()
+        self.update_minimum_size()
         self.update_sustain_button_visual()
+
+    # --- Live UI refresh ---
+
+    def rebuild_ui(self):
+        """Tears down and rebuilds the UI layout, preserving the piano widget and all state."""
+        # Detach piano so it survives central widget destruction
+        self.piano.setParent(None)
+        old = self.centralWidget()
+        if old:
+            old.setParent(None)
+
+        self.init_ui()
+
+        # Re-apply stateful visuals
+        self.update_pencil_button_visual()
+        self.update_sustain_button_visual()
+        if self.piano.glow_left_plus:
+            self.apply_button_glow(self.left_plus_btn, True)
+        if self.piano.glow_right_plus:
+            self.apply_button_glow(self.right_plus_btn, True)
+        if self.pencil_active:
+            self.piano.setCursor(Qt.CursorShape.CrossCursor)
+
+    def apply_scale(self, new_scale):
+        """Applies a new UI scale factor live, without restart."""
+        constants.UI_SCALE_FACTOR = new_scale
+        self.rebuild_ui()
+        self.save_settings()
+
+    def apply_language(self, lang_code):
+        """Applies a new language live, without restart."""
+        i18n.load_translations(lang_code)
+        self.rebuild_ui()
+        self.save_settings()
 
     # --- Settings dialog ---
 
@@ -371,8 +396,8 @@ class PianoMIDIViewer(QMainWindow):
             'black_key_notation': self.black_key_notation,
             'show_names_when_pressed': str(self.show_names_when_pressed),
             'show_velocity': str(self.show_velocity),
-            'ui_scale': str(self.pending_ui_scale),
-            'language': self.pending_language,
+            'ui_scale': str(constants.UI_SCALE_FACTOR),
+            'language': i18n.get_current_language(),
         }
 
         config['keyboard'] = {

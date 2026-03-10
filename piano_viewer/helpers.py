@@ -62,7 +62,7 @@ def load_ui_scale():
         config.read(config_path)
         if config.has_option('appearance', 'ui_scale'):
             scale = config.getfloat('appearance', 'ui_scale')
-            if 0.25 <= scale <= 2.0:
+            if 0.50 <= scale <= 2.0:
                 return scale
     except Exception:
         pass
