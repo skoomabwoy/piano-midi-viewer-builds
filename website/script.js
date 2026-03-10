@@ -66,9 +66,11 @@ async function fetchDownloadURLs() {
             }
         }
 
-        // Update footer version from API
+        // Update version from API (hero + footer)
         const version = data.tag_name;
         if (version) {
+            const heroVersion = document.getElementById('hero-version');
+            if (heroVersion) heroVersion.textContent = version;
             const footer = document.querySelector('footer p');
             if (footer) {
                 footer.innerHTML = footer.innerHTML.replace(/v[\d.]+/, version);
