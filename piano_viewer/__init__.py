@@ -30,10 +30,11 @@ _startup_errors = []
 try:
     import sounddevice as _sd
     _SOUND_AVAILABLE = True
-except Exception:
+except Exception as e:
     # ImportError if sounddevice is not installed, or PortAudioError / OSError
     # if the audio subsystem is broken (e.g. no ALSA/PulseAudio on headless Linux).
     _SOUND_AVAILABLE = False
+    log.warning("Built-in sound unavailable: %s", e)
 
 # Re-exports — so `from piano_viewer import X` keeps working for tests and
 # any code that imports from the top-level package name.
