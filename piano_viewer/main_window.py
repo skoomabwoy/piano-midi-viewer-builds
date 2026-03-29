@@ -1,6 +1,7 @@
 """Main application window — manages MIDI, UI layout, and app state."""
 
 import os
+import time
 import configparser
 from datetime import datetime
 
@@ -76,6 +77,7 @@ class PianoMIDIViewer(QMainWindow):
         self.computer_keyboard_enabled = False
         self.computer_keyboard_octave = 4  # C4–C5 by default
         self._computer_keys_held = {}  # Qt key code → MIDI note
+        self._caps_lock_last_toggle = 0.0  # macOS fires two keyPressEvents per Caps Lock press
 
         # --- Note display settings (all saved to settings.ini) ---
         self.show_octave_numbers = True
@@ -1039,8 +1041,14 @@ class PianoMIDIViewer(QMainWindow):
 
         key = event.key()
 
-        # Caps Lock toggles computer keyboard
+        # Caps Lock toggles computer keyboard.
+        # macOS fires two keyPressEvents per physical press (one on down, one on state change),
+        # so debounce with a 200ms window to treat them as a single event.
         if key == Qt.Key.Key_CapsLock:
+            now = time.monotonic()
+            if now - self._caps_lock_last_toggle < 0.2:
+                return
+            self._caps_lock_last_toggle = now
             self.computer_keyboard_enabled = not self.computer_keyboard_enabled
             if self.computer_keyboard_enabled:
                 self.show_status_message(
@@ -1060,6 +1068,34 @@ class PianoMIDIViewer(QMainWindow):
             return
         if key == Qt.Key.Key_P and not event.modifiers():
             self.toggle_pencil()
+            return
+
+        # Octave range shortcuts (always active)
+        if key == Qt.Key.Key_BracketLeft and not event.modifiers():
+            self.add_octave_left()
+            return
+        if key == Qt.Key.Key_BraceLeft:
+            self.remove_octave_left()
+            return
+        if key == Qt.Key.Key_BracketRight and not event.modifiers():
+            self.add_octave_right()
+            return
+        if key == Qt.Key.Key_BraceRight:
+            self.remove_octave_right()
+            return
+
+        # Toggle shortcuts (always active)
+        if key == Qt.Key.Key_O and not event.modifiers():
+            self.show_octave_numbers = not self.show_octave_numbers
+            self.piano.update()
+            self.save_settings()
+            return
+        if key == Qt.Key.Key_V and not event.modifiers():
+            self.show_velocity = not self.show_velocity
+            self.piano.update()
+            self.save_settings()
+            state = tr("ON") if self.show_velocity else tr("OFF")
+            self.show_status_message(tr("Velocity: {}").format(state))
             return
 
         # Everything below requires computer keyboard to be enabled

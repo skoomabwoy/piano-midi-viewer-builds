@@ -2,6 +2,9 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.3.1
+- **Keyboard shortcuts**: `[`/`]` add octaves, `{`/`}` remove octaves, O toggles octave numbers, V toggles velocity (with toast notification)
+
 ## 9.3.0
 - **Computer keyboard input**: Use your computer keyboard as a piano — home row (A–K) plays one octave, upper row (W/E/T/Y/U) plays sharps/flats. Z/X shift octave down/up. Caps Lock toggles on/off. Also controllable via Settings checkbox
 - **Custom cursors**: Pencil and eraser tools now show proper pencil/eraser cursors instead of a generic crosshair. Right-click in pencil mode shows the eraser cursor

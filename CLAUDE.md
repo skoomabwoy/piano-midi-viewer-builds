@@ -165,6 +165,8 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Computer Keyboard**: Optional feature (off by default) allowing the computer keyboard to act as a MIDI input. Home row A–K maps one octave (A=C, W=C#, S=D, ... K=C+1), Z/X shift octave down/up. Caps Lock toggles on/off globally. Also controllable via Settings checkbox. State: `computer_keyboard_enabled`, `computer_keyboard_octave` (default 4), `_computer_keys_held` (dict: Qt key → MIDI note). Key repeat filtered via `event.isAutoRepeat()`. Velocity fixed at 100. Persisted in `[input]` section of settings.ini.
 
+**Keyboard Shortcuts**: Always-active shortcuts (work regardless of computer keyboard toggle): P = toggle pencil, Escape = exit pencil, `[` = add low octave, `{` = remove low octave, `]` = add high octave, `}` = remove high octave, O = toggle octave numbers, V = toggle velocity (shows toast). Computer keyboard mode adds: A–K = play notes, Z/X = shift octave, Caps Lock = toggle mode.
+
 **Text Rendering**: JetBrains Mono (embedded, fallback to system monospace). Font size scales with key width. Minimum 8pt (hidden if smaller). Dynamic contrast: black text on light, white on dark.
 
 **UI Scaling**: `UI_SCALE_FACTOR` global, `scaled(px)` helper. 50-200% range. Applied live via `rebuild_ui()` — tears down and recreates the layout around the existing `PianoKeyboard` widget, preserving all state (MIDI, notes, synth). Language changes also apply live the same way.
