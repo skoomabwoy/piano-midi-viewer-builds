@@ -1,7 +1,6 @@
 """Main application window — manages MIDI, UI layout, and app state."""
 
 import os
-import time
 import configparser
 from datetime import datetime
 
@@ -77,7 +76,6 @@ class PianoMIDIViewer(QMainWindow):
         self.computer_keyboard_enabled = False
         self.computer_keyboard_octave = 4  # C4–C5 by default
         self._computer_keys_held = {}  # Qt key code → MIDI note
-        self._caps_lock_last_toggle = 0.0  # macOS fires two keyPressEvents per Caps Lock press
 
         # --- Note display settings (all saved to settings.ini) ---
         self.show_octave_numbers = True
@@ -1041,14 +1039,8 @@ class PianoMIDIViewer(QMainWindow):
 
         key = event.key()
 
-        # Caps Lock toggles computer keyboard.
-        # macOS fires two keyPressEvents per physical press (one on down, one on state change),
-        # so debounce with a 200ms window to treat them as a single event.
+        # Caps Lock toggles computer keyboard
         if key == Qt.Key.Key_CapsLock:
-            now = time.monotonic()
-            if now - self._caps_lock_last_toggle < 0.2:
-                return
-            self._caps_lock_last_toggle = now
             self.computer_keyboard_enabled = not self.computer_keyboard_enabled
             if self.computer_keyboard_enabled:
                 self.show_status_message(
