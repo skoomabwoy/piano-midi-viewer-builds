@@ -210,11 +210,13 @@ a:hover {
     max-width: 480px;
 }
 
-.feature-media img {
+.feature-media img,
+.feature-video {
     width: 100%;
     height: auto;
     border-radius: 8px;
     box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    display: block;
 }
 
 .feature-text {
@@ -668,6 +670,37 @@ a:hover {
     color: #2a2a2a;
     line-height: 1.7;
     margin: 0;
+}
+
+/* ── Lightbox ── */
+.lightbox-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    z-index: 1000;
+    cursor: zoom-out;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.lightbox-overlay.active {
+    display: flex;
+}
+
+.lightbox-img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 6px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+    object-fit: contain;
+}
+
+.app-steps-img img,
+.guide-step-img img,
+.guide-explainer-img img {
+    cursor: zoom-in;
 }
 
 /* ── Footer ── */

@@ -15,14 +15,15 @@ function initTabs(urls) {
     const contents = document.querySelectorAll('.platform-content');
     const btn = document.getElementById('hero-download-btn');
 
+    if (!tabs.length) return () => {};
+
     function activate(platform) {
         tabs.forEach(t => t.classList.toggle('active', t.dataset.platform === platform));
         contents.forEach(c => c.classList.toggle('active', c.dataset.platform === platform));
 
-        // Update download button to match selected platform
-        btn.textContent = OS_LABELS[platform] || OS_LABELS.linux;
-        if (urls) {
-            btn.href = urls[platform] || urls.linux;
+        if (btn) {
+            btn.textContent = OS_LABELS[platform] || OS_LABELS.linux;
+            if (urls) btn.href = urls[platform] || urls.linux;
         }
     }
 
@@ -36,7 +37,7 @@ function initTabs(urls) {
 // ── Fetch latest release from Codeberg API ──
 const REPO_API = 'https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest';
 
-const FALLBACK_TAG = 'v9.1.0';
+const FALLBACK_TAG = 'v9.3.1';
 const FALLBACK_BASE = `https://codeberg.org/skoomabwoy/piano-midi-viewer/releases/download/${FALLBACK_TAG}/`;
 
 const FILE_NAMES = {
@@ -130,6 +131,27 @@ function initCopyButtons() {
     });
 }
 
+// ── Lightbox ──
+function initLightbox() {
+    const overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    const img = document.createElement('img');
+    img.className = 'lightbox-img';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+
+    document.querySelectorAll('.app-steps-img img, .guide-step-img img, .guide-explainer-img img').forEach(el => {
+        el.addEventListener('click', () => {
+            img.src = el.src;
+            img.alt = el.alt;
+            overlay.classList.add('active');
+        });
+    });
+
+    overlay.addEventListener('click', () => overlay.classList.remove('active'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('active'); });
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
     const os = detectOS();
@@ -141,4 +163,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('resize', equalizePlatformHeights);
 
     initCopyButtons();
+    initLightbox();
 });

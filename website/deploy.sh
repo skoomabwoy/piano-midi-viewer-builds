@@ -26,7 +26,8 @@ cp "$WEBSITE_DIR/guide.html" "$TMPDIR/"
 cp "$WEBSITE_DIR/style.css" "$TMPDIR/"
 cp "$WEBSITE_DIR/script.js" "$TMPDIR/"
 
-# Assets (font, icon)
+# Assets (font, icons)
+cp "$REPO_ROOT/assets/icon.png" "$TMPDIR/"
 cp "$REPO_ROOT/assets/icon.svg" "$TMPDIR/"
 cp "$REPO_ROOT/assets/JetBrainsMono-Regular.ttf" "$TMPDIR/"
 
@@ -34,6 +35,18 @@ cp "$REPO_ROOT/assets/JetBrainsMono-Regular.ttf" "$TMPDIR/"
 mkdir -p "$TMPDIR/screenshots"
 cp "$REPO_ROOT/screenshots/sustained-blue-2-octaves-velocity.png" "$TMPDIR/screenshots/"
 cp "$REPO_ROOT/screenshots/pencil-tool-red-4-octaves.png" "$TMPDIR/screenshots/"
+# Guide screenshots (copied individually so missing files don't abort the deploy)
+for f in guide-zoom guide-meet guide-discord guide-telegram \
+          guide-obs-scene guide-obs-webcam guide-obs-capture guide-obs-layout \
+          guide-obs-virtualcam guide-obs-incall; do
+    [ -f "$REPO_ROOT/screenshots/$f.png" ] && cp "$REPO_ROOT/screenshots/$f.png" "$TMPDIR/screenshots/"
+done
+
+# Demo videos
+if [ -d "$WEBSITE_DIR/media" ]; then
+    mkdir -p "$TMPDIR/media"
+    find "$WEBSITE_DIR/media" -maxdepth 1 -name "*.mp4" -exec cp {} "$TMPDIR/media/" \;
+fi
 
 # Fix asset paths for production (../assets/X -> X, ../screenshots/ -> screenshots/)
 # Use portable sed (no -i flag) for macOS compatibility
