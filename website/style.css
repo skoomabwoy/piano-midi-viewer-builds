@@ -221,7 +221,7 @@ a:hover {
 
 .feature-text {
     flex: 1;
-    max-width: 400px;
+    max-width: 450px;
 }
 
 .feature-text h2 {
@@ -258,7 +258,7 @@ a:hover {
 }
 
 .feature-text-centered {
-    max-width: 560px;
+    max-width: 700px;
     margin: 0 auto;
 }
 
