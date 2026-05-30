@@ -63,7 +63,7 @@
         <div class="hero-screenshot">
             <img src="../docs/screenshots/sustained-blue-2-octaves-velocity.png" alt="Piano MIDI Viewer showing highlighted keys with velocity">
             <p class="promise">Free, open source, no subscription, no catch.</p>
-            <p class="hero-version" id="hero-version">v9.3.1</p>
+            <p class="hero-version" id="hero-version">v9.3.2</p>
         </div>
     </div>
 </section>
@@ -121,18 +121,49 @@
             <h2>Made by a musician, for musicians</h2>
             <p>This is a solo passion project with no budget and no company behind it. I'm not a professional developer — I built this because I needed it and nothing like it existed.</p>
             <p>There are no tricks, no ads, no tracking, no account needed. The app works completely offline. I believe education should be a right, not a privilege — so this will always be free.</p>
-            <p>If you found the app useful — please share it.</p>
+            <p>If you found the app useful — please share it. And if something's off or you have an idea — <a href="#contact">send me a message</a>.</p>
         </div>
     </div>
-    
+
+</section>
+
+<!-- Contact -->
+<section class="contact" id="contact">
+    <div class="contact-inner">
+        <h2>Found a problem or have an idea?</h2>
+        <p class="contact-lead">This app gets better because of people like you. If something's broken, confusing, or missing — or you just thought of a feature you'd love to see — <strong>tell me!</strong> No idea is too small, and you don't need an account or anything fancy. Just type and send.</p>
+
+        <form id="contact-form" class="contact-form" novalidate>
+            <!-- Web3Forms: paste your access key from https://web3forms.com here ↓ -->
+            <input type="hidden" name="access_key" value="fa68e382-8ee8-41b2-b269-a0445cb393ab">
+            <input type="hidden" name="subject" value="New message from the Piano MIDI Viewer website">
+            <input type="hidden" name="from_name" value="Piano MIDI Viewer website">
+            <!-- Honeypot: hidden from people, catches spam bots that fill every field -->
+            <input type="checkbox" name="botcheck" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+            <label class="contact-field">
+                <span class="contact-label">Your message</span>
+                <textarea name="message" rows="5" required placeholder="A bug, an idea, a question — anything."></textarea>
+            </label>
+
+            <label class="contact-field">
+                <span class="contact-label">Your email <span class="contact-optional">— optional, only if you'd like a reply</span></span>
+                <input type="email" name="email" placeholder="you@example.com" autocomplete="email">
+            </label>
+
+            <button type="submit" class="btn-primary contact-submit">Send message</button>
+            <p id="contact-status" class="contact-status" role="status" aria-live="polite"></p>
+        </form>
+    </div>
 </section>
 
 <!-- Footer -->
 <footer>
     <p>
         <a href="https://codeberg.org/skoomabwoy/piano-midi-viewer" target="_blank" rel="noopener">Open source on Codeberg</a>
+        · <a href="#contact">Contact</a>
         · GPL-3.0
-        · v9.3.1
+        · v9.3.2
     </p>
 </footer>
 

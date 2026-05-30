@@ -37,7 +37,7 @@ function initTabs(urls) {
 // ── Fetch latest release from Codeberg API ──
 const REPO_API = 'https://codeberg.org/api/v1/repos/skoomabwoy/piano-midi-viewer/releases/latest';
 
-const FALLBACK_TAG = 'v9.3.1';
+const FALLBACK_TAG = 'v9.3.2';
 const FALLBACK_BASE = `https://codeberg.org/skoomabwoy/piano-midi-viewer/releases/download/${FALLBACK_TAG}/`;
 
 const FILE_NAMES = {
@@ -152,6 +152,52 @@ function initLightbox() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('active'); });
 }
 
+// ── Contact form (Web3Forms, no backend needed) ──
+function initContactForm() {
+    const form = document.getElementById('contact-form');
+    if (!form) return;
+
+    const status = document.getElementById('contact-status');
+    const submitBtn = form.querySelector('.contact-submit');
+
+    function setStatus(text, kind) {
+        status.textContent = text;
+        status.className = 'contact-status' + (kind ? ' ' + kind : '');
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // Guard: remind the maintainer if the access key hasn't been set yet.
+        const key = form.querySelector('[name="access_key"]').value;
+        if (!key || key.includes('YOUR_WEB3FORMS')) {
+            setStatus('Contact form isn’t set up yet (missing Web3Forms access key).', 'error');
+            return;
+        }
+
+        setStatus('Sending…', '');
+        submitBtn.disabled = true;
+
+        try {
+            const resp = await fetch('https://api.web3forms.com/submit', {
+                method: 'POST',
+                body: new FormData(form),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                form.reset();
+                setStatus('✓ Thanks! Your message has been sent.', 'success');
+            } else {
+                setStatus('✗ ' + (data.message || 'Something went wrong. Please try again.'), 'error');
+            }
+        } catch (err) {
+            setStatus('✗ Network error — please check your connection and try again.', 'error');
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
     const os = detectOS();
@@ -164,4 +210,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     initCopyButtons();
     initLightbox();
+    initContactForm();
 });
