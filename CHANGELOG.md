@@ -2,6 +2,12 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.3.2
+- **Smoother built-in sound**: Notes now have a soft attack and a brief decay instead of an abrupt organ-like onset, and the clicks when repeating a note or holding many notes at once are gone
+- **Settings no longer reset on launch**: Fixed a bug where reconnecting a saved MIDI device at startup could overwrite your display settings and window size with defaults
+- **Honest image saves**: Saving the keyboard as an image now reports failures instead of always claiming success
+- **Internal cleanup**: Resources moved into the package, dependencies consolidated into `pyproject.toml`, MIDI handling extracted into its own module, and a small memory leak on UI scale/language changes fixed
+
 ## 9.3.1
 - **Keyboard shortcuts**: `[`/`]` add octaves, `{`/`}` remove octaves, O toggles octave numbers, V toggles velocity (with toast notification)
 

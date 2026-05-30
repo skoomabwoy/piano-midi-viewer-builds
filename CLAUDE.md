@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Package architecture**: The application is split into the `piano_viewer/` Python package with focused modules.
 
-**Current Version: 9.3.0**
+**Current Version: 9.3.2**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
