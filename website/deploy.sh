@@ -58,6 +58,19 @@ done
 sed 's|\.\./piano_viewer/resources/fonts/||g; s|\.\./piano_viewer/resources/images/||g' \
     "$TMPDIR/style.css" > "$TMPDIR/style.css.tmp" && mv "$TMPDIR/style.css.tmp" "$TMPDIR/style.css"
 
+# Single source of truth for the version: the app's VERSION in __init__.py.
+# Inject it into the deployed script.js as FALLBACK_TAG, so the site never needs
+# a manual version edit. (The live version is still fetched from the Codeberg API
+# at runtime; this fallback only shows if that API call fails.)
+APP_VERSION="$(sed -n 's/^VERSION = "\([^"]*\)".*/\1/p' "$REPO_ROOT/piano_viewer/__init__.py")"
+if [ -n "$APP_VERSION" ]; then
+    sed "s/const FALLBACK_TAG = '[^']*';/const FALLBACK_TAG = 'v${APP_VERSION}';/" \
+        "$TMPDIR/script.js" > "$TMPDIR/script.js.tmp" && mv "$TMPDIR/script.js.tmp" "$TMPDIR/script.js"
+    echo "Injected version v${APP_VERSION} into script.js"
+else
+    echo "Warning: could not read VERSION from __init__.py — keeping script.js fallback as-is"
+fi
+
 # Switch to pages branch
 if ! git show-ref --verify --quiet "refs/heads/$PAGES_BRANCH"; then
     echo "Creating orphan '$PAGES_BRANCH' branch..."

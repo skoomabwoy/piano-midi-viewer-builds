@@ -52,7 +52,7 @@ const OS_LABELS = {
     linux: 'Download for Linux'
 };
 
-async function fetchDownloadURLs() {
+async function fetchLatestRelease() {
     try {
         const resp = await fetch(REPO_API);
         if (!resp.ok) throw new Error(`API returned ${resp.status}`);
@@ -67,22 +67,17 @@ async function fetchDownloadURLs() {
             }
         }
 
-        // Update version from API (hero + footer)
-        const version = data.tag_name;
-        if (version) {
-            const heroVersion = document.getElementById('hero-version');
-            if (heroVersion) heroVersion.textContent = version;
-            const footer = document.querySelector('footer p');
-            if (footer) {
-                footer.innerHTML = footer.innerHTML.replace(/v[\d.]+/, version);
-            }
-        }
-
-        return urls;
+        return { version: data.tag_name || null, urls };
     } catch (e) {
-        console.warn('Could not fetch latest release, using fallback URLs:', e.message);
+        console.warn('Could not fetch latest release, using fallback:', e.message);
         return null;
     }
+}
+
+// Single place that writes the version — fills every .js-version slot on the page
+// (hero + footers), so the version text lives in exactly one variable, not in markup.
+function applyVersion(version) {
+    document.querySelectorAll('.js-version').forEach(el => { el.textContent = version; });
 }
 
 function getFallbackURLs() {
@@ -190,7 +185,7 @@ function initContactForm() {
             } else {
                 setStatus('✗ ' + (data.message || 'Something went wrong. Please try again.'), 'error');
             }
-        } catch (err) {
+        } catch {
             setStatus('✗ Network error — please check your connection and try again.', 'error');
         } finally {
             submitBtn.disabled = false;
@@ -201,7 +196,14 @@ function initContactForm() {
 // ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
     const os = detectOS();
-    const urls = (await fetchDownloadURLs()) || getFallbackURLs();
+
+    // Resolve the version + download URLs from the latest release, falling back
+    // to FALLBACK_TAG (injected from the app's VERSION at deploy time) if the
+    // API is unreachable. One resolved version drives every .js-version slot.
+    const release = await fetchLatestRelease();
+    applyVersion((release && release.version) || FALLBACK_TAG);
+    const urls = (release && release.urls) || getFallbackURLs();
+
     const activate = initTabs(urls);
     activate(os);
 
