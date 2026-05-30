@@ -15,43 +15,37 @@ For full version history, see [CHANGELOG.md](CHANGELOG.md).
 ## Project Structure
 
 ```
-piano_viewer.py          # Thin launcher (delegates to piano_viewer package)
+piano_viewer.py          # Thin launcher (PyInstaller entry; delegates to package)
+pyproject.toml           # Project metadata, dependencies, build + pytest config
+requirements-lock.txt    # Pinned versions for reproducible CI builds
+
 piano_viewer/            # Application package
-  __init__.py            # VERSION, paths, logger, _SOUND_AVAILABLE, re-exports
+  __init__.py            # VERSION, resource paths, logger, _SOUND_AVAILABLE, re-exports
   __main__.py            # Entry point (main function, font loading, startup)
   constants.py           # Sizing, colors, MIDI ranges, layout helpers, mutable globals
   i18n.py                # Translation system (tr(), load_translations(), LANGUAGES)
   helpers.py             # Config management, MIDI math, colors, fonts, button styles
-  icons.py               # SVG/PNG loading from assets/, icon + cursor creation
+  icons.py               # SVG/PNG loading from resources/, icon + cursor creation
   synth.py               # Wavetable synthesizer (PianoSynthesizer, _Voice)
   dialogs.py             # ErrorDialog
   settings.py            # SettingsDialog, UpdateChecker
   keyboard.py            # PianoKeyboard widget (rendering, mouse interaction)
-  main_window.py         # PianoMIDIViewer (QMainWindow, MIDI, layout, app state)
+  midi_input.py          # MidiInput transport (rtmidi handles, timers, parsing)
+  main_window.py         # PianoMIDIViewer (QMainWindow, layout, app state)
+  resources/             # Runtime resources, bundled as package data
+    icons/               # UI + cursor SVGs (Phosphor Bold + custom pedal)
+    fonts/               # JetBrainsMono-Regular.ttf (note labels)
+    images/              # icon.png (CI .ico/.icns source), icon.svg (website)
+    translations/        # UI translations (JSON, one file per language)
 
-assets/                  # SVG icons, cursors, and font (loaded at runtime by icons.py)
-  icon.png               # App icon (1024x1024 PNG, used by CI for .ico/.icns generation)
-  icon.svg               # App icon (SVG, used by website)
-  pencil.svg             # Pencil icon (Phosphor Bold)
-  pencil-cursor.svg      # Pencil cursor (white-filled Bold, 32x32)
-  eraser.svg             # Eraser icon (Phosphor Bold)
-  eraser-cursor.svg      # Eraser cursor (white-filled Bold, 32x32)
-  camera.svg             # Camera/save icon (Phosphor Bold)
-  settings.svg           # Cogwheel/gear icon (Phosphor Bold)
-  plus.svg               # Plus icon for octave buttons (Phosphor Bold)
-  minus.svg              # Minus icon for octave buttons (Phosphor Bold)
-  refresh.svg            # Refresh icon for MIDI device list (Phosphor Bold)
-  pedal.svg              # Sustain pedal icon (custom, stroke-based)
-  JetBrainsMono-Regular.ttf  # Bundled font for note labels
+packaging/               # Build specs + scripts
+  linux.spec             # Linux PyInstaller spec
+  macos.spec             # macOS PyInstaller spec
+  build-appimage.sh      # Local AppImage build (mirrors the CI Linux job)
 
-packaging/               # PyInstaller build specs
-  PianoMIDIViewer.spec         # Linux build spec
-  PianoMIDIViewer-macos.spec   # macOS build spec
-
-translations/            # UI translations (JSON, one file per language)
 tests/                   # Test suite (pytest, 67 tests)
-website/                 # Landing page (HTML/CSS/JS)
-screenshots/             # README screenshots
+website/                 # Landing page (HTML/CSS/JS, deploy.sh)
+docs/screenshots/        # Screenshots shared by README and the website
 .github/workflows/       # GitHub Actions CI (build.yml)
 ```
 
@@ -59,7 +53,7 @@ screenshots/             # README screenshots
 
 ```bash
 # Using the Python virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 python piano_viewer.py      # Thin launcher
 # or
 python -m piano_viewer      # Package entry point
@@ -67,13 +61,15 @@ python -m piano_viewer      # Package entry point
 
 ## Dependencies
 
-Core dependencies (installed in venv):
+Declared in `pyproject.toml` (loose constraints); CI installs the pinned set
+from `requirements-lock.txt` for reproducible builds.
 - PyQt6 - GUI framework
 - python-rtmidi - MIDI input handling
 - certifi - CA certificates for HTTPS in PyInstaller builds
 - sounddevice (optional) - Built-in sound output (sine-wave synthesis)
 
-The project uses a Python virtual environment in `venv/`.
+Dev setup: `python -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`
+(the `dev` extra adds pytest + pyinstaller). The venv lives in `.venv/`.
 
 ## Key Constants and Constraints
 
@@ -102,19 +98,20 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 - **`constants.py`** — All sizing, colors, MIDI ranges, layout helpers. Mutable globals: `UI_SCALE_FACTOR`, `LOADED_FONT_FAMILY` (set in `__main__.py`, accessed via `constants.X`).
 - **`i18n.py`** — Translation system: `LANGUAGES`, `tr()`, `tr_for()`, `load_translations()`, `get_current_language()`.
 - **`helpers.py`** — Pure logic: config management, MIDI math, color blending, font sizing, button styling. No widget creation.
-- **`icons.py`** — Loads Phosphor Bold SVGs from `assets/` directory, renders to QPixmap/QIcon via `_render_svg_to_pixmap()`. Color customization via string replacement. Also creates pencil/eraser cursors from cursor SVGs and loads the PNG app icon.
+- **`icons.py`** — Loads Phosphor Bold SVGs from `resources/icons/`, renders to QPixmap/QIcon via `_render_svg_to_pixmap()`. Color customization via string replacement. Also creates pencil/eraser cursors from cursor SVGs and loads the PNG app icon.
 - **`synth.py`** — Optional wavetable synthesizer (`PianoSynthesizer`, `_Voice`). Conditional on `_SOUND_AVAILABLE`.
 - **`dialogs.py`** — `ErrorDialog` with copy-to-clipboard and optional settings reset.
 - **`settings.py`** — `SettingsDialog` (QDialog) and `UpdateChecker` (QThread).
 - **`keyboard.py`** — `PianoKeyboard` (QWidget): rendering, mouse interaction, note tracking.
-- **`main_window.py`** — `PianoMIDIViewer` (QMainWindow): MIDI, layout, app state, octave management.
+- **`midi_input.py`** — `MidiInput`: rtmidi handles, poll/scan timers, device hot-plug, and raw-byte parsing into semantic events delivered via callbacks. Knows nothing about the UI.
+- **`main_window.py`** — `PianoMIDIViewer` (QMainWindow): layout, app state, octave management, and the semantic note/sustain handlers that `MidiInput` (and the computer keyboard) call into.
 - **`__main__.py`** — Entry point: startup logging, font loading, UI scale, language, window creation.
 
 ### Cross-module patterns
 
 - **Mutable globals**: `constants.UI_SCALE_FACTOR` and `constants.LOADED_FONT_FAMILY` are set once during startup. Other modules access them via `import piano_viewer.constants as constants; constants.X`.
 - **Circular import avoidance**: `keyboard.py` uses `isinstance(parent, QMainWindow)` instead of importing `PianoMIDIViewer`. `i18n.py` uses lazy import of `get_config_path` inside `load_language_setting()`.
-- **SVG assets**: Phosphor Bold icons loaded from `assets/` at runtime. Color customization via `#000000` string replacement. Custom pencil/eraser cursors from cursor SVGs.
+- **SVG assets**: Phosphor Bold icons loaded from `resources/icons/` at runtime. Color customization via `#000000` string replacement. Custom pencil/eraser cursors from cursor SVGs.
 
 ### Component Details
 
@@ -134,7 +131,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Sizing System**: Everything derives from white key width. Constants define initial size, window size = key count x key dimensions. Ratio limits and absolute minimums always enforced.
 
-**MIDI Handling**: Polling-based (not callback). QTimer at 10ms. Handles Note On (0x90), Note Off (0x80), Control Change (0xB0 for CC 64 sustain). Out-of-range notes trigger +button glow. Auto-select: if no saved device and exactly one real (non-virtual) device available, connect automatically. Virtual ports (e.g. ALSA "Midi Through") are filtered via `_VIRTUAL_MIDI_PREFIXES` — only affects auto-select, never hides devices from Settings. Device scanning every 3 seconds handles hot-plug/unplug.
+**MIDI Handling**: Lives in `midi_input.py` (`MidiInput`). Polling-based (not callback). QTimer at 10ms parses Note On (0x90), Note Off (0x80), Control Change (0xB0 for CC 64 sustain) into `on_note_on/on_note_off/on_sustain` callbacks that the window handles. Out-of-range notes trigger +button glow (centralized in `_refresh_out_of_range_glow()`). Auto-select: if no saved device and exactly one real (non-virtual) device available, connect automatically. Virtual ports (e.g. ALSA "Midi Through") are filtered via `MidiInput._VIRTUAL_MIDI_PREFIXES` — only affects auto-select, never hides devices from Settings. Device scanning every 3 seconds handles hot-plug/unplug.
 
 **Velocity**: `active_notes` is a dict (note -> velocity 1-127). `blend_colors()` interpolates between base and highlight color. Factor range 0.3-1.0 (soft notes always visible at 30%).
 
@@ -159,7 +156,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 **Logging**: Python `logging` module. Logger named `piano-midi-viewer`, levels: info (startup, connections), warning (fallbacks), error (failures).
 
-**Icons**: Phosphor Bold SVG set loaded from `assets/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement — all SVGs must use full `#000000` hex (not shorthand `#000`). Pedal icon is custom (stroke-based, artist-designed). App icon loaded from `icon.png` (PNG, not SVG).
+**Icons**: Phosphor Bold SVG set loaded from `resources/icons/` at runtime via `icons.py`. `_render_svg_to_pixmap()` strips existing dimensions, injects target size, and renders to QPixmap. Color customization via `#000000` string replacement — all SVGs must use full `#000000` hex (not shorthand `#000`). Pedal icon is custom (stroke-based, artist-designed). App icon loaded from `icon.png` (PNG, not SVG).
 
 **Cursors**: Pencil and eraser tools use custom SVG cursors (`pencil-cursor.svg`, `eraser-cursor.svg`). These are Phosphor Bold icons with a white fill layer behind the black compound path, rendered at `CURSOR_SIZE = 24px`. Hotspots are at the pencil tip (1, 23) and eraser edge (4, 21). Default mode shows pencil cursor; holding RMB shows eraser cursor. Cursors are cached on `PianoMIDIViewer.__init__`.
 
@@ -194,7 +191,7 @@ Each module has a single responsibility (see Module Structure above). The `piano
 - macOS: `--onedir` (NOT `--onefile`) for proper universal2 lipo. ARM + Intel combined with lipo per Mach-O file
 - Linux: `--onedir` + AppImage (appimagetool with static runtime, no FUSE dependency)
 - Windows: `--onefile` with icon generated via ImageMagick
-- App icon: `assets/icon.png` -> .ico (Windows via ImageMagick) / .icns (macOS via sips + iconutil) / .png (Linux via ImageMagick)
+- App icon: `piano_viewer/resources/images/icon.png` -> .ico (Windows via ImageMagick) / .icns (macOS via sips + iconutil) / .png (Linux via ImageMagick)
 - Linux audio bundling: libportaudio IS bundled (explicit in spec `extra_libs`); libasound, libjack, libstdc++ are excluded — must use host's PipeWire/PulseAudio stack and C++ runtime
 - macOS DMG includes `README.txt` with xattr install instructions
 - `create-release` job only runs on tag push
@@ -215,7 +212,7 @@ Tracked in Claude Code memory files:
 ## Development Notes
 
 - Settings saved to `~/.config/piano-midi-viewer/settings.ini`
-- UI strings wrapped in `tr()` for i18n, translations in `translations/*.json` (en, de, es, fr, pl, pt, ru, uk)
+- UI strings wrapped in `tr()` for i18n, translations in `piano_viewer/resources/translations/*.json` (en, de, es, fr, pl, pt, ru, uk)
 - MIDI errors logged via `logging` module (replaced print() in 8.5.1)
 - Cross-platform: Linux (AppImage), Windows (.exe), macOS (.dmg)
 - Git hooks: post-commit auto-pushes to both remotes (Codeberg + GitHub)

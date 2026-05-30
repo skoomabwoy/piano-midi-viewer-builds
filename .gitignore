@@ -7,11 +7,19 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
 
 # Virtual Environment
+.venv/
 venv/
 env/
 ENV/
+
+# Local build outputs / tools
+*.AppImage
+/appimagetool
+piano-midi-viewer.png
+*.AppDir/
 
 # IDE
 .vscode/

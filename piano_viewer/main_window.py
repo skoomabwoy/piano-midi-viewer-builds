@@ -4,7 +4,6 @@ import os
 import configparser
 from datetime import datetime
 
-import rtmidi
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
     QLabel, QFileDialog, QApplication,
@@ -25,14 +24,15 @@ from piano_viewer.constants import (
     PRACTICAL_MIN_KEY_WIDTH, MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO,
     KEYBOARD_CANVAS_MARGIN, WINDOW_VERTICAL_MARGIN,
     LAYOUT_MARGIN, BUTTON_SIZE, BUTTON_AREA_WIDTH,
-    BUTTON_SPACING, MIDI_POLL_INTERVAL, MIDI_SCAN_INTERVAL,
-    STATUS_MESSAGE_DURATION,
+    BUTTON_SPACING, STATUS_MESSAGE_DURATION,
 )
 from piano_viewer.i18n import tr
 from piano_viewer.helpers import (
     get_config_path, calculate_initial_window_size,
     count_white_keys, get_text_color_for_highlight, make_button_style,
+    velocity_factor,
 )
+from piano_viewer.midi_input import MidiInput
 from piano_viewer.icons import (
     create_settings_icon, create_pencil_icon, create_save_icon,
     create_plus_icon, create_minus_icon, create_pedal_icon,
@@ -55,13 +55,16 @@ class PianoMIDIViewer(QMainWindow):
         # this guard, we'd get infinite recursion.
         self._in_resize_event = False
 
-        # --- MIDI connection state ---
-        self.midi_in = None
-        self.midi_scanner = None
-        self.current_midi_device = None
-        self.midi_timer = None
-        self.known_midi_devices = []
-        self.device_scan_timer = None
+        # --- MIDI input transport (owns rtmidi handles + poll/scan timers) ---
+        self.midi = MidiInput(
+            on_note_on=self.handle_note_on,
+            on_note_off=self.handle_note_off,
+            on_sustain=self.handle_sustain,
+            on_disconnect=self.on_midi_disconnect,
+            on_connect=self._on_midi_connect,
+            on_status=self.show_status_message,
+            on_error=self.show_error_dialog,
+        )
         self.status_hide_timer = None
 
         # --- Sustain pedal state ---
@@ -90,8 +93,7 @@ class PianoMIDIViewer(QMainWindow):
         self.synth = PianoSynthesizer() if _SOUND_AVAILABLE else None
 
         self.init_ui()
-        self.setup_midi_polling()
-        self.setup_device_scanning()
+        self.midi.start()
 
         if not _startup_errors:
             self.load_settings()
@@ -101,10 +103,10 @@ class PianoMIDIViewer(QMainWindow):
         # (2) single real device auto-select (here), (3) no device.
         # Virtual ports (e.g. ALSA "Midi Through") are filtered out so they don't
         # count — only real instruments trigger auto-select.
-        if not self.midi_in:
-            real = self._filter_virtual_devices(self.known_midi_devices)
-            if len(real) == 1:
-                self.connect_midi_device(real[0])
+        if not self.midi.connected:
+            real = self.midi.real_devices()
+            if len(real) == 1 and self.midi.connect(real[0]):
+                self.save_settings()
 
         if _startup_errors:
             errors = "\n".join(_startup_errors)
@@ -234,14 +236,17 @@ class PianoMIDIViewer(QMainWindow):
         right_layout.addWidget(self.right_plus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.right_minus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Status overlay (parented to piano, floats on top)
-        self.status_label = QLabel("", self.piano)
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet(
-            "background-color: #404040; color: #ffffff;"
-            "padding: 6px 16px; border-radius: 8px;"
-        )
-        self.status_label.setVisible(False)
+        # Status overlay (parented to the piano, floats on top). Created once and
+        # reused across rebuilds — the piano widget survives rebuild_ui(), so a
+        # fresh label each time would just orphan the previous one on the piano.
+        if not hasattr(self, 'status_label') or self.status_label is None:
+            self.status_label = QLabel("", self.piano)
+            self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.status_label.setStyleSheet(
+                "background-color: #404040; color: #ffffff;"
+                "padding: 6px 16px; border-radius: 8px;"
+            )
+            self.status_label.setVisible(False)
 
         # ASSEMBLE
         main_layout.addWidget(left_container)
@@ -298,6 +303,18 @@ class PianoMIDIViewer(QMainWindow):
 
     # --- Settings persistence ---
 
+    # Plain on/off settings, shared by load_settings() and save_settings():
+    # (config section, key, attribute name). Adding a boolean toggle is a
+    # one-line change here instead of three edits across load and save.
+    _BOOL_SETTINGS = (
+        ('appearance', 'show_octave_numbers', 'show_octave_numbers'),
+        ('appearance', 'show_white_key_names', 'show_white_key_names'),
+        ('appearance', 'show_black_key_names', 'show_black_key_names'),
+        ('appearance', 'show_names_when_pressed', 'show_names_when_pressed'),
+        ('appearance', 'show_velocity', 'show_velocity'),
+        ('input', 'computer_keyboard', 'computer_keyboard_enabled'),
+    )
+
     def load_settings(self):
         """Loads settings from the configuration file."""
         config_path = get_config_path()
@@ -320,7 +337,7 @@ class PianoMIDIViewer(QMainWindow):
         if config.has_option('midi', 'device'):
             device_name = config.get('midi', 'device')
             if device_name:
-                self.connect_midi_device(device_name)
+                self.connect_midi_device(device_name, save=False)
 
         if config.has_option('appearance', 'highlight_color'):
             color_hex = config.get('appearance', 'highlight_color')
@@ -331,16 +348,10 @@ class PianoMIDIViewer(QMainWindow):
             else:
                 reset_keys.append('highlight_color')
 
-        for key, attr in [
-            ('show_octave_numbers', 'show_octave_numbers'),
-            ('show_white_key_names', 'show_white_key_names'),
-            ('show_black_key_names', 'show_black_key_names'),
-            ('show_names_when_pressed', 'show_names_when_pressed'),
-            ('show_velocity', 'show_velocity'),
-        ]:
-            if config.has_option('appearance', key):
+        for section, key, attr in self._BOOL_SETTINGS:
+            if config.has_option(section, key):
                 try:
-                    setattr(self, attr, config.getboolean('appearance', key))
+                    setattr(self, attr, config.getboolean(section, key))
                 except ValueError:
                     reset_keys.append(key)
 
@@ -375,12 +386,6 @@ class PianoMIDIViewer(QMainWindow):
             except ValueError:
                 reset_keys.append('sound_enabled')
 
-        if config.has_option('input', 'computer_keyboard'):
-            try:
-                self.computer_keyboard_enabled = config.getboolean('input', 'computer_keyboard')
-            except ValueError:
-                reset_keys.append('computer_keyboard')
-
         if config.has_option('window', 'geometry'):
             geometry_string = config.get('window', 'geometry')
             geometry_bytes = QByteArray.fromBase64(geometry_string.encode())
@@ -404,12 +409,7 @@ class PianoMIDIViewer(QMainWindow):
 
         config['appearance'] = {
             'highlight_color': self.piano.highlight_color.name(),
-            'show_octave_numbers': str(self.show_octave_numbers),
-            'show_white_key_names': str(self.show_white_key_names),
-            'show_black_key_names': str(self.show_black_key_names),
             'black_key_notation': self.black_key_notation,
-            'show_names_when_pressed': str(self.show_names_when_pressed),
-            'show_velocity': str(self.show_velocity),
             'ui_scale': str(constants.UI_SCALE_FACTOR),
             'language': i18n.get_current_language(),
         }
@@ -423,9 +423,7 @@ class PianoMIDIViewer(QMainWindow):
             'sound_enabled': str(self.sound_enabled),
         }
 
-        config['input'] = {
-            'computer_keyboard': str(self.computer_keyboard_enabled),
-        }
+        config['input'] = {}
 
         geometry_bytes = self.saveGeometry()
         geometry_string = geometry_bytes.toBase64().data().decode()
@@ -436,6 +434,11 @@ class PianoMIDIViewer(QMainWindow):
         config['meta'] = {
             'settings_version': str(SETTINGS_VERSION),
         }
+
+        # On/off toggles (table-driven, shared with load_settings). Each target
+        # section is created above before we fill these in.
+        for section, key, attr in self._BOOL_SETTINGS:
+            config[section][key] = str(getattr(self, attr))
 
         try:
             with open(config_path, 'w') as f:
@@ -455,12 +458,6 @@ class PianoMIDIViewer(QMainWindow):
             self.pencil_active = False
             self.piano.drawn_notes.clear()
             self.piano.setCursor(Qt.CursorShape.ArrowCursor)
-            if self.piano.glow_left_plus:
-                self.piano.glow_left_plus = False
-                self.apply_button_glow(self.left_plus_btn, False)
-            if self.piano.glow_right_plus:
-                self.piano.glow_right_plus = False
-                self.apply_button_glow(self.right_plus_btn, False)
         else:
             self.pencil_active = True
             self.piano.active_notes.clear()
@@ -468,14 +465,11 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.active_notes_right.clear()
             self.piano.mouse_held_note = None
             self.piano.glissando_mode = None
-            if self.piano.glow_left_plus:
-                self.piano.glow_left_plus = False
-                self.apply_button_glow(self.left_plus_btn, False)
-            if self.piano.glow_right_plus:
-                self.piano.glow_right_plus = False
-                self.apply_button_glow(self.right_plus_btn, False)
             self.piano.setCursor(self._pencil_cursor)
 
+        # Both transitions clear the state that drives the glow (drawn marks on
+        # exit, active notes on enter), so a single recompute settles both sides.
+        self._refresh_out_of_range_glow()
         self.update_pencil_button_visual()
         self.piano.update()
 
@@ -492,8 +486,11 @@ class PianoMIDIViewer(QMainWindow):
             if not filename.lower().endswith('.png'):
                 filename += '.png'
             pixmap = self.piano.grab()
-            pixmap.save(filename, "PNG")
-            self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
+            if pixmap.save(filename, "PNG"):
+                self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
+            else:
+                log.error(f"Failed to save keyboard image to {filename}")
+                self.show_status_message(tr("Save failed: {}").format(os.path.basename(filename)))
 
     def quick_save_keyboard_image(self):
         """Quick-saves the piano keyboard as PNG to ~/Pictures with a timestamp."""
@@ -502,8 +499,11 @@ class PianoMIDIViewer(QMainWindow):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(save_dir, f"piano_{timestamp}.png")
         pixmap = self.piano.grab()
-        pixmap.save(filename, "PNG")
-        self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
+        if pixmap.save(filename, "PNG"):
+            self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
+        else:
+            log.error(f"Failed to quick-save keyboard image to {filename}")
+            self.show_status_message(tr("Save failed: {}").format(os.path.basename(filename)))
 
     # --- Button visual updates ---
 
@@ -553,132 +553,52 @@ class PianoMIDIViewer(QMainWindow):
         key_height = self.piano.height() - (KEYBOARD_CANVAS_MARGIN * 2)
         return key_width, key_height
 
-    # --- MIDI ---
+    # --- MIDI (transport lives in self.midi; these bridge it to the UI) ---
 
-    # Known virtual/system MIDI port prefixes — never auto-selected, but always
-    # visible in Settings so the user can connect manually if they want to.
-    _VIRTUAL_MIDI_PREFIXES = (
-        "Midi Through",     # ALSA built-in virtual loopback
-    )
-
-    @staticmethod
-    def _filter_virtual_devices(devices):
-        """Returns devices that don't match known virtual port prefixes."""
-        return [d for d in devices
-                if not d.startswith(PianoMIDIViewer._VIRTUAL_MIDI_PREFIXES)]
+    @property
+    def current_midi_device(self):
+        """Name of the connected device (or None) — read by Settings and save."""
+        return self.midi.current_device
 
     def get_midi_devices(self):
-        """Returns list of available MIDI input device names."""
-        try:
-            if not self.midi_scanner:
-                self.midi_scanner = rtmidi.MidiIn()
-            return self.midi_scanner.get_ports()
-        except Exception as e:
-            log.error(f"Error scanning MIDI devices: {e}")
-            self.show_error_dialog(
-                tr("MIDI Error"), tr("Could not scan for MIDI devices: {}").format(e))
-            return []
+        """Returns the list of available MIDI input device names (for Settings)."""
+        return self.midi.get_devices()
 
-    def connect_midi_device(self, device_name):
-        """Connects to the specified MIDI input device. Returns True on success."""
-        ports = self.get_midi_devices()
-        if device_name not in ports:
-            log.warning(f"Device not found: {device_name}")
-            self.show_status_message(tr("Not found: {}").format(device_name))
-            return False
+    def connect_midi_device(self, device_name, save=True):
+        """Connects to a MIDI device by name. Returns True on success.
 
-        try:
-            new_midi_in = rtmidi.MidiIn()
-            port_index = ports.index(device_name)
-            new_midi_in.open_port(port_index)
-        except Exception as e:
-            log.error(f"Error connecting to MIDI device: {e}")
-            self.show_status_message(tr("Connection failed: {}").format(device_name))
-            return False
-
-        if self.midi_in:
-            try:
-                self.midi_in.close_port()
-            except Exception:
-                pass
-            del self.midi_in
-
-        self.midi_in = new_midi_in
-        self.current_midi_device = device_name
-        log.info(f"Connected to MIDI device: {device_name}")
-        self.show_status_message(tr("Connected: {}").format(device_name))
-        self.save_settings()
-        return True
-
-    def setup_midi_polling(self):
-        """Sets up a timer to poll for MIDI messages."""
-        self.midi_timer = QTimer()
-        self.midi_timer.timeout.connect(self.poll_midi_messages)
-        self.midi_timer.start(MIDI_POLL_INTERVAL)
-
-    def setup_device_scanning(self):
-        """Sets up a timer to periodically scan for MIDI device changes."""
-        self.known_midi_devices = self.get_midi_devices()
-        self.device_scan_timer = QTimer()
-        self.device_scan_timer.timeout.connect(self.scan_midi_devices)
-        self.device_scan_timer.start(MIDI_SCAN_INTERVAL)
-
-    def scan_midi_devices(self):
-        """Checks for MIDI device changes (called every 3 seconds).
-
-        Handles two scenarios:
-        - Device disappeared: if it was our active device, disconnect gracefully.
-        - Device appeared: if we have no active connection, try to auto-connect.
-          Previously used device gets priority (e.g. USB cable reconnected).
-          Otherwise, auto-connect only if exactly one new real device appeared.
+        `save` defaults to True so user-initiated connections persist immediately.
+        It is passed False during load_settings(), where saving mid-load would
+        write half-initialized state (default display flags, pre-restore geometry)
+        over the file we are still reading.
         """
-        current_ports = self.get_midi_devices()
+        if self.midi.connect(device_name):
+            if save:
+                self.save_settings()
+            return True
+        return False
 
-        previous = set(self.known_midi_devices)
-        current = set(current_ports)
-        self.known_midi_devices = list(current_ports)
+    def _on_midi_connect(self, device_name):
+        """Persist a connection the transport made on its own (background scan)."""
+        self.save_settings()
 
-        if current == previous:
-            return
+    def handle_sustain(self, active):
+        """Handles a sustain-pedal (CC 64) state change."""
+        self.sustain_pedal_active = active
+        self.update_sustain_button_visual()
+        if self.sound_enabled and self.synth:
+            self.synth.set_sustain(active)
 
-        appeared = current - previous
-        disappeared = previous - current
+    def on_midi_disconnect(self, device_name):
+        """Clears playing state when the active device disconnects.
 
-        if self.current_midi_device and self.current_midi_device in disappeared:
-            self.handle_midi_disconnect()
-
-        if not self.midi_in and appeared:
-            if self.current_midi_device in appeared:
-                # Previously used device came back — reconnect regardless of filter
-                self.connect_midi_device(self.current_midi_device)
-            else:
-                # Only auto-connect if exactly one real (non-virtual) device appeared
-                real_appeared = self._filter_virtual_devices(list(appeared))
-                if len(real_appeared) == 1:
-                    self.connect_midi_device(real_appeared[0])
-
-    def handle_midi_disconnect(self):
-        """Handles a MIDI device disconnection gracefully."""
-        device_name = self.current_midi_device or "Unknown device"
-
-        if self.midi_in:
-            try:
-                self.midi_in.close_port()
-            except Exception:
-                pass
-            del self.midi_in
-            self.midi_in = None
-
+        The transport has already closed the port; this only resets UI/visual
+        state (active notes, glow, sustain) and shows a toast.
+        """
         self.piano.active_notes.clear()
         self.piano.active_notes_left.clear()
         self.piano.active_notes_right.clear()
-
-        if self.piano.glow_left_plus:
-            self.piano.glow_left_plus = False
-            self.apply_button_glow(self.left_plus_btn, False)
-        if self.piano.glow_right_plus:
-            self.piano.glow_right_plus = False
-            self.apply_button_glow(self.right_plus_btn, False)
+        self._refresh_out_of_range_glow()
 
         if self.sustain_pedal_active:
             self.sustain_pedal_active = False
@@ -687,45 +607,27 @@ class PianoMIDIViewer(QMainWindow):
         self.piano.update()
         self.show_status_message(tr("Disconnected: {}").format(device_name))
 
-    def poll_midi_messages(self):
-        """Checks for new MIDI messages and processes them (called every 10ms)."""
-        if not self.midi_in:
-            return
+    def _refresh_out_of_range_glow(self):
+        """Recomputes the +button glow on both sides from current state.
 
-        try:
-            while True:
-                message = self.midi_in.get_message()
-                if message is None:
-                    break
-                midi_data, _ = message
-                self.process_midi_message(midi_data)
-        except Exception as e:
-            log.error(f"Error polling MIDI: {e}")
-            self.handle_midi_disconnect()
+        A side glows when any active note or any pencil mark falls outside the
+        visible range on that side. Idempotent — call it after any change to the
+        range, active notes, or drawn notes instead of toggling the glow by hand.
+        """
+        want_left = (bool(self.piano.active_notes_left) or
+                     any(n < self.piano.start_note for n in self.piano.drawn_notes))
+        want_right = (bool(self.piano.active_notes_right) or
+                      any(n > self.piano.end_note for n in self.piano.drawn_notes))
 
-    def process_midi_message(self, midi_data):
-        """Processes a MIDI message and updates the keyboard display."""
-        if len(midi_data) < 3:
-            return
-
-        status_byte = midi_data[0]
-        data1 = midi_data[1]
-        data2 = midi_data[2]
-        message_type = status_byte & 0xF0
-
-        if message_type == 0xB0:
-            if data1 == 64:  # Sustain pedal
-                self.sustain_pedal_active = (data2 >= 64)
-                self.update_sustain_button_visual()
-                if self.sound_enabled and self.synth:
-                    self.synth.set_sustain(self.sustain_pedal_active)
-        elif message_type == 0x90 and data2 > 0:
-            self.handle_note_on(data1, data2)
-        elif message_type == 0x80 or (message_type == 0x90 and data2 == 0):
-            self.handle_note_off(data1)
+        if want_left != self.piano.glow_left_plus:
+            self.piano.glow_left_plus = want_left
+            self.apply_button_glow(self.left_plus_btn, want_left)
+        if want_right != self.piano.glow_right_plus:
+            self.piano.glow_right_plus = want_right
+            self.apply_button_glow(self.right_plus_btn, want_right)
 
     def handle_note_on(self, note_number, velocity=127):
-        """Handles a Note On MIDI event."""
+        """Handles a Note On event (from MIDI or the computer keyboard)."""
         if self.pencil_active:
             if note_number in self.piano.drawn_notes:
                 self.piano.drawn_notes.discard(note_number)
@@ -734,26 +636,12 @@ class PianoMIDIViewer(QMainWindow):
 
             if self.piano.start_note <= note_number <= self.piano.end_note:
                 self.piano.update()
-            elif note_number < self.piano.start_note:
-                has_drawn_left = any(n < self.piano.start_note for n in self.piano.drawn_notes)
-                if has_drawn_left and not self.piano.glow_left_plus:
-                    self.piano.glow_left_plus = True
-                    self.apply_button_glow(self.left_plus_btn, True)
-                elif not has_drawn_left and self.piano.glow_left_plus:
-                    self.piano.glow_left_plus = False
-                    self.apply_button_glow(self.left_plus_btn, False)
             else:
-                has_drawn_right = any(n > self.piano.end_note for n in self.piano.drawn_notes)
-                if has_drawn_right and not self.piano.glow_right_plus:
-                    self.piano.glow_right_plus = True
-                    self.apply_button_glow(self.right_plus_btn, True)
-                elif not has_drawn_right and self.piano.glow_right_plus:
-                    self.piano.glow_right_plus = False
-                    self.apply_button_glow(self.right_plus_btn, False)
+                self._refresh_out_of_range_glow()
             return
 
         if self.sound_enabled and self.synth:
-            vel_scale = (0.3 + 0.7 * (velocity / 127.0)) if self.show_velocity else 1.0
+            vel_scale = velocity_factor(velocity) if self.show_velocity else 1.0
             self.synth.note_on(note_number, vel_scale)
 
         if self.piano.start_note <= note_number <= self.piano.end_note:
@@ -761,17 +649,13 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.update()
         elif note_number < self.piano.start_note:
             self.piano.active_notes_left.add(note_number)
-            if not self.piano.glow_left_plus:
-                self.piano.glow_left_plus = True
-                self.apply_button_glow(self.left_plus_btn, True)
+            self._refresh_out_of_range_glow()
         else:
             self.piano.active_notes_right.add(note_number)
-            if not self.piano.glow_right_plus:
-                self.piano.glow_right_plus = True
-                self.apply_button_glow(self.right_plus_btn, True)
+            self._refresh_out_of_range_glow()
 
     def handle_note_off(self, note_number):
-        """Handles a Note Off MIDI event."""
+        """Handles a Note Off event (from MIDI or the computer keyboard)."""
         if self.pencil_active:
             return
 
@@ -782,111 +666,59 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.active_notes.pop(note_number, None)
             self.piano.update()
 
-        if note_number in self.piano.active_notes_left:
-            self.piano.active_notes_left.discard(note_number)
-            if not self.piano.active_notes_left and self.piano.glow_left_plus:
-                self.piano.glow_left_plus = False
-                self.apply_button_glow(self.left_plus_btn, False)
-
-        if note_number in self.piano.active_notes_right:
-            self.piano.active_notes_right.discard(note_number)
-            if not self.piano.active_notes_right and self.piano.glow_right_plus:
-                self.piano.glow_right_plus = False
-                self.apply_button_glow(self.right_plus_btn, False)
+        self.piano.active_notes_left.discard(note_number)
+        self.piano.active_notes_right.discard(note_number)
+        self._refresh_out_of_range_glow()
 
     # --- Octave management ---
 
     def add_octave_left(self):
-        """Extends the keyboard range by one octave on the left."""
-        new_start = self.piano.start_note - 12
-        if new_start < MIDI_NOTE_MIN:
-            return
-
-        key_width, _ = self.get_current_key_dimensions()
-        if key_width is None:
-            return
-
-        self.piano.start_note = new_start
-
-        drawn_left = any(n < self.piano.start_note for n in self.piano.drawn_notes)
-        if not self.piano.active_notes_left and not drawn_left and self.piano.glow_left_plus:
-            self.piano.glow_left_plus = False
-            self.apply_button_glow(self.left_plus_btn, False)
-
-        new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
-        new_window_width = round(key_width * new_num_white + total_horizontal_margin())
-        self.resize(new_window_width, self.height())
-
-        self.piano.update()
-        self.update_button_states()
-        self.update_minimum_size()
+        """Extends the keyboard range by one octave on the left (lower notes)."""
+        self._change_range('start', -12)
 
     def remove_octave_left(self):
         """Removes an octave from the left."""
-        new_start = self.piano.start_note + 12
-        if new_start > self.piano.end_note - 11:
-            return
-
-        key_width, _ = self.get_current_key_dimensions()
-        if key_width is None:
-            return
-
-        self.piano.start_note = new_start
-
-        drawn_left = any(n < self.piano.start_note for n in self.piano.drawn_notes)
-        if (self.piano.active_notes_left or drawn_left) and not self.piano.glow_left_plus:
-            self.piano.glow_left_plus = True
-            self.apply_button_glow(self.left_plus_btn, True)
-
-        new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
-        new_window_width = round(key_width * new_num_white + total_horizontal_margin())
-        self.resize(new_window_width, self.height())
-
-        self.piano.update()
-        self.update_button_states()
-        self.update_minimum_size()
+        self._change_range('start', 12)
 
     def add_octave_right(self):
         """Adds an octave to the right (higher notes)."""
-        new_end = self.piano.end_note + 12
-        if new_end > MIDI_NOTE_MAX:
-            return
-
-        key_width, _ = self.get_current_key_dimensions()
-        if key_width is None:
-            return
-
-        self.piano.end_note = new_end
-
-        drawn_right = any(n > self.piano.end_note for n in self.piano.drawn_notes)
-        if not self.piano.active_notes_right and not drawn_right and self.piano.glow_right_plus:
-            self.piano.glow_right_plus = False
-            self.apply_button_glow(self.right_plus_btn, False)
-
-        new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
-        new_window_width = round(key_width * new_num_white + total_horizontal_margin())
-        self.resize(new_window_width, self.height())
-
-        self.piano.update()
-        self.update_button_states()
-        self.update_minimum_size()
+        self._change_range('end', 12)
 
     def remove_octave_right(self):
         """Removes an octave from the right."""
-        new_end = self.piano.end_note - 12
-        if new_end < self.piano.start_note + 11:
+        self._change_range('end', -12)
+
+    def _change_range(self, edge, delta):
+        """Shifts one edge of the visible range by `delta` semitones.
+
+        edge is 'start' (left/low) or 'end' (right/high). No-ops if the change
+        would cross the MIDI bounds or shrink below the one-octave (12-key)
+        minimum. Resizes the window to keep the current key width, refreshes the
+        out-of-range glow, and updates button/minimum-size state.
+        """
+        if edge == 'start':
+            new_value = self.piano.start_note + delta
+        else:
+            new_value = self.piano.end_note + delta
+
+        # Reject out-of-bounds or below the one-octave minimum span.
+        if new_value < MIDI_NOTE_MIN or new_value > MIDI_NOTE_MAX:
+            return
+        if edge == 'start' and new_value > self.piano.end_note - 11:
+            return
+        if edge == 'end' and new_value < self.piano.start_note + 11:
             return
 
         key_width, _ = self.get_current_key_dimensions()
         if key_width is None:
             return
 
-        self.piano.end_note = new_end
+        if edge == 'start':
+            self.piano.start_note = new_value
+        else:
+            self.piano.end_note = new_value
 
-        drawn_right = any(n > self.piano.end_note for n in self.piano.drawn_notes)
-        if (self.piano.active_notes_right or drawn_right) and not self.piano.glow_right_plus:
-            self.piano.glow_right_plus = True
-            self.apply_button_glow(self.right_plus_btn, True)
+        self._refresh_out_of_range_glow()
 
         new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
         new_window_width = round(key_width * new_num_white + total_horizontal_margin())
@@ -1125,26 +957,12 @@ class PianoMIDIViewer(QMainWindow):
             self.handle_note_off(note)
 
     def closeEvent(self, event):
-        """Saves settings and frees MIDI resources on close."""
+        """Saves settings and frees MIDI/audio resources on close."""
         self.save_settings()
 
         if self.synth:
             self.synth.stop()
 
-        if self.midi_timer:
-            self.midi_timer.stop()
-
-        if self.device_scan_timer:
-            self.device_scan_timer.stop()
-
-        if self.midi_in:
-            try:
-                self.midi_in.close_port()
-            except Exception:
-                pass
-            del self.midi_in
-
-        if self.midi_scanner:
-            del self.midi_scanner
+        self.midi.shutdown()
 
         event.accept()

@@ -1,6 +1,6 @@
-"""Icon and cursor creation — loads SVGs from assets/ and renders them.
+"""Icon and cursor creation — loads SVGs from resources/icons/ and renders them.
 
-All icons are loaded from SVG files in the assets/ directory at runtime.
+All icons are loaded from SVG files in the resources/icons/ directory at runtime.
 They use the Phosphor icon set (Bold weight, 256x256 viewBox, single fill).
 Color customization is done via string replacement on the SVG source before
 rendering to a QPixmap.
@@ -14,15 +14,15 @@ import re
 from PyQt6.QtGui import QPixmap, QIcon, QCursor
 from PyQt6.QtCore import Qt
 
-from piano_viewer import ASSETS_DIR
+from piano_viewer import ICONS_DIR, IMAGES_DIR
 from piano_viewer.constants import scaled, BUTTON_SIZE
 
 CURSOR_SIZE = 24
 
 
 def _load_svg(filename):
-    """Load an SVG file from the assets directory."""
-    path = os.path.join(ASSETS_DIR, filename)
+    """Load an SVG file from the resources/icons directory."""
+    path = os.path.join(ICONS_DIR, filename)
     with open(path, 'r', encoding='utf-8') as f:
         return f.read()
 
@@ -43,8 +43,8 @@ def _render_svg_to_pixmap(svg_data, size):
 
 
 def create_piano_icon():
-    """Creates the app icon from assets/icon.png."""
-    path = os.path.join(ASSETS_DIR, 'icon.png')
+    """Creates the app icon from resources/images/icon.png."""
+    path = os.path.join(IMAGES_DIR, 'icon.png')
     pixmap = QPixmap(path)
     if pixmap.isNull():
         return QIcon()

@@ -26,25 +26,25 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 
 ## Screenshots
 
-<img src="screenshots/default-interface.png" height="250">
+<img src="docs/screenshots/default-interface.png" height="250">
 
 *Default look*
 
-<img src="screenshots/sustained-blue-2-octaves-velocity.png" height="250">
+<img src="docs/screenshots/sustained-blue-2-octaves-velocity.png" height="250">
 
 *Arch Blue, 2 octaves, showing sharps, velocity brightness on*
 
-<img src="screenshots/pencil-tool-red-4-octaves.png" height="200">
+<img src="docs/screenshots/pencil-tool-red-4-octaves.png" height="200">
 
 *Red, pencil tool active, 4 octaves, flats, labels only on pressed keys*
 
-<img src="screenshots/sustained-teal-1-octave-velocity.png" height="250">
+<img src="docs/screenshots/sustained-teal-1-octave-velocity.png" height="250">
 
 *Teal, 1 octave, both sharps and flats, velocity brightness on*
 
 ### Settings
 
-<img src="screenshots/settings.png" height="400">
+<img src="docs/screenshots/settings.png" height="400">
 
 *MIDI device, highlight color, UI scale, key labels, velocity, and update checker*
 
@@ -94,9 +94,9 @@ Requires Python 3.8+:
 ```bash
 git clone https://codeberg.org/skoomabwoy/piano-midi-viewer.git
 cd piano-midi-viewer
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 python piano_viewer.py
 ```
 

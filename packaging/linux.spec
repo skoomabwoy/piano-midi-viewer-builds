@@ -39,8 +39,10 @@ a = Analysis(
     pathex=[],
     binaries=rtmidi_binaries + extra_binaries,
     datas=[
-        (os.path.join(PROJECT_ROOT, 'assets'), 'assets'),
-        (os.path.join(PROJECT_ROOT, 'translations'), 'translations'),
+        # Runtime resources live inside the package; bundle them to the same
+        # relative path so piano_viewer.RESOURCES_DIR resolves in the frozen app.
+        (os.path.join(PROJECT_ROOT, 'piano_viewer', 'resources'),
+         os.path.join('piano_viewer', 'resources')),
     ] + rtmidi_datas,
     hiddenimports=rtmidi_hiddenimports + sd_hiddenimports,
     hookspath=[],

@@ -67,18 +67,23 @@ class PianoSynthesizer:
         self._wavetables = self._build_wavetables()
 
     def _build_wavetables(self):
-        """Pre-compute one wavetable per harmonic profile."""
+        """Pre-compute one wavetable per harmonic profile.
+
+        Tables are stored as `array('f')` (packed float32) rather than Python
+        lists: ~8x less memory and faster indexing in the per-sample audio loop,
+        with precision that's far beyond what the output needs.
+        """
         tables = []
         two_pi = 2.0 * math.pi
         for _, harmonics in _HARMONIC_PROFILES:
-            table = []
+            table = array.array('f', bytes(self.WAVETABLE_SIZE * 4))
             norm = sum(harmonics)
             for i in range(self.WAVETABLE_SIZE):
                 t = i / self.WAVETABLE_SIZE
                 sample = 0.0
                 for h, amp in enumerate(harmonics, 1):
                     sample += amp * math.sin(two_pi * h * t)
-                table.append(sample / norm)
+                table[i] = sample / norm
             tables.append(table)
         return tables
 
@@ -162,10 +167,11 @@ class PianoSynthesizer:
     def _callback(self, outdata, frames, time_info, status):
         """Audio callback — runs in a separate thread by sounddevice.
 
-        Takes a snapshot of current voices under the lock, then renders samples
-        without holding it. Voice phase/envelope mutations here are safe because
-        each voice object is only accessed by this callback (main thread creates
-        new voice objects, never mutates existing ones in-place).
+        The whole render holds `self._lock`, so it is fully serialized against
+        note_on/note_off/set_sustain on the main thread. Those methods mutate
+        voice envelope state in place (e.g. release()), so the lock — not a
+        snapshot — is what keeps that state consistent. The render is only a few
+        thousand Python ops, so the main thread never blocks for long.
         """
         wt_size = self.WAVETABLE_SIZE
         buf = array.array('f', bytes(frames * 4))
@@ -173,37 +179,36 @@ class PianoSynthesizer:
         with self._lock:
             voices = list(self._voices.values())
 
-        # Mix gain: 1/sqrt(n) attenuation prevents clipping when many voices play.
-        # Interpolated smoothly across the buffer to avoid audible clicks when
-        # the voice count changes between callbacks.
-        voice_count = len(voices)
-        target_gain = 1.0 / math.sqrt(voice_count) if voice_count > 1 else 1.0
-        gain = self._smooth_gain
-        gain_step = (target_gain - gain) / frames if frames > 0 else 0.0
+            # Mix gain: 1/sqrt(n) attenuation prevents clipping when many voices
+            # play. Interpolated smoothly across the buffer to avoid audible
+            # clicks when the voice count changes between callbacks.
+            voice_count = len(voices)
+            target_gain = 1.0 / math.sqrt(voice_count) if voice_count > 1 else 1.0
+            gain = self._smooth_gain
+            gain_step = (target_gain - gain) / frames if frames > 0 else 0.0
 
-        for i in range(frames):
-            sample = 0.0
-            for v in voices:
-                wt = v.wavetable
-                idx = int(v.phase * wt_size) % wt_size
-                sample += wt[idx] * v.env_level * v.amplitude
+            for i in range(frames):
+                sample = 0.0
+                for v in voices:
+                    wt = v.wavetable
+                    idx = int(v.phase * wt_size) % wt_size
+                    sample += wt[idx] * v.env_level * v.amplitude
 
-                v.phase += v.phase_inc
-                if v.phase >= 1.0:
-                    v.phase -= 1.0
+                    v.phase += v.phase_inc
+                    if v.phase >= 1.0:
+                        v.phase -= 1.0
 
-                if v.env_stage == 'release':
-                    v.env_level -= v.release_rate
-                    if v.env_level <= 0.0:
-                        v.env_level = 0.0
-                        v.env_stage = 'done'
+                    if v.env_stage == 'release':
+                        v.env_level -= v.release_rate
+                        if v.env_level <= 0.0:
+                            v.env_level = 0.0
+                            v.env_stage = 'done'
 
-            gain += gain_step
-            buf[i] = sample * gain
+                gain += gain_step
+                buf[i] = sample * gain
 
-        self._smooth_gain = target_gain
+            self._smooth_gain = target_gain
 
-        with self._lock:
             finished = [n for n, v in self._voices.items() if v.is_finished()]
             for n in finished:
                 del self._voices[n]

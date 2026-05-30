@@ -23,7 +23,7 @@ import piano_viewer.constants as constants
 from piano_viewer.helpers import (
     is_black_key, count_white_keys, get_white_key_index, get_left_white_key,
     get_note_name, get_octave_number, get_black_key_name,
-    get_text_color_for_highlight, blend_colors,
+    get_text_color_for_highlight, blend_colors, velocity_factor,
     calculate_font_size_for_width, calculate_font_size_for_height,
 )
 
@@ -136,8 +136,7 @@ class PianoKeyboard(QWidget):
         if not self._is_highlighted(midi_note):
             return base_color
         if show_velocity and midi_note in self.active_notes:
-            velocity = self.active_notes[midi_note]
-            factor = 0.3 + 0.7 * (velocity / 127.0)
+            factor = velocity_factor(self.active_notes[midi_note])
             return blend_colors(base_color, self.highlight_color, factor)
         return self.highlight_color
 
@@ -214,8 +213,7 @@ class PianoKeyboard(QWidget):
         """Get the text color for a key label, adapting to highlight state."""
         if self._is_highlighted(note):
             if show_velocity and note in self.active_notes:
-                velocity = self.active_notes[note]
-                factor = 0.3 + 0.7 * (velocity / 127.0)
+                factor = velocity_factor(self.active_notes[note])
                 fill = blend_colors(base_color, self.highlight_color, factor)
                 return get_text_color_for_highlight(fill)
             return get_text_color_for_highlight(self.highlight_color)

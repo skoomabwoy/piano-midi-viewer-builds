@@ -201,6 +201,18 @@ def calculate_initial_window_size():
     return window_width, window_height
 
 
+# ---- Velocity ----
+
+def velocity_factor(velocity):
+    """Maps a MIDI velocity (1-127) to a blend/level factor in [0.3, 1.0].
+
+    The 0.3 floor keeps the softest notes clearly visible (and audible). Shared
+    by key-color blending (keyboard.py) and the synth's sustain level so the
+    visual and audible response to velocity always match.
+    """
+    return 0.3 + 0.7 * (velocity / 127.0)
+
+
 # ---- Color and text helpers ----
 
 def get_text_color_for_highlight(highlight_color):

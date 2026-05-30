@@ -60,14 +60,14 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-lock.txt
           pip install pyinstaller
 
       - name: Build with PyInstaller
-        run: pyinstaller packaging/PianoMIDIViewer.spec
+        run: pyinstaller packaging/linux.spec
 
       - name: Generate icon
-        run: convert assets/icon.png -resize 256x256 piano-midi-viewer.png
+        run: convert piano_viewer/resources/images/icon.png -resize 256x256 piano-midi-viewer.png
 
       - name: Create AppDir
         run: |
@@ -115,7 +115,7 @@ jobs:
           ./PianoMIDIViewer-x86_64.AppImage --appimage-extract > /dev/null 2>&1
           echo "=== Checking bundled libraries ==="
           test -f squashfs-root/usr/bin/_internal/libxcb-cursor.so.0 && echo "OK: libxcb-cursor.so.0" || echo "MISSING: libxcb-cursor.so.0"
-          test -f squashfs-root/usr/bin/_internal/assets/JetBrainsMono-Regular.ttf && echo "OK: JetBrainsMono-Regular.ttf" || echo "MISSING: JetBrainsMono-Regular.ttf"
+          test -f squashfs-root/usr/bin/_internal/piano_viewer/resources/fonts/JetBrainsMono-Regular.ttf && echo "OK: JetBrainsMono-Regular.ttf" || echo "MISSING: JetBrainsMono-Regular.ttf"
           ls squashfs-root/usr/bin/_internal/_sounddevice_data/portaudio-binaries/libportaudio.so* 2>/dev/null && echo "OK: libportaudio (sounddevice)" || ls squashfs-root/usr/bin/_internal/libportaudio.so* 2>/dev/null && echo "OK: libportaudio (system)" || echo "MISSING: libportaudio"
 
       - name: Upload artifact
@@ -139,15 +139,15 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-lock.txt
           pip install pyinstaller
 
       - name: Generate icon
-        run: magick assets/icon.png -define icon:auto-resize=256,128,64,48,32,16 icon.ico
+        run: magick piano_viewer/resources/images/icon.png -define icon:auto-resize=256,128,64,48,32,16 icon.ico
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller --onefile --windowed --name PianoMIDIViewer --icon=icon.ico --add-data "assets;assets" --add-data "translations;translations" --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtPdfWidgets --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtWebEngineCore --exclude-module PyQt6.QtWebEngineWidgets --exclude-module PyQt6.QtQuick --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtDesigner --exclude-module PyQt6.QtMultimedia --exclude-module tkinter --exclude-module unittest piano_viewer.py
+          pyinstaller --onefile --windowed --name PianoMIDIViewer --icon=icon.ico --add-data "piano_viewer/resources;piano_viewer/resources" --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtPdfWidgets --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtWebEngineCore --exclude-module PyQt6.QtWebEngineWidgets --exclude-module PyQt6.QtQuick --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtDesigner --exclude-module PyQt6.QtMultimedia --exclude-module tkinter --exclude-module unittest piano_viewer.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -178,7 +178,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-lock.txt
           pip install pyinstaller
 
       - name: Generate icon
@@ -186,13 +186,13 @@ jobs:
           mkdir icon.iconset
           for size in 16 32 128 256 512; do
             retina=$((size * 2))
-            sips -z $size $size assets/icon.png --out icon.iconset/icon_${size}x${size}.png
-            sips -z $retina $retina assets/icon.png --out icon.iconset/icon_${size}x${size}@2x.png
+            sips -z $size $size piano_viewer/resources/images/icon.png --out icon.iconset/icon_${size}x${size}.png
+            sips -z $retina $retina piano_viewer/resources/images/icon.png --out icon.iconset/icon_${size}x${size}@2x.png
           done
           iconutil -c icns icon.iconset -o icon.icns
 
       - name: Build macOS ARM app bundle
-        run: pyinstaller packaging/PianoMIDIViewer-macos.spec
+        run: pyinstaller packaging/macos.spec
 
       - name: Clean up dangling symlinks from excluded frameworks
         run: |
@@ -226,7 +226,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-lock.txt
           pip install pyinstaller
 
       - name: Generate icon
@@ -234,13 +234,13 @@ jobs:
           mkdir icon.iconset
           for size in 16 32 128 256 512; do
             retina=$((size * 2))
-            sips -z $size $size assets/icon.png --out icon.iconset/icon_${size}x${size}.png
-            sips -z $retina $retina assets/icon.png --out icon.iconset/icon_${size}x${size}@2x.png
+            sips -z $size $size piano_viewer/resources/images/icon.png --out icon.iconset/icon_${size}x${size}.png
+            sips -z $retina $retina piano_viewer/resources/images/icon.png --out icon.iconset/icon_${size}x${size}@2x.png
           done
           iconutil -c icns icon.iconset -o icon.icns
 
       - name: Build macOS Intel app bundle
-        run: pyinstaller packaging/PianoMIDIViewer-macos.spec
+        run: pyinstaller packaging/macos.spec
 
       - name: Clean up dangling symlinks from excluded frameworks
         run: |

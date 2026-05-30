@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtCore import Qt
 
-from piano_viewer import ASSETS_DIR, VERSION, log
+from piano_viewer import FONTS_DIR, VERSION, log
 import piano_viewer.constants as constants
 from piano_viewer.constants import INITIAL_KEY_WIDTH, INITIAL_KEY_HEIGHT, MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO
 from piano_viewer.helpers import migrate_settings, load_ui_scale
@@ -45,7 +45,7 @@ def main():
 
     # Load JetBrains Mono font for note names, octave numbers, and button labels.
     # Falls back to the system's default monospace font if loading fails.
-    font_path = os.path.join(ASSETS_DIR, "JetBrainsMono-Regular.ttf")
+    font_path = os.path.join(FONTS_DIR, "JetBrainsMono-Regular.ttf")
     if os.path.exists(font_path):
         font_id = QFontDatabase.addApplicationFont(font_path)
         if font_id != -1:

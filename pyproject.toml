@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piano-midi-viewer"
+description = "A visual piano keyboard that lights up in real time from MIDI input — for music teachers, students, and content creators."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Skooma Bwoy" }]
+dynamic = ["version"]
+
+# Runtime dependencies (loose constraints). For reproducible builds, CI installs
+# the pinned set from requirements-lock.txt instead.
+dependencies = [
+    "PyQt6>=6.6.0",
+    "python-rtmidi>=1.5.0",
+    "certifi",
+    "sounddevice>=0.5.0",  # optional at runtime; app degrades gracefully if absent
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pyinstaller>=6.0",
+]
+
+[project.gui-scripts]
+piano-midi-viewer = "piano_viewer.__main__:main"
+
+[project.urls]
+Homepage = "https://skoomabwoy.codeberg.page/piano-midi-viewer/"
+Source = "https://codeberg.org/skoomabwoy/piano-midi-viewer"
+
+[tool.setuptools]
+packages = ["piano_viewer"]
+
+[tool.setuptools.dynamic]
+version = { attr = "piano_viewer.VERSION" }
+
+[tool.setuptools.package-data]
+# Ship the runtime resources (icons, font, images, translations) with the package.
+piano_viewer = ["resources/**/*"]
+
+[tool.pytest.ini_options]
+# Make `import piano_viewer` work from the repo root without installing or a
+# sys.path hack in conftest.
+pythonpath = ["."]
+testpaths = ["tests"]

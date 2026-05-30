@@ -6,12 +6,15 @@ import logging
 VERSION = "9.3.0"
 SETTINGS_VERSION = 1
 
-# Package paths — used by i18n.py and icons.py to locate resources.
-# Works in development (piano_viewer/ is next to assets/ and translations/)
-# and in PyInstaller builds (_internal/piano_viewer/ next to _internal/assets/).
+# Package paths — runtime resources live inside the package (piano_viewer/
+# resources/) as package data, so they travel with the import in both dev and
+# PyInstaller builds. The spec bundles resources/ to the same relative location.
 _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(os.path.dirname(_PACKAGE_DIR), 'assets')
-TRANSLATIONS_DIR = os.path.join(os.path.dirname(_PACKAGE_DIR), 'translations')
+RESOURCES_DIR = os.path.join(_PACKAGE_DIR, 'resources')
+ICONS_DIR = os.path.join(RESOURCES_DIR, 'icons')
+FONTS_DIR = os.path.join(RESOURCES_DIR, 'fonts')
+IMAGES_DIR = os.path.join(RESOURCES_DIR, 'images')
+TRANSLATIONS_DIR = os.path.join(RESOURCES_DIR, 'translations')
 
 # Logger — all modules use `log.info()`, `log.warning()`, `log.error()`.
 # Outputs to stderr so it doesn't interfere with stdout.
