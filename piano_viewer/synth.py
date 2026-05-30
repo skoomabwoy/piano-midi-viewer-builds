@@ -18,23 +18,49 @@ if _SOUND_AVAILABLE:
     import sounddevice as _sd
 
 
-class _Voice:
-    """A single synthesizer voice with phase accumulator and ASR envelope."""
-    __slots__ = ('phase', 'phase_inc', 'amplitude', 'env_stage', 'env_level',
-                 'sustain_level', 'release_rate', 'wavetable')
+# Envelope timing (seconds). A short attack + brief decay to a sustain floor
+# turns the flat "organ hold" into a tone with a little bloom, and the attack
+# ramp (plus the fast release used when a voice is stolen or retriggered)
+# removes the onset and voice-steal clicks.
+_ATTACK_TIME = 0.008
+_DECAY_TIME = 0.30
+_RELEASE_TIME = 0.10
+_FAST_RELEASE_TIME = 0.006
+_SUSTAIN_RATIO = 0.7   # sustain level as a fraction of the attack peak
 
-    def __init__(self, freq, sustain_level, wavetable, sample_rate, loudness=1.0):
+
+class _Voice:
+    """A single synthesizer voice: phase accumulator + ADSR-lite envelope.
+
+    Envelope stages: attack -> decay -> sustain -> release -> done. The short
+    attack ramp (and the fast release used when a voice is stolen or retriggered)
+    keep note onsets and cutoffs click-free; the brief decay to a sustain floor
+    gives the tone a bit of life instead of a dead-flat organ hold.
+    """
+    __slots__ = ('phase', 'phase_inc', 'amplitude', 'wavetable',
+                 'env_stage', 'env_level', 'peak', 'sustain_level',
+                 'attack_rate', 'decay_rate', 'release_rate', 'fast_release_rate')
+
+    def __init__(self, freq, level, wavetable, sample_rate, loudness=1.0):
         self.phase = 0.0
         self.phase_inc = freq / sample_rate
         self.amplitude = 0.15 * loudness
         self.wavetable = wavetable
-        self.env_stage = 'sustain'
-        self.env_level = sustain_level
-        self.sustain_level = sustain_level
-        release_time = 0.05
-        self.release_rate = max(self.sustain_level, 0.01) / (release_time * sample_rate)
 
-    def release(self):
+        self.peak = level
+        self.sustain_level = level * _SUSTAIN_RATIO
+        self.env_stage = 'attack'
+        self.env_level = 0.0
+
+        self.attack_rate = self.peak / (_ATTACK_TIME * sample_rate)
+        self.decay_rate = (self.peak - self.sustain_level) / (_DECAY_TIME * sample_rate)
+        self.release_rate = max(self.peak, 0.01) / (_RELEASE_TIME * sample_rate)
+        self.fast_release_rate = max(self.peak, 0.01) / (_FAST_RELEASE_TIME * sample_rate)
+
+    def release(self, fast=False):
+        """Begin the release stage. `fast` ramps out in a few ms (steal/retrigger)."""
+        if fast:
+            self.release_rate = self.fast_release_rate
         self.env_stage = 'release'
 
     def is_finished(self):
@@ -58,7 +84,8 @@ class PianoSynthesizer:
     MAX_VOICES = 12
 
     def __init__(self):
-        self._voices = {}
+        self._voices = {}      # note -> active voice (attack/decay/sustain/release)
+        self._dying = []       # voices detached from a key, finishing a fast release
         self._sustained = set()
         self.sustain_active = False
         self._lock = threading.Lock()
@@ -124,6 +151,7 @@ class PianoSynthesizer:
             log.info("Built-in sound: audio stream stopped")
         with self._lock:
             self._voices.clear()
+            self._dying.clear()
             self._sustained.clear()
             self._smooth_gain = 1.0
 
@@ -138,11 +166,22 @@ class PianoSynthesizer:
         voice = _Voice(freq, velocity_scale, wt, self.SAMPLE_RATE, loudness)
         with self._lock:
             self._sustained.discard(note)
-            if len(self._voices) >= self.MAX_VOICES and note not in self._voices:
-                # Steal the oldest voice — dict preserves insertion order (Python 3.7+),
-                # so the first key is always the note that started playing earliest.
+
+            # Retiring (not deleting) the displaced voice lets it fade out over a
+            # few ms instead of cutting mid-cycle, which would click.
+            existing = self._voices.pop(note, None)
+            if existing is not None:
+                existing.release(fast=True)
+                self._dying.append(existing)
+
+            if len(self._voices) >= self.MAX_VOICES:
+                # Steal the oldest voice — dict preserves insertion order (Python
+                # 3.7+), so the first key started playing earliest.
                 oldest_key = next(iter(self._voices))
-                del self._voices[oldest_key]
+                stolen = self._voices.pop(oldest_key)
+                stolen.release(fast=True)
+                self._dying.append(stolen)
+
             self._voices[note] = voice
 
     def note_off(self, note):
@@ -164,6 +203,25 @@ class PianoSynthesizer:
                         self._voices[note].release()
                 self._sustained.clear()
 
+    def _advance_envelope(self, v):
+        """Steps one voice's ADSR-lite envelope by a single sample."""
+        st = v.env_stage
+        if st == 'attack':
+            v.env_level += v.attack_rate
+            if v.env_level >= v.peak:
+                v.env_level = v.peak
+                v.env_stage = 'decay'
+        elif st == 'decay':
+            v.env_level -= v.decay_rate
+            if v.env_level <= v.sustain_level:
+                v.env_level = v.sustain_level
+                v.env_stage = 'sustain'
+        elif st == 'release':
+            v.env_level -= v.release_rate
+            if v.env_level <= 0.0:
+                v.env_level = 0.0
+                v.env_stage = 'done'
+
     def _callback(self, outdata, frames, time_info, status):
         """Audio callback — runs in a separate thread by sounddevice.
 
@@ -177,7 +235,8 @@ class PianoSynthesizer:
         buf = array.array('f', bytes(frames * 4))
 
         with self._lock:
-            voices = list(self._voices.values())
+            # Active (keyed) voices plus voices fading out after a steal/retrigger.
+            voices = list(self._voices.values()) + self._dying
 
             # Mix gain: 1/sqrt(n) attenuation prevents clipping when many voices
             # play. Interpolated smoothly across the buffer to avoid audible
@@ -198,19 +257,15 @@ class PianoSynthesizer:
                     if v.phase >= 1.0:
                         v.phase -= 1.0
 
-                    if v.env_stage == 'release':
-                        v.env_level -= v.release_rate
-                        if v.env_level <= 0.0:
-                            v.env_level = 0.0
-                            v.env_stage = 'done'
+                    self._advance_envelope(v)
 
                 gain += gain_step
                 buf[i] = sample * gain
 
             self._smooth_gain = target_gain
 
-            finished = [n for n, v in self._voices.items() if v.is_finished()]
-            for n in finished:
-                del self._voices[n]
+            # Drop finished voices from both pools.
+            self._voices = {n: v for n, v in self._voices.items() if not v.is_finished()}
+            self._dying = [v for v in self._dying if not v.is_finished()]
 
         outdata[:] = buf.tobytes()
