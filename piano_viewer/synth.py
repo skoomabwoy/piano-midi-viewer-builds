@@ -215,24 +215,62 @@ class PianoSynthesizer:
                         self._voices[note].release()
                 self._sustained.clear()
 
-    def _advance_envelope(self, v):
-        """Steps one voice's ADSR-lite envelope by a single sample."""
-        st = v.env_stage
-        if st == 'attack':
-            v.env_level += v.attack_rate
-            if v.env_level >= v.peak:
-                v.env_level = v.peak
-                v.env_stage = 'decay'
-        elif st == 'decay':
-            v.env_level -= v.decay_rate
-            if v.env_level <= v.sustain_level:
-                v.env_level = v.sustain_level
-                v.env_stage = 'sustain'
-        elif st == 'release':
-            v.env_level -= v.release_rate
-            if v.env_level <= 0.0:
-                v.env_level = 0.0
-                v.env_stage = 'done'
+    def _render_voice(self, v, mix, frames):
+        """Renders one voice into the float mix buffer.
+
+        All per-sample state lives in locals for the duration of the loop (and
+        the envelope is inlined) — attribute lookups and a method call per
+        sample are what made the old sample-major loop expensive. Safe because
+        the caller holds `self._lock`, so nothing mutates the voice mid-render.
+        """
+        stage = v.env_stage
+        if stage == 'done':
+            return
+
+        wt = v.wavetable
+        wt_size = self.WAVETABLE_SIZE
+        # Work in wavetable units so indexing is a plain int() per sample
+        # (phase stays in [0, wt_size), no multiply or modulo needed).
+        phase = v.phase * wt_size
+        phase_inc = v.phase_inc * wt_size
+        amp = v.amplitude
+        level = v.env_level
+        peak = v.peak
+        sustain = v.sustain_level
+        attack = v.attack_rate
+        decay = v.decay_rate
+        release = v.release_rate
+        scaled_level = level * amp  # constant while sustaining
+
+        for i in range(frames):
+            mix[i] += wt[int(phase)] * scaled_level
+            phase += phase_inc
+            if phase >= wt_size:
+                phase -= wt_size
+
+            if stage == 'sustain':
+                continue
+            if stage == 'attack':
+                level += attack
+                if level >= peak:
+                    level = peak
+                    stage = 'decay'
+            elif stage == 'decay':
+                level -= decay
+                if level <= sustain:
+                    level = sustain
+                    stage = 'sustain'
+            else:  # release
+                level -= release
+                if level <= 0.0:
+                    level = 0.0
+                    stage = 'done'
+                    break  # silent for the rest of the buffer
+            scaled_level = level * amp
+
+        v.phase = phase / wt_size
+        v.env_level = level
+        v.env_stage = stage
 
     def _callback(self, outdata, frames, time_info, status):
         """Audio callback — runs in a separate thread by sounddevice.
@@ -240,12 +278,9 @@ class PianoSynthesizer:
         The whole render holds `self._lock`, so it is fully serialized against
         note_on/note_off/set_sustain on the main thread. Those methods mutate
         voice envelope state in place (e.g. release()), so the lock — not a
-        snapshot — is what keeps that state consistent. The render is only a few
-        thousand Python ops, so the main thread never blocks for long.
+        snapshot — is what keeps that state consistent. The voice-major render
+        keeps the loop cheap, so the main thread never blocks for long.
         """
-        wt_size = self.WAVETABLE_SIZE
-        buf = array.array('f', bytes(frames * 4))
-
         with self._lock:
             # Active (keyed) voices plus voices fading out after a steal/retrigger.
             voices = list(self._voices.values()) + self._dying
@@ -258,21 +293,15 @@ class PianoSynthesizer:
             gain = self._smooth_gain
             gain_step = (target_gain - gain) / frames if frames > 0 else 0.0
 
+            # Accumulate voices in float64, convert to float32 once at the end.
+            mix = [0.0] * frames
+            for v in voices:
+                self._render_voice(v, mix, frames)
+
+            buf = array.array('f', bytes(frames * 4))
             for i in range(frames):
-                sample = 0.0
-                for v in voices:
-                    wt = v.wavetable
-                    idx = int(v.phase * wt_size) % wt_size
-                    sample += wt[idx] * v.env_level * v.amplitude
-
-                    v.phase += v.phase_inc
-                    if v.phase >= 1.0:
-                        v.phase -= 1.0
-
-                    self._advance_envelope(v)
-
                 gain += gain_step
-                buf[i] = sample * gain
+                buf[i] = mix[i] * gain
 
             self._smooth_gain = target_gain
 
