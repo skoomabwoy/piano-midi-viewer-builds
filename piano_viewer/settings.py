@@ -393,7 +393,10 @@ class SettingsDialog(QDialog):
     def check_for_updates(self):
         self.update_button.setEnabled(False)
         self.update_button.setText(tr("Checking..."))
-        self._update_checker = UpdateChecker()
+        # Parent the thread to the main window, not this dialog: if the dialog
+        # is closed and replaced while the check is in flight, the dialog can be
+        # garbage-collected — destroying a still-running QThread aborts the app.
+        self._update_checker = UpdateChecker(self.main_window)
         self._update_checker.result.connect(self._on_update_result)
         self._update_checker.start()
 
