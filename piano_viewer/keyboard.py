@@ -40,11 +40,13 @@ class PianoKeyboard(QWidget):
         self.end_note = DEFAULT_END_NOTE
 
         # active_notes: dict of {MIDI note → velocity} for notes currently held via MIDI
-        # active_notes_left/right: notes pressed outside the visible range (triggers +button glow)
+        # active_notes_left/right: same, for notes outside the visible range
+        # (triggers +button glow; velocity kept so the note lights up correctly
+        # if the range is extended while it is still held)
         # drawn_notes: set of MIDI notes marked with the pencil tool
         self.active_notes = {}
-        self.active_notes_left = set()
-        self.active_notes_right = set()
+        self.active_notes_left = {}
+        self.active_notes_right = {}
         self.drawn_notes = set()
 
         # Mouse interaction state for click-to-play and glissando (drag across keys)

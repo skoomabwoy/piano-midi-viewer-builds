@@ -618,6 +618,27 @@ class PianoMIDIViewer(QMainWindow):
         self.piano.update()
         self.show_status_message(tr("Disconnected: {}").format(device_name))
 
+    def _rebucket_active_notes(self):
+        """Re-sorts held notes into in-range / left / right pools.
+
+        Called after the visible range changes: a note held below the old range
+        may now be visible (light its key, stop the glow), and a visible note
+        may have fallen out of range (keep the glow honest). Velocities travel
+        with the notes.
+        """
+        piano = self.piano
+        held = {**piano.active_notes_left, **piano.active_notes, **piano.active_notes_right}
+        piano.active_notes = {}
+        piano.active_notes_left = {}
+        piano.active_notes_right = {}
+        for note, velocity in held.items():
+            if note < piano.start_note:
+                piano.active_notes_left[note] = velocity
+            elif note > piano.end_note:
+                piano.active_notes_right[note] = velocity
+            else:
+                piano.active_notes[note] = velocity
+
     def _refresh_out_of_range_glow(self):
         """Recomputes the +button glow on both sides from current state.
 
@@ -659,10 +680,10 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.active_notes[note_number] = velocity
             self.piano.update()
         elif note_number < self.piano.start_note:
-            self.piano.active_notes_left.add(note_number)
+            self.piano.active_notes_left[note_number] = velocity
             self._refresh_out_of_range_glow()
         else:
-            self.piano.active_notes_right.add(note_number)
+            self.piano.active_notes_right[note_number] = velocity
             self._refresh_out_of_range_glow()
 
     def handle_note_off(self, note_number):
@@ -677,8 +698,8 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.active_notes.pop(note_number, None)
             self.piano.update()
 
-        self.piano.active_notes_left.discard(note_number)
-        self.piano.active_notes_right.discard(note_number)
+        self.piano.active_notes_left.pop(note_number, None)
+        self.piano.active_notes_right.pop(note_number, None)
         self._refresh_out_of_range_glow()
 
     # --- Octave management ---
@@ -729,6 +750,7 @@ class PianoMIDIViewer(QMainWindow):
         else:
             self.piano.end_note = new_value
 
+        self._rebucket_active_notes()
         self._refresh_out_of_range_glow()
 
         new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
