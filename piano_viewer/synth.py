@@ -192,6 +192,18 @@ class PianoSynthesizer:
             elif note in self._voices:
                 self._voices[note].release()
 
+    def all_notes_off(self):
+        """Releases every active voice, ignoring the sustain pedal (panic).
+
+        Used when note-off events will never arrive for currently sounding
+        voices — e.g. the MIDI device unplugged mid-note, or the app switched
+        into pencil mode (which swallows note-offs).
+        """
+        with self._lock:
+            for voice in self._voices.values():
+                voice.release()
+            self._sustained.clear()
+
     def set_sustain(self, active):
         """Updates sustain pedal state. Releases held notes when pedal lifts."""
         with self._lock:

@@ -463,6 +463,10 @@ class PianoMIDIViewer(QMainWindow):
             self.piano.setCursor(Qt.CursorShape.ArrowCursor)
         else:
             self.pencil_active = True
+            # Pencil mode swallows note-offs (handle_note_off returns early),
+            # so any voice sounding right now would ring forever — silence them.
+            if self.sound_enabled and self.synth:
+                self.synth.all_notes_off()
             self.piano.active_notes.clear()
             self.piano.active_notes_left.clear()
             self.piano.active_notes_right.clear()
@@ -602,6 +606,10 @@ class PianoMIDIViewer(QMainWindow):
         self.piano.active_notes_left.clear()
         self.piano.active_notes_right.clear()
         self._refresh_out_of_range_glow()
+
+        # Note-offs for anything sounding right now will never arrive.
+        if self.sound_enabled and self.synth:
+            self.synth.all_notes_off()
 
         if self.sustain_pedal_active:
             self.sustain_pedal_active = False
