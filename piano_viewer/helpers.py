@@ -7,6 +7,7 @@ QFont) for color math and font measurement, but none create or modify widgets.
 import sys
 import os
 import configparser
+from functools import lru_cache
 from pathlib import Path
 
 from PyQt6.QtGui import QColor, QFont, QFontMetrics
@@ -240,17 +241,29 @@ def blend_colors(base, target, factor):
     return QColor(int(r), int(g), int(b))
 
 
+_FONT_REFERENCE_SIZE = 20
+
+
+@lru_cache(maxsize=8)
+def _reference_char_metrics(font_family):
+    """Measures 'M' width and line height for a font at the reference size.
+
+    Cached because these helpers run inside paintEvent on every note change,
+    and constructing QFont/QFontMetrics is the expensive part — the result
+    only depends on the font family.
+    """
+    metrics = QFontMetrics(QFont(font_family, _FONT_REFERENCE_SIZE))
+    return metrics.horizontalAdvance('M'), metrics.ascent() + metrics.descent()
+
+
 def calculate_font_size_for_width(target_width, num_chars, font_family):
     """Calculates font size to fit a given number of characters in a target width."""
-    reference_size = 20
-    reference_font = QFont(font_family, reference_size)
-    metrics = QFontMetrics(reference_font)
-    char_width_at_reference = metrics.horizontalAdvance('M')
+    char_width_at_reference, _ = _reference_char_metrics(font_family)
 
     if char_width_at_reference == 0:
         return 0
 
-    pixels_per_point = char_width_at_reference / reference_size
+    pixels_per_point = char_width_at_reference / _FONT_REFERENCE_SIZE
     font_size = int(target_width / (num_chars * pixels_per_point))
 
     if font_size < MIN_FONT_SIZE:
@@ -260,15 +273,12 @@ def calculate_font_size_for_width(target_width, num_chars, font_family):
 
 def calculate_font_size_for_height(target_height, font_family):
     """Calculates font size to fit a character in a target height."""
-    reference_size = 20
-    reference_font = QFont(font_family, reference_size)
-    metrics = QFontMetrics(reference_font)
-    char_height_at_reference = metrics.ascent() + metrics.descent()
+    _, char_height_at_reference = _reference_char_metrics(font_family)
 
     if char_height_at_reference == 0:
         return 0
 
-    height_per_point = char_height_at_reference / reference_size
+    height_per_point = char_height_at_reference / _FONT_REFERENCE_SIZE
     font_size = int(target_height / height_per_point)
 
     if font_size < MIN_FONT_SIZE:
