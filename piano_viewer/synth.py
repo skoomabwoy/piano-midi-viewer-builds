@@ -11,7 +11,7 @@ import threading
 
 from piano_viewer import _SOUND_AVAILABLE, log
 from piano_viewer.constants import (
-    MIDI_NOTE_MIN, MIDI_NOTE_MAX, LOUDNESS_MULT_LOW, LOUDNESS_MULT_HIGH,
+    MIDI_NOTE_MIN, MIDI_NOTE_MAX, LOUDNESS_BY_NOTE,
 )
 
 if _SOUND_AVAILABLE:
@@ -67,13 +67,33 @@ class _Voice:
         return self.env_stage == 'done'
 
 
-# Harmonic profiles for different pitch ranges.
-# Uses 1/n amplitude rolloff (organ pipe harmonic series).
+# Harmonic profiles per pitch range: (highest MIDI note, partial amplitudes).
+#
+# Voiced for clarity on any speaker rather than piano realism:
+# - Bottom ranges use "missing fundamental" voicing — the fundamental is cut
+#   and the energy moved into partials 2..10, which small speakers can actually
+#   reproduce (a laptop speaker is near-silent below ~250 Hz). The ear
+#   reconstructs the pitch from the harmonic spacing, so the note reads the
+#   same but is far more audible — and less subby on full-range speakers.
+# - The fundamental fades back in gradually toward the midrange; adjacent
+#   bands are shaped to match at the boundary so neighboring semitones never
+#   jump in brightness (important when comparing notes by ear).
+# - Top ranges keep a 2nd partial: the octave harmonic anchors pitch identity
+#   where a bare sine would sound glassy.
+#
+# Per-note loudness lives in constants.LOUDNESS_BY_NOTE (see
+# tools/generate_loudness_table.py) — regenerate it after editing these.
 _HARMONIC_PROFILES = [
-    (40,  [1.0, 1/2, 1/3, 1/4, 1/5, 1/6, 1/7, 1/8]),
-    (60,  [1.0, 1/2, 1/3, 1/4, 1/5, 1/6]),
-    (84,  [1.0, 1/2, 1/3, 1/4]),
-    (MIDI_NOTE_MAX, [1.0, 1/3]),
+    (28,  [0.30, 1.0, 0.95, 0.85, 0.72, 0.62, 0.54, 0.48, 0.42, 0.38]),
+    (34,  [0.45, 1.0, 0.88, 0.72, 0.58, 0.48, 0.40, 0.34]),
+    (40,  [0.65, 1.0, 0.75, 0.58, 0.46, 0.38]),
+    (46,  [0.85, 0.85, 0.60, 0.47, 0.38]),
+    (52,  [1.0, 0.62, 0.46, 0.36, 0.29]),
+    (60,  [1.0, 0.52, 0.35, 0.26, 0.20]),
+    (72,  [1.0, 0.50, 0.33, 0.25]),
+    (84,  [1.0, 0.48, 0.28, 0.15]),
+    (96,  [1.0, 0.45, 0.20]),
+    (MIDI_NOTE_MAX, [1.0, 0.40, 0.15]),
 ]
 
 
@@ -91,7 +111,9 @@ class PianoSynthesizer:
         self._lock = threading.Lock()
         self._stream = None
         self._smooth_gain = 1.0
-        self._wavetables = self._build_wavetables()
+        # Built lazily on first start() — ~100 ms we shouldn't spend at app
+        # startup when sound is disabled (the synth object always exists).
+        self._wavetables = None
 
     def _build_wavetables(self):
         """Pre-compute one wavetable per harmonic profile.
@@ -122,9 +144,11 @@ class PianoSynthesizer:
         return self._wavetables[-1]
 
     def start(self):
-        """Opens the audio stream."""
+        """Opens the audio stream (and builds the wavetables on first use)."""
         if self._stream is not None:
             return
+        if self._wavetables is None:
+            self._wavetables = self._build_wavetables()
         try:
             self._stream = _sd.RawOutputStream(
                 samplerate=self.SAMPLE_RATE,
@@ -161,8 +185,10 @@ class PianoSynthesizer:
             return
         freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
         wt = self._wavetable_for_note(note)
-        t = (note - MIDI_NOTE_MIN) / (MIDI_NOTE_MAX - MIDI_NOTE_MIN)
-        loudness = LOUDNESS_MULT_LOW + t * (LOUDNESS_MULT_HIGH - LOUDNESS_MULT_LOW)
+        # Clamp so MIDI notes outside the 88-key range reuse the nearest
+        # voiced note's gain instead of indexing out of the table.
+        clamped = min(max(note, MIDI_NOTE_MIN), MIDI_NOTE_MAX)
+        loudness = LOUDNESS_BY_NOTE[clamped - MIDI_NOTE_MIN]
         voice = _Voice(freq, velocity_scale, wt, self.SAMPLE_RATE, loudness)
         with self._lock:
             self._sustained.discard(note)
@@ -301,7 +327,15 @@ class PianoSynthesizer:
             buf = array.array('f', bytes(frames * 4))
             for i in range(frames):
                 gain += gain_step
-                buf[i] = mix[i] * gain
+                sample = mix[i] * gain
+                # Soft clip: linear below 0.85, smooth compression above.
+                # Realistic chords never reach it; a dozen fortissimo bass
+                # notes squash gently instead of cracking at the DAC.
+                if sample > 0.85:
+                    sample = 0.85 + 0.15 * math.tanh((sample - 0.85) / 0.15)
+                elif sample < -0.85:
+                    sample = -0.85 - 0.15 * math.tanh((-sample - 0.85) / 0.15)
+                buf[i] = sample
 
             self._smooth_gain = target_gain
 
