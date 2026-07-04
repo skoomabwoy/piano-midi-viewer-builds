@@ -23,11 +23,17 @@ if _SOUND_AVAILABLE:
 # turns the flat "organ hold" into a tone with a little bloom, and the attack
 # ramp (plus the fast release used when a voice is stolen or retriggered)
 # removes the onset and voice-steal clicks.
+#
+# The attack is linear; decay and release are exponential (one-pole), which
+# sounds natural where linear ramps have an audible "corner" — amplitude
+# perception is logarithmic. _DECAY_TIME is time-to-settle at the sustain
+# level (within 1%); the release times are time to fall 60 dB.
 _ATTACK_TIME = 0.008
 _DECAY_TIME = 0.30
 _RELEASE_TIME = 0.10
 _FAST_RELEASE_TIME = 0.006
 _SUSTAIN_RATIO = 0.7   # sustain level as a fraction of the attack peak
+_DONE_LEVEL = 5e-4     # release ends below this level (inaudible, < -66 dB)
 
 
 class _Voice:
@@ -40,7 +46,8 @@ class _Voice:
     """
     __slots__ = ('phase', 'phase_inc', 'amplitude', 'wavetable',
                  'env_stage', 'env_level', 'peak', 'sustain_level',
-                 'attack_rate', 'decay_rate', 'release_rate', 'fast_release_rate')
+                 'attack_rate', 'decay_coef', 'decay_floor',
+                 'release_coef', 'fast_release_coef')
 
     def __init__(self, freq, level, wavetable, sample_rate, loudness=1.0):
         # Random start phase: chord voices launched together would otherwise
@@ -58,14 +65,18 @@ class _Voice:
         self.env_level = 0.0
 
         self.attack_rate = self.peak / (_ATTACK_TIME * sample_rate)
-        self.decay_rate = (self.peak - self.sustain_level) / (_DECAY_TIME * sample_rate)
-        self.release_rate = max(self.peak, 0.01) / (_RELEASE_TIME * sample_rate)
-        self.fast_release_rate = max(self.peak, 0.01) / (_FAST_RELEASE_TIME * sample_rate)
+        # One-pole coefficients: level approaches its target by this factor
+        # per sample. 0.01 ** (1/n) settles within 1% over n samples;
+        # 1e-3 ** (1/n) falls 60 dB over n samples.
+        self.decay_coef = 0.01 ** (1.0 / (_DECAY_TIME * sample_rate))
+        self.decay_floor = 0.01 * (self.peak - self.sustain_level)
+        self.release_coef = 1e-3 ** (1.0 / (_RELEASE_TIME * sample_rate))
+        self.fast_release_coef = 1e-3 ** (1.0 / (_FAST_RELEASE_TIME * sample_rate))
 
     def release(self, fast=False):
         """Begin the release stage. `fast` ramps out in a few ms (steal/retrigger)."""
         if fast:
-            self.release_rate = self.fast_release_rate
+            self.release_coef = self.fast_release_coef
         self.env_stage = 'release'
 
     def is_finished(self):
@@ -269,8 +280,9 @@ class PianoSynthesizer:
         peak = v.peak
         sustain = v.sustain_level
         attack = v.attack_rate
-        decay = v.decay_rate
-        release = v.release_rate
+        decay_coef = v.decay_coef
+        decay_floor = v.decay_floor
+        release_coef = v.release_coef
         scaled_level = level * amp  # constant while sustaining
 
         for i in range(frames):
@@ -287,13 +299,13 @@ class PianoSynthesizer:
                     level = peak
                     stage = 'decay'
             elif stage == 'decay':
-                level -= decay
-                if level <= sustain:
+                level = sustain + (level - sustain) * decay_coef
+                if level - sustain <= decay_floor:
                     level = sustain
                     stage = 'sustain'
             else:  # release
-                level -= release
-                if level <= 0.0:
+                level *= release_coef
+                if level <= _DONE_LEVEL:
                     level = 0.0
                     stage = 'done'
                     break  # silent for the rest of the buffer
