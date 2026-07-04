@@ -226,6 +226,12 @@ class PianoKeyboard(QWidget):
             return QColor(255, 255, 255)
         return QColor(0, 0, 0)
 
+    @staticmethod
+    def _draw_centered_text(painter, font_metrics, center_x, baseline_y, text):
+        """Draws text horizontally centered on center_x at the given baseline."""
+        x = center_x - font_metrics.horizontalAdvance(text) / 2
+        painter.drawText(int(x), int(baseline_y), text)
+
     def _draw_white_key_text(self, painter, layout, main_window):
         font_family = constants.LOADED_FONT_FAMILY if constants.LOADED_FONT_FAMILY else "monospace"
         white_key_height = layout.height
@@ -255,56 +261,34 @@ class PianoKeyboard(QWidget):
         painter.setFont(font)
         font_metrics = painter.fontMetrics()
 
+        # Bottom row holds the note name (or the octave number when names are
+        # off); with both enabled, octave numbers move to the row above.
+        ascent = font_metrics.ascent()
+        descent = font_metrics.descent()
+        key_bottom = layout.y + white_key_height
+        bottom_baseline = key_bottom - text_gap - descent
+        upper_baseline = key_bottom - (2 * text_gap) - (2 * descent) - ascent
+
         for note in range(self.start_note, self.end_note + 1):
             if is_black_key(note):
                 continue
 
-            key_x = layout.x + layout.white_index[note] * white_key_width
-            key_center_x = key_x + white_key_width / 2
-
-            text_color = self._get_text_color(note, QColor(252, 252, 252), main_window.show_velocity)
-            painter.setPen(text_color)
+            key_center_x = layout.x + (layout.white_index[note] + 0.5) * white_key_width
+            painter.setPen(self._get_text_color(note, QColor(252, 252, 252),
+                                                main_window.show_velocity))
 
             note_name = get_note_name(note)
-            octave_num = get_octave_number(note)
-            is_c_note = (note % 12 == 0)
+            show_name = (main_window.show_white_key_names and note_name and
+                         (not main_window.show_names_when_pressed or self._is_highlighted(note)))
+            show_octave = main_window.show_octave_numbers and note % 12 == 0
 
-            ascent = font_metrics.ascent()
-            descent = font_metrics.descent()
-            key_bottom = layout.y + white_key_height
-
-            if main_window.show_white_key_names and main_window.show_octave_numbers:
-                letter_baseline_y = key_bottom - text_gap - descent
-                octave_baseline_y = key_bottom - (2 * text_gap) - (2 * descent) - ascent
-
-                show_name = not main_window.show_names_when_pressed or self._is_highlighted(note)
-                if note_name and show_name:
-                    text_width = font_metrics.horizontalAdvance(note_name)
-                    text_x = key_center_x - text_width / 2
-                    painter.drawText(int(text_x), int(letter_baseline_y), note_name)
-
-                if is_c_note:
-                    octave_text = str(octave_num)
-                    text_width = font_metrics.horizontalAdvance(octave_text)
-                    text_x = key_center_x - text_width / 2
-                    painter.drawText(int(text_x), int(octave_baseline_y), octave_text)
-
-            elif main_window.show_white_key_names:
-                if main_window.show_names_when_pressed and not self._is_highlighted(note):
-                    continue
-                letter_baseline_y = key_bottom - text_gap - descent
-                if note_name:
-                    text_width = font_metrics.horizontalAdvance(note_name)
-                    text_x = key_center_x - text_width / 2
-                    painter.drawText(int(text_x), int(letter_baseline_y), note_name)
-
-            elif main_window.show_octave_numbers:
-                octave_baseline_y = key_bottom - text_gap - descent
-                if is_c_note:
-                    octave_text = str(octave_num)
-                    text_width = font_metrics.horizontalAdvance(octave_text)
-                    text_x = key_center_x - text_width / 2
-                    painter.drawText(int(text_x), int(octave_baseline_y), octave_text)
+            if show_name:
+                self._draw_centered_text(painter, font_metrics, key_center_x,
+                                         bottom_baseline, note_name)
+            if show_octave:
+                baseline = upper_baseline if both_enabled else bottom_baseline
+                self._draw_centered_text(painter, font_metrics, key_center_x,
+                                         baseline, str(get_octave_number(note)))
 
     def _draw_black_key_text(self, painter, layout, main_window):
         font_family = constants.LOADED_FONT_FAMILY if constants.LOADED_FONT_FAMILY else "monospace"
@@ -348,28 +332,19 @@ class PianoKeyboard(QWidget):
             if not sharp_name and not flat_name:
                 continue
 
-            text_height = font_metrics.height()
-            ascent = font_metrics.ascent()
-
-            key_top = layout.y
-            sharp_top = key_top + text_gap
-            sharp_baseline_y = sharp_top + ascent
+            sharp_top = layout.y + text_gap
+            sharp_baseline_y = sharp_top + font_metrics.ascent()
 
             if both_enabled:
-                sharp_width = font_metrics.horizontalAdvance(sharp_name)
-                sharp_x = key_center_x - sharp_width / 2
-                painter.drawText(int(sharp_x), int(sharp_baseline_y), sharp_name)
-
-                flat_top = sharp_top + text_height + text_gap
-                flat_baseline_y = flat_top + ascent
-                flat_width = font_metrics.horizontalAdvance(flat_name)
-                flat_x = key_center_x - flat_width / 2
-                painter.drawText(int(flat_x), int(flat_baseline_y), flat_name)
+                self._draw_centered_text(painter, font_metrics, key_center_x,
+                                         sharp_baseline_y, sharp_name)
+                flat_baseline_y = (sharp_top + font_metrics.height() + text_gap
+                                   + font_metrics.ascent())
+                self._draw_centered_text(painter, font_metrics, key_center_x,
+                                         flat_baseline_y, flat_name)
             else:
-                name = sharp_name if sharp_name else flat_name
-                text_width = font_metrics.horizontalAdvance(name)
-                text_x = key_center_x - text_width / 2
-                painter.drawText(int(text_x), int(sharp_baseline_y), name)
+                self._draw_centered_text(painter, font_metrics, key_center_x,
+                                         sharp_baseline_y, sharp_name or flat_name)
 
     def _get_main_window(self):
         """Walks up the widget tree to find the main window.
