@@ -7,6 +7,7 @@ installed, nothing in this module runs.
 
 import math
 import array
+import random
 import threading
 
 from piano_viewer import _SOUND_AVAILABLE, log
@@ -42,7 +43,11 @@ class _Voice:
                  'attack_rate', 'decay_rate', 'release_rate', 'fast_release_rate')
 
     def __init__(self, freq, level, wavetable, sample_rate, loudness=1.0):
-        self.phase = 0.0
+        # Random start phase: chord voices launched together would otherwise
+        # be phase-locked, making simple-ratio intervals (octaves, fifths)
+        # sound arbitrarily louder or thinner depending on fixed alignment.
+        # Randomizing evens out chord loudness and lowers worst-case peaks.
+        self.phase = random.random()
         self.phase_inc = freq / sample_rate
         self.amplitude = 0.15 * loudness
         self.wavetable = wavetable
