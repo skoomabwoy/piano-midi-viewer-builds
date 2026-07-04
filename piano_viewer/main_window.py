@@ -740,11 +740,17 @@ class PianoMIDIViewer(QMainWindow):
         self.update_minimum_size()
 
     def update_button_states(self):
-        """Updates the enabled/disabled state of octave +/- buttons."""
-        self.left_plus_btn.setEnabled(self.piano.start_note > MIDI_NOTE_MIN + 12)
-        self.left_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
-        self.right_plus_btn.setEnabled(self.piano.end_note < MIDI_NOTE_MAX - 12)
-        self.right_minus_btn.setEnabled(self.piano.end_note - self.piano.start_note > 11)
+        """Updates the enabled/disabled state of octave +/- buttons.
+
+        Each condition mirrors the corresponding guard in _change_range() so a
+        button is enabled exactly when clicking it would actually do something.
+        """
+        start = self.piano.start_note
+        end = self.piano.end_note
+        self.left_plus_btn.setEnabled(start - 12 >= MIDI_NOTE_MIN)
+        self.left_minus_btn.setEnabled(start + 12 <= end - 11)
+        self.right_plus_btn.setEnabled(end + 12 <= MIDI_NOTE_MAX)
+        self.right_minus_btn.setEnabled(end - 12 >= start + 11)
 
     def update_minimum_size(self):
         """Updates minimum window size based on current octave range."""
