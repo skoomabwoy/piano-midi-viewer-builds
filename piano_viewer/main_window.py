@@ -95,8 +95,11 @@ class PianoMIDIViewer(QMainWindow):
         self.init_ui()
         self.midi.start()
 
-        if not _startup_errors:
-            self.load_settings()
+        # Always attempt the load, even if migration reported a startup error
+        # (e.g. it couldn't write the migrated file) — the file may still be
+        # perfectly readable, and skipping the load here would run the app on
+        # defaults and then overwrite the user's real settings on the next save.
+        self.load_settings()
 
         # MIDI device auto-select — for users who have exactly one real instrument.
         # Priority: (1) saved device from config (handled by load_settings above),
