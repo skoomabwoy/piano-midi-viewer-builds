@@ -789,12 +789,11 @@ class PianoMIDIViewer(QMainWindow):
         self.status_label.setVisible(True)
         self.status_label.raise_()
 
-        if self.status_hide_timer:
-            self.status_hide_timer.stop()
-
-        self.status_hide_timer = QTimer()
-        self.status_hide_timer.setSingleShot(True)
-        self.status_hide_timer.timeout.connect(lambda: self.status_label.setVisible(False))
+        if self.status_hide_timer is None:
+            self.status_hide_timer = QTimer(self)
+            self.status_hide_timer.setSingleShot(True)
+            self.status_hide_timer.timeout.connect(
+                lambda: self.status_label.setVisible(False))
         self.status_hide_timer.start(STATUS_MESSAGE_DURATION)
 
     def show_error_dialog(self, title, details, offer_reset=False):
