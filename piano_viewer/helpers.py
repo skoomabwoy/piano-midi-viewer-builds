@@ -37,7 +37,8 @@ def get_config_path():
     Creates the directory if it doesn't exist.
     """
     if sys.platform == "win32":
-        config_dir = Path(os.environ.get("APPDATA", "~")) / "piano-midi-viewer"
+        appdata = os.environ.get("APPDATA")
+        config_dir = (Path(appdata) if appdata else Path.home()) / "piano-midi-viewer"
     elif sys.platform == "darwin":
         config_dir = Path.home() / "Library" / "Application Support" / "piano-midi-viewer"
     else:
