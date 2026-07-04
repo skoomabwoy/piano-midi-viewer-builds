@@ -119,6 +119,23 @@ class PianoMIDIViewer(QMainWindow):
                 offer_reset=True))
             _startup_errors.clear()
 
+    def _make_button(self, icon, tooltip, on_click=None):
+        """Creates one of the standard square toolbar buttons.
+
+        All buttons share the same size, icon scale, and base style; callers
+        restyle stateful buttons (pencil, sustain, glow) afterwards.
+        """
+        button = QPushButton()
+        button.setToolTip(tooltip)
+        size = scaled(BUTTON_SIZE)
+        button.setFixedSize(size, size)
+        button.setIcon(icon)
+        button.setIconSize(button.size() * 0.7)
+        button.setStyleSheet(make_button_style())
+        if on_click is not None:
+            button.clicked.connect(on_click)
+        return button
+
     def init_ui(self):
         """Sets up the user interface (three-column layout with piano in center)."""
         self.setWindowTitle("Piano MIDI Viewer")
@@ -137,9 +154,6 @@ class PianoMIDIViewer(QMainWindow):
         lm = scaled(LAYOUT_MARGIN)
         main_layout.setContentsMargins(lm, lm, lm, lm)
 
-        button_style = make_button_style()
-        btn_sz = scaled(BUTTON_SIZE)
-
         # LEFT SIDE (pencil button + save + octave controls)
         left_container = QWidget()
         left_container.setFixedWidth(scaled(BUTTON_AREA_WIDTH))
@@ -148,43 +162,28 @@ class PianoMIDIViewer(QMainWindow):
         left_layout.setContentsMargins(0, 0, scaled(3), 0)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.pencil_button = QPushButton()
-        self.pencil_button.setToolTip(tr("Pencil tool — left click to mark, right click to erase\nPress Esc to exit"))
-        self.pencil_button.setFixedSize(btn_sz, btn_sz)
-        self.pencil_button.setIcon(create_pencil_icon())
-        self.pencil_button.setIconSize(self.pencil_button.size() * 0.7)
-        self.pencil_button.setStyleSheet(button_style)
-        self.pencil_button.clicked.connect(self.toggle_pencil)
+        self.pencil_button = self._make_button(
+            create_pencil_icon(),
+            tr("Pencil tool — left click to mark, right click to erase\nPress Esc to exit"),
+            self.toggle_pencil)
         left_layout.addWidget(self.pencil_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        self.save_button = QPushButton()
-        self.save_button.setToolTip(tr("Save keyboard as image\nRight-click to quick save"))
-        self.save_button.setFixedSize(btn_sz, btn_sz)
-        self.save_button.setIcon(create_save_icon())
-        self.save_button.setIconSize(self.save_button.size() * 0.7)
-        self.save_button.setStyleSheet(button_style)
-        self.save_button.clicked.connect(self.save_keyboard_image)
+        self.save_button = self._make_button(
+            create_save_icon(),
+            tr("Save keyboard as image\nRight-click to quick save"),
+            self.save_keyboard_image)
         self.save_button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.save_button.customContextMenuRequested.connect(self.quick_save_keyboard_image)
         left_layout.addWidget(self.save_button, alignment=Qt.AlignmentFlag.AlignCenter)
 
         left_layout.addStretch()
 
-        self.left_plus_btn = QPushButton()
-        self.left_plus_btn.setToolTip(tr("Add octave on the left (lower notes)"))
-        self.left_plus_btn.setFixedSize(btn_sz, btn_sz)
-        self.left_plus_btn.setIcon(create_plus_icon())
-        self.left_plus_btn.setIconSize(self.left_plus_btn.size() * 0.7)
-        self.left_plus_btn.setStyleSheet(button_style)
-        self.left_plus_btn.clicked.connect(self.add_octave_left)
-
-        self.left_minus_btn = QPushButton()
-        self.left_minus_btn.setToolTip(tr("Remove octave on the left (lower notes)"))
-        self.left_minus_btn.setFixedSize(btn_sz, btn_sz)
-        self.left_minus_btn.setIcon(create_minus_icon())
-        self.left_minus_btn.setIconSize(self.left_minus_btn.size() * 0.7)
-        self.left_minus_btn.setStyleSheet(button_style)
-        self.left_minus_btn.clicked.connect(self.remove_octave_left)
+        self.left_plus_btn = self._make_button(
+            create_plus_icon(), tr("Add octave on the left (lower notes)"),
+            self.add_octave_left)
+        self.left_minus_btn = self._make_button(
+            create_minus_icon(), tr("Remove octave on the left (lower notes)"),
+            self.remove_octave_left)
 
         left_layout.addWidget(self.left_plus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(self.left_minus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -201,40 +200,24 @@ class PianoMIDIViewer(QMainWindow):
         right_layout.setContentsMargins(scaled(3), 0, 0, 0)
         right_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.settings_button = QPushButton()
-        self.settings_button.setToolTip(tr("Open Settings"))
-        self.settings_button.setFixedSize(btn_sz, btn_sz)
-        self.settings_button.setIcon(create_settings_icon(btn_sz, "#000000"))
-        self.settings_button.setIconSize(self.settings_button.size() * 0.7)
-        self.settings_button.setStyleSheet(button_style)
-        self.settings_button.clicked.connect(self.open_settings)
+        self.settings_button = self._make_button(
+            create_settings_icon(), tr("Open Settings"), self.open_settings)
 
-        self.sustain_button = QPushButton()
-        self.sustain_button.setToolTip(tr("Sustain pedal indicator — lights up when your sustain pedal is held"))
-        self.sustain_button.setFixedSize(btn_sz, btn_sz)
-        self.sustain_button.setIcon(create_pedal_icon())
-        self.sustain_button.setIconSize(self.sustain_button.size() * 0.7)
+        self.sustain_button = self._make_button(
+            create_pedal_icon(),
+            tr("Sustain pedal indicator — lights up when your sustain pedal is held"))
         self.sustain_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         right_layout.addWidget(self.settings_button, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.sustain_button, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addStretch()
 
-        self.right_plus_btn = QPushButton()
-        self.right_plus_btn.setToolTip(tr("Add octave on the right (higher notes)"))
-        self.right_plus_btn.setFixedSize(btn_sz, btn_sz)
-        self.right_plus_btn.setIcon(create_plus_icon())
-        self.right_plus_btn.setIconSize(self.right_plus_btn.size() * 0.7)
-        self.right_plus_btn.setStyleSheet(button_style)
-        self.right_plus_btn.clicked.connect(self.add_octave_right)
-
-        self.right_minus_btn = QPushButton()
-        self.right_minus_btn.setToolTip(tr("Remove octave on the right (higher notes)"))
-        self.right_minus_btn.setFixedSize(btn_sz, btn_sz)
-        self.right_minus_btn.setIcon(create_minus_icon())
-        self.right_minus_btn.setIconSize(self.right_minus_btn.size() * 0.7)
-        self.right_minus_btn.setStyleSheet(button_style)
-        self.right_minus_btn.clicked.connect(self.remove_octave_right)
+        self.right_plus_btn = self._make_button(
+            create_plus_icon(), tr("Add octave on the right (higher notes)"),
+            self.add_octave_right)
+        self.right_minus_btn = self._make_button(
+            create_minus_icon(), tr("Remove octave on the right (higher notes)"),
+            self.remove_octave_right)
 
         right_layout.addWidget(self.right_plus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         right_layout.addWidget(self.right_minus_btn, alignment=Qt.AlignmentFlag.AlignCenter)
