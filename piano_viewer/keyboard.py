@@ -4,6 +4,8 @@ All rendering happens in paintEvent() using Qt's QPainter. The widget tracks
 active notes (from MIDI), drawn notes (from pencil tool), and mouse state.
 """
 
+from collections import namedtuple
+
 from PyQt6.QtWidgets import QWidget, QMainWindow
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont
@@ -21,11 +23,21 @@ from piano_viewer.constants import (
 )
 import piano_viewer.constants as constants
 from piano_viewer.helpers import (
-    is_black_key, count_white_keys, get_white_key_index, get_left_white_key,
+    is_black_key, get_left_white_key,
     get_note_name, get_octave_number, get_black_key_name,
     get_text_color_for_highlight, blend_colors, velocity_factor,
     calculate_font_size_for_width, calculate_font_size_for_height,
 )
+
+
+# Geometry shared by painting and mouse hit-testing, recomputed from the
+# widget size and note range on demand. white_index maps each white note to
+# its 0-based position so note→x lookups are O(1).
+_KeyboardLayout = namedtuple('_KeyboardLayout', [
+    'x', 'y', 'width', 'height',
+    'white_key_width', 'black_key_width', 'black_key_height',
+    'key_gap', 'corner_radius', 'white_index',
+])
 
 
 class PianoKeyboard(QWidget):
@@ -59,6 +71,47 @@ class PianoKeyboard(QWidget):
         self.glow_left_plus = False
         self.glow_right_plus = False
 
+    def _compute_layout(self):
+        """Computes the key geometry for the current widget size and note range.
+
+        Single source of truth for painting and mouse hit-testing (via
+        _key_rect), so the two can never disagree. Returns None when the range
+        contains no white keys.
+        """
+        keyboard_width = self.width() - (KEYBOARD_CANVAS_MARGIN * 2)
+        keyboard_height = self.height() - (KEYBOARD_CANVAS_MARGIN * 2)
+
+        white_index = {}
+        for note in range(self.start_note, self.end_note + 1):
+            if not is_black_key(note):
+                white_index[note] = len(white_index)
+        if not white_index:
+            return None
+
+        white_key_width = keyboard_width / len(white_index)
+        return _KeyboardLayout(
+            x=KEYBOARD_CANVAS_MARGIN,
+            y=KEYBOARD_CANVAS_MARGIN,
+            width=keyboard_width,
+            height=keyboard_height,
+            white_key_width=white_key_width,
+            black_key_width=white_key_width * BLACK_KEY_WIDTH_RATIO,
+            black_key_height=keyboard_height * BLACK_KEY_HEIGHT_RATIO,
+            key_gap=min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(white_key_width * KEY_GAP_RATIO))),
+            corner_radius=max(KEY_CORNER_RADIUS_MIN, white_key_width * KEY_CORNER_RADIUS_RATIO),
+            white_index=white_index,
+        )
+
+    def _key_rect(self, note, layout):
+        """Returns the on-screen QRectF of a key (white rects exclude the gap)."""
+        if is_black_key(note):
+            left_index = layout.white_index[get_left_white_key(note, self.start_note)]
+            x = layout.x + (left_index + 1) * layout.white_key_width - layout.black_key_width / 2
+            return QRectF(x, layout.y, layout.black_key_width, layout.black_key_height)
+        x = layout.x + layout.white_index[note] * layout.white_key_width
+        return QRectF(x + layout.key_gap, layout.y,
+                      layout.white_key_width - layout.key_gap * 2, layout.height)
+
     def paintEvent(self, event):
         """Draws the entire piano: grey canvas, white keys, black keys, then text labels.
 
@@ -68,59 +121,33 @@ class PianoKeyboard(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        width = self.width()
-        height = self.height()
-
         painter.setBrush(QBrush(BACKGROUND_COLOR))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(
-            QRectF(0, 0, width, height),
+            QRectF(0, 0, self.width(), self.height()),
             KEYBOARD_CANVAS_RADIUS, KEYBOARD_CANVAS_RADIUS
         )
 
-        keyboard_x = KEYBOARD_CANVAS_MARGIN
-        keyboard_y = KEYBOARD_CANVAS_MARGIN
-        keyboard_width = width - (KEYBOARD_CANVAS_MARGIN * 2)
-        keyboard_height = height - (KEYBOARD_CANVAS_MARGIN * 2)
-        num_white_keys = count_white_keys(self.start_note, self.end_note)
-
-        if num_white_keys == 0:
+        layout = self._compute_layout()
+        if layout is None:
             return
-
-        white_key_width = keyboard_width / num_white_keys
-        key_corner_radius = max(KEY_CORNER_RADIUS_MIN, white_key_width * KEY_CORNER_RADIUS_RATIO)
 
         main_window = self._get_main_window()
         show_velocity = main_window.show_velocity if main_window else False
 
         for note in range(self.start_note, self.end_note + 1):
             if not is_black_key(note):
-                self._draw_white_key(
-                    painter, note, white_key_width,
-                    keyboard_x, keyboard_y, keyboard_height, key_corner_radius,
-                    show_velocity
-                )
-
-        black_key_width = white_key_width * BLACK_KEY_WIDTH_RATIO
-        black_key_height = keyboard_height * BLACK_KEY_HEIGHT_RATIO
+                self._draw_white_key(painter, note, layout, show_velocity)
 
         for note in range(self.start_note, self.end_note + 1):
             if is_black_key(note):
-                self._draw_black_key(
-                    painter, note, white_key_width,
-                    black_key_width, keyboard_x, keyboard_y, black_key_height, key_corner_radius,
-                    show_velocity
-                )
+                self._draw_black_key(painter, note, layout, show_velocity)
 
         if main_window:
             if main_window.show_white_key_names or main_window.show_octave_numbers:
-                self._draw_white_key_text(
-                    painter, keyboard_x, keyboard_y, keyboard_height, white_key_width, main_window
-                )
+                self._draw_white_key_text(painter, layout, main_window)
             if main_window.show_black_key_names:
-                self._draw_black_key_text(
-                    painter, white_key_width, black_key_width, keyboard_x, keyboard_y, black_key_height, keyboard_height, main_window
-                )
+                self._draw_black_key_text(painter, layout, main_window)
 
     def _is_highlighted(self, midi_note):
         """Check if a note should be highlighted (active, drawn, or mouse-held)."""
@@ -142,15 +169,9 @@ class PianoKeyboard(QWidget):
             return blend_colors(base_color, self.highlight_color, factor)
         return self.highlight_color
 
-    def _draw_white_key(self, painter, midi_note, key_width, x_offset, y_offset, height, corner_radius, show_velocity=False):
-        white_index = get_white_key_index(midi_note, self.start_note)
-        x = x_offset + (white_index * key_width)
-
-        key_gap = min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(key_width * KEY_GAP_RATIO)))
-        rect_x = x + key_gap
-        rect_y = y_offset
-        rect_width = key_width - key_gap * 2
-        rect_height = height
+    def _draw_white_key(self, painter, midi_note, layout, show_velocity=False):
+        rect = self._key_rect(midi_note, layout)
+        radius = layout.corner_radius
 
         is_highlighted = self._is_highlighted(midi_note)
         base_color = QColor(252, 252, 252)
@@ -158,58 +179,39 @@ class PianoKeyboard(QWidget):
 
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(
-            QRectF(rect_x, rect_y, rect_width, rect_height),
-            corner_radius, corner_radius
-        )
+        painter.drawRoundedRect(rect, radius, radius)
 
-        if not is_highlighted and key_width >= SHADOW_DISABLE_WIDTH:
+        if not is_highlighted and layout.white_key_width >= SHADOW_DISABLE_WIDTH:
             shadow_color = QColor(170, 170, 170)
             painter.setPen(QPen(shadow_color, 1))
             painter.drawLine(
-                int(rect_x + corner_radius), int(rect_y + rect_height - 1),
-                int(rect_x + rect_width - corner_radius), int(rect_y + rect_height - 1)
+                int(rect.x() + radius), int(rect.y() + rect.height() - 1),
+                int(rect.x() + rect.width() - radius), int(rect.y() + rect.height() - 1)
             )
             painter.drawLine(
-                int(rect_x + rect_width - 1), int(rect_y + corner_radius),
-                int(rect_x + rect_width - 1), int(rect_y + rect_height - corner_radius)
+                int(rect.x() + rect.width() - 1), int(rect.y() + radius),
+                int(rect.x() + rect.width() - 1), int(rect.y() + rect.height() - radius)
             )
 
         border_color = QColor(25, 25, 25) if is_highlighted else QColor(85, 85, 85)
         painter.setPen(QPen(border_color, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(
-            QRectF(rect_x, rect_y, rect_width, rect_height),
-            corner_radius, corner_radius
-        )
+        painter.drawRoundedRect(rect, radius, radius)
 
-    def _draw_black_key(self, painter, midi_note, white_key_width,
-                        black_key_width, x_offset, y_offset, black_key_height, corner_radius, show_velocity=False):
-        left_white_note = get_left_white_key(midi_note, self.start_note)
-        white_index = get_white_key_index(left_white_note, self.start_note)
-
-        x = x_offset + ((white_index + 1) * white_key_width - black_key_width / 2)
-        rect_x = x
-        rect_y = y_offset
-        rect_width = black_key_width
-        rect_height = black_key_height
+    def _draw_black_key(self, painter, midi_note, layout, show_velocity=False):
+        rect = self._key_rect(midi_note, layout)
+        radius = layout.corner_radius
 
         base_color = QColor(16, 16, 16)
         fill_color = self._get_fill_color(midi_note, base_color, show_velocity)
 
         painter.setBrush(QBrush(fill_color))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(
-            QRectF(rect_x, rect_y, rect_width, rect_height),
-            corner_radius, corner_radius
-        )
+        painter.drawRoundedRect(rect, radius, radius)
 
         painter.setPen(QPen(QColor(0, 0, 0), 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(
-            QRectF(rect_x, rect_y, rect_width, rect_height),
-            corner_radius, corner_radius
-        )
+        painter.drawRoundedRect(rect, radius, radius)
 
     def _get_text_color(self, note, base_color, show_velocity):
         """Get the text color for a key label, adapting to highlight state."""
@@ -224,8 +226,10 @@ class PianoKeyboard(QWidget):
             return QColor(255, 255, 255)
         return QColor(0, 0, 0)
 
-    def _draw_white_key_text(self, painter, x_offset, y_offset, white_key_height, white_key_width, main_window):
+    def _draw_white_key_text(self, painter, layout, main_window):
         font_family = constants.LOADED_FONT_FAMILY if constants.LOADED_FONT_FAMILY else "monospace"
+        white_key_height = layout.height
+        white_key_width = layout.white_key_width
 
         text_gap = white_key_height * WHITE_TEXT_GAP_RATIO
         target_width = white_key_width * WHITE_KEY_TEXT_WIDTH_RATIO
@@ -255,8 +259,7 @@ class PianoKeyboard(QWidget):
             if is_black_key(note):
                 continue
 
-            white_index = get_white_key_index(note, self.start_note)
-            key_x = x_offset + (white_index * white_key_width)
+            key_x = layout.x + layout.white_index[note] * white_key_width
             key_center_x = key_x + white_key_width / 2
 
             text_color = self._get_text_color(note, QColor(252, 252, 252), main_window.show_velocity)
@@ -268,7 +271,7 @@ class PianoKeyboard(QWidget):
 
             ascent = font_metrics.ascent()
             descent = font_metrics.descent()
-            key_bottom = y_offset + white_key_height
+            key_bottom = layout.y + white_key_height
 
             if main_window.show_white_key_names and main_window.show_octave_numbers:
                 letter_baseline_y = key_bottom - text_gap - descent
@@ -303,11 +306,12 @@ class PianoKeyboard(QWidget):
                     text_x = key_center_x - text_width / 2
                     painter.drawText(int(text_x), int(octave_baseline_y), octave_text)
 
-    def _draw_black_key_text(self, painter, white_key_width, black_key_width, x_offset, y_offset, black_key_height, white_key_height, main_window):
+    def _draw_black_key_text(self, painter, layout, main_window):
         font_family = constants.LOADED_FONT_FAMILY if constants.LOADED_FONT_FAMILY else "monospace"
+        black_key_height = layout.black_key_height
 
-        text_gap = white_key_height * BLACK_TEXT_GAP_RATIO
-        target_width = white_key_width * BLACK_KEY_TEXT_WIDTH_RATIO
+        text_gap = layout.height * BLACK_TEXT_GAP_RATIO
+        target_width = layout.white_key_width * BLACK_KEY_TEXT_WIDTH_RATIO
         width_based_size = calculate_font_size_for_width(target_width, 2, font_family)
 
         both_enabled = (main_window.black_key_notation == "Both")
@@ -332,10 +336,7 @@ class PianoKeyboard(QWidget):
             if not is_black_key(note):
                 continue
 
-            left_white_note = get_left_white_key(note, self.start_note)
-            white_index = get_white_key_index(left_white_note, self.start_note)
-            key_x = x_offset + ((white_index + 1) * white_key_width - black_key_width / 2)
-            key_center_x = key_x + black_key_width / 2
+            key_center_x = self._key_rect(note, layout).center().x()
 
             if main_window.show_names_when_pressed and not self._is_highlighted(note):
                 continue
@@ -350,7 +351,7 @@ class PianoKeyboard(QWidget):
             text_height = font_metrics.height()
             ascent = font_metrics.ascent()
 
-            key_top = y_offset
+            key_top = layout.y
             sharp_top = key_top + text_gap
             sharp_baseline_y = sharp_top + ascent
 
@@ -381,90 +382,52 @@ class PianoKeyboard(QWidget):
             parent = parent.parent()
         return parent
 
+    def _layout_if_inside(self, x, y):
+        """Returns the layout when (x, y) lies inside the key canvas, else None."""
+        layout = self._compute_layout()
+        if layout is None:
+            return None
+        if not (layout.x <= x <= layout.x + layout.width and
+                layout.y <= y <= layout.y + layout.height):
+            return None
+        return layout
+
     def _find_closest_note_to_position(self, x, y):
-        width = self.width()
-        height = self.height()
-
-        keyboard_x = KEYBOARD_CANVAS_MARGIN
-        keyboard_y = KEYBOARD_CANVAS_MARGIN
-        keyboard_width = width - (KEYBOARD_CANVAS_MARGIN * 2)
-        keyboard_height = height - (KEYBOARD_CANVAS_MARGIN * 2)
-
-        if x < keyboard_x or x > keyboard_x + keyboard_width:
+        layout = self._layout_if_inside(x, y)
+        if layout is None:
             return None
-        if y < keyboard_y or y > keyboard_y + keyboard_height:
-            return None
-
-        num_white_keys = count_white_keys(self.start_note, self.end_note)
-        if num_white_keys == 0:
-            return None
-
-        white_key_width = keyboard_width / num_white_keys
-        black_key_width = white_key_width * BLACK_KEY_WIDTH_RATIO
-        black_key_height = keyboard_height * BLACK_KEY_HEIGHT_RATIO
 
         closest_note = None
-        min_distance = float('inf')
+        min_distance_sq = float('inf')
 
         for note in range(self.start_note, self.end_note + 1):
-            if is_black_key(note):
-                left_white_note = get_left_white_key(note, self.start_note)
-                white_index = get_white_key_index(left_white_note, self.start_note)
-                key_x = keyboard_x + ((white_index + 1) * white_key_width - black_key_width / 2)
-                center_x = key_x + black_key_width / 2
-                center_y = keyboard_y + black_key_height / 2
-            else:
-                white_index = get_white_key_index(note, self.start_note)
-                key_x = keyboard_x + (white_index * white_key_width)
-                center_x = key_x + white_key_width / 2
-                center_y = keyboard_y + keyboard_height / 2
-
-            distance = ((x - center_x) ** 2 + (y - center_y) ** 2) ** 0.5
-            if distance < min_distance:
-                min_distance = distance
+            center = self._key_rect(note, layout).center()
+            distance_sq = (x - center.x()) ** 2 + (y - center.y()) ** 2
+            if distance_sq < min_distance_sq:
+                min_distance_sq = distance_sq
                 closest_note = note
 
         return closest_note
 
     def _get_note_at_position(self, x, y):
-        width = self.width()
-        height = self.height()
-
-        keyboard_x = KEYBOARD_CANVAS_MARGIN
-        keyboard_y = KEYBOARD_CANVAS_MARGIN
-        keyboard_width = width - (KEYBOARD_CANVAS_MARGIN * 2)
-        keyboard_height = height - (KEYBOARD_CANVAS_MARGIN * 2)
-
-        if x < keyboard_x or x > keyboard_x + keyboard_width:
-            return None
-        if y < keyboard_y or y > keyboard_y + keyboard_height:
+        layout = self._layout_if_inside(x, y)
+        if layout is None:
             return None
 
-        num_white_keys = count_white_keys(self.start_note, self.end_note)
-        if num_white_keys == 0:
-            return None
-
-        white_key_width = keyboard_width / num_white_keys
-        black_key_width = white_key_width * BLACK_KEY_WIDTH_RATIO
-        black_key_height = keyboard_height * BLACK_KEY_HEIGHT_RATIO
-        key_gap = min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(white_key_width * KEY_GAP_RATIO)))
-
+        # Black keys first — they sit on top of the white keys.
         for note in range(self.start_note, self.end_note + 1):
             if is_black_key(note):
-                left_white_note = get_left_white_key(note, self.start_note)
-                white_index = get_white_key_index(left_white_note, self.start_note)
-                key_x = keyboard_x + ((white_index + 1) * white_key_width - black_key_width / 2)
-
-                if (key_x <= x <= key_x + black_key_width and
-                    keyboard_y <= y <= keyboard_y + black_key_height):
+                rect = self._key_rect(note, layout)
+                if (rect.left() <= x <= rect.right() and
+                        rect.top() <= y <= rect.bottom()):
                     return note
 
+        # White keys span the full canvas height; only x needs checking
+        # (a click in the gap between two keys hits neither).
         for note in range(self.start_note, self.end_note + 1):
             if not is_black_key(note):
-                white_index = get_white_key_index(note, self.start_note)
-                key_x = keyboard_x + (white_index * white_key_width)
-
-                if key_x + key_gap <= x <= key_x + white_key_width - key_gap:
+                rect = self._key_rect(note, layout)
+                if rect.left() <= x <= rect.right():
                     return note
 
         return None
