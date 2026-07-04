@@ -6,7 +6,7 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton,
-    QLabel, QFileDialog, QApplication,
+    QLabel, QFileDialog,
 )
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QTimer, QByteArray
@@ -18,9 +18,7 @@ import piano_viewer.constants as constants
 import piano_viewer.i18n as i18n
 from piano_viewer.constants import (
     scaled, total_horizontal_margin, min_window_height,
-    DEFAULT_START_NOTE, DEFAULT_END_NOTE,
     MIDI_NOTE_MIN, MIDI_NOTE_MAX,
-    INITIAL_KEY_WIDTH, INITIAL_KEY_HEIGHT,
     PRACTICAL_MIN_KEY_WIDTH, MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO,
     KEYBOARD_CANVAS_MARGIN, WINDOW_VERTICAL_MARGIN,
     LAYOUT_MARGIN, BUTTON_SIZE, BUTTON_AREA_WIDTH,

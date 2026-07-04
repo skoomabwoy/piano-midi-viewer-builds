@@ -12,13 +12,10 @@ from pathlib import Path
 
 from PyQt6.QtGui import QColor, QFont, QFontMetrics
 
-from piano_viewer import VERSION, SETTINGS_VERSION, log, _startup_errors
+from piano_viewer import SETTINGS_VERSION, log, _startup_errors
 from piano_viewer.constants import (
-    MIDI_NOTE_MIN, MIDI_NOTE_MAX,
     DEFAULT_START_NOTE, DEFAULT_END_NOTE,
     INITIAL_KEY_WIDTH, INITIAL_KEY_HEIGHT,
-    PRACTICAL_MIN_KEY_WIDTH, MIN_HEIGHT_RATIO,
-    KEYBOARD_CANVAS_MARGIN,
     NOTE_NAMES_BLACK_SHARPS, NOTE_NAMES_BLACK_FLATS,
     MIN_FONT_SIZE,
     scaled, total_horizontal_margin,

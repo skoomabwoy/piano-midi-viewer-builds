@@ -21,11 +21,10 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 
-from piano_viewer import VERSION, _SOUND_AVAILABLE, log
+from piano_viewer import VERSION, _SOUND_AVAILABLE
 import piano_viewer.constants as constants
 import piano_viewer.i18n as i18n
 from piano_viewer.i18n import tr, LANGUAGES
-from piano_viewer.helpers import make_button_style
 from piano_viewer.icons import create_refresh_icon
 
 
