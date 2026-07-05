@@ -26,7 +26,7 @@ from piano_viewer.constants import (
 )
 from piano_viewer.i18n import tr
 from piano_viewer.helpers import (
-    get_config_path, calculate_initial_window_size,
+    get_config_path, write_config_atomic, calculate_initial_window_size,
     count_white_keys, get_text_color_for_highlight, make_button_style,
     velocity_factor,
 )
@@ -437,8 +437,7 @@ class PianoMIDIViewer(QMainWindow):
             config[section][key] = str(getattr(self, attr))
 
         try:
-            with open(config_path, 'w', encoding='utf-8') as f:
-                config.write(f)
+            write_config_atomic(config, config_path)
         except Exception as e:
             log.error(f"Error saving settings: {e}")
             self.show_error_dialog(

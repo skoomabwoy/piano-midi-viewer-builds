@@ -46,6 +46,19 @@ def get_config_path():
     return config_dir / "settings.ini"
 
 
+def write_config_atomic(config, config_path):
+    """Writes a ConfigParser to disk atomically.
+
+    Writes to a temp file in the same directory, then os.replace()s it over
+    the target — atomic on both POSIX and Windows — so a crash or power loss
+    mid-write can never leave a truncated settings.ini behind.
+    """
+    tmp_path = config_path.with_name(config_path.name + '.tmp')
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        config.write(f)
+    os.replace(tmp_path, config_path)
+
+
 def load_ui_scale():
     """Loads the UI scale factor from settings file.
 
@@ -108,8 +121,7 @@ def migrate_settings():
     config.set('meta', 'settings_version', str(SETTINGS_VERSION))
 
     try:
-        with open(config_path, 'w', encoding='utf-8') as f:
-            config.write(f)
+        write_config_atomic(config, config_path)
         log.info("Settings migration complete")
     except Exception as e:
         log.error(f"Error writing migrated settings: {e}")
