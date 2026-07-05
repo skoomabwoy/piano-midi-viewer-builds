@@ -883,6 +883,11 @@ class PianoMIDIViewer(QMainWindow):
 
             if w != self.width() or h != self.height():
                 self.resize(w, h)
+
+            # Keep a visible toast anchored to the piano. Deferred one event-
+            # loop tick so the layout has re-positioned the piano widget first.
+            if self.status_label.isVisible():
+                QTimer.singleShot(0, self._position_status_label)
         finally:
             self._in_resize_event = False
 
