@@ -10,6 +10,7 @@ The pedal icon is custom (stroke-based, not from Phosphor).
 
 import os
 import re
+from functools import lru_cache
 
 from PyQt6.QtGui import QPixmap, QIcon, QCursor, QGuiApplication
 
@@ -62,6 +63,19 @@ def create_piano_icon():
     return QIcon(pixmap)
 
 
+@lru_cache(maxsize=64)
+def _cached_icon_pixmap(filename, size, color, dpr):
+    """Loads, recolors, and renders one icon variant, memoized.
+
+    Button state changes (sustain pedal, pencil, glow) re-request the same
+    few (file, size, color) variants over and over; without the cache each
+    request re-reads the SVG from disk and re-rasterizes it. `dpr` is part of
+    the key so moving between screens with different pixel ratios re-renders.
+    """
+    svg = _load_svg(filename).replace('#000000', color)
+    return _render_svg_to_pixmap(svg, size)
+
+
 def _create_icon(filename, size=None, color="#000000"):
     """Creates a QIcon from an SVG file with the given color.
 
@@ -69,9 +83,7 @@ def _create_icon(filename, size=None, color="#000000"):
     """
     if size is None:
         size = scaled(BUTTON_SIZE)
-    svg_data = _load_svg(filename)
-    svg = svg_data.replace('#000000', color)
-    return QIcon(_render_svg_to_pixmap(svg, size))
+    return QIcon(_cached_icon_pixmap(filename, size, color, _device_pixel_ratio()))
 
 
 def create_settings_icon(size=None, color="#000000"):
