@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QLabel, QFileDialog,
 )
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import Qt, QTimer, QByteArray
+from PyQt6.QtCore import Qt, QTimer, QByteArray, QRect
 
 from piano_viewer import (
     SETTINGS_VERSION, _SOUND_AVAILABLE, log, _startup_errors,
@@ -19,8 +19,8 @@ import piano_viewer.i18n as i18n
 from piano_viewer.constants import (
     scaled, total_horizontal_margin, min_window_height,
     MIDI_NOTE_MIN, MIDI_NOTE_MAX,
-    PRACTICAL_MIN_KEY_WIDTH, MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO,
-    KEYBOARD_CANVAS_MARGIN, WINDOW_VERTICAL_MARGIN,
+    PRACTICAL_MIN_KEY_WIDTH, MIN_HEIGHT_RATIO,
+    KEYBOARD_CANVAS_MARGIN,
     LAYOUT_MARGIN, BUTTON_SIZE, BUTTON_AREA_WIDTH,
     BUTTON_SPACING, STATUS_MESSAGE_DURATION,
 )
@@ -47,11 +47,6 @@ class PianoMIDIViewer(QMainWindow):
 
     def __init__(self):
         super().__init__()
-
-        # Reentrancy guard: resizeEvent() may call self.resize() to enforce
-        # height ratio limits, which triggers another resizeEvent(). Without
-        # this guard, we'd get infinite recursion.
-        self._in_resize_event = False
 
         # --- MIDI input transport (owns rtmidi handles + poll/scan timers) ---
         self.midi = MidiInput(
@@ -491,6 +486,23 @@ class PianoMIDIViewer(QMainWindow):
 
     # --- Save keyboard image ---
 
+    def _grab_keyboard(self):
+        """Grabs the keyboard canvas as a pixmap, cropping any letterbox slack.
+
+        The crop rect is in device pixels — grab() returns a pixmap at the
+        screen's pixel ratio while the layout is in logical coordinates.
+        """
+        pixmap = self.piano.grab()
+        layout = self.piano._compute_layout()
+        if layout is None:
+            return pixmap
+        dpr = pixmap.devicePixelRatio()
+        rect = QRect(round(layout.canvas_x * dpr), round(layout.canvas_y * dpr),
+                     round(layout.canvas_width * dpr), round(layout.canvas_height * dpr))
+        if rect.size() == pixmap.size():
+            return pixmap
+        return pixmap.copy(rect)
+
     def save_keyboard_image(self):
         """Opens a file dialog to save the piano keyboard as a PNG image."""
         filename, _ = QFileDialog.getSaveFileName(
@@ -501,7 +513,7 @@ class PianoMIDIViewer(QMainWindow):
         if filename:
             if not filename.lower().endswith('.png'):
                 filename += '.png'
-            pixmap = self.piano.grab()
+            pixmap = self._grab_keyboard()
             if pixmap.save(filename, "PNG"):
                 self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
             else:
@@ -514,7 +526,7 @@ class PianoMIDIViewer(QMainWindow):
         os.makedirs(save_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(save_dir, f"piano_{timestamp}.png")
-        pixmap = self.piano.grab()
+        pixmap = self._grab_keyboard()
         if pixmap.save(filename, "PNG"):
             self.show_status_message(tr("Saved to {}").format(os.path.basename(filename)))
         else:
@@ -561,13 +573,11 @@ class PianoMIDIViewer(QMainWindow):
             button.setStyleSheet(make_button_style())
 
     def get_current_key_dimensions(self):
-        """Calculates current white key width and height from the piano widget size."""
-        num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
-        if num_white_keys == 0:
+        """Returns the white key width and height actually being displayed."""
+        layout = self.piano._compute_layout()
+        if layout is None:
             return None, None
-        key_width = self.piano.width() / num_white_keys
-        key_height = self.piano.height() - (KEYBOARD_CANVAS_MARGIN * 2)
-        return key_width, key_height
+        return layout.white_key_width, layout.height
 
     # --- MIDI (transport lives in self.midi; these bridge it to the UI) ---
 
@@ -769,7 +779,9 @@ class PianoMIDIViewer(QMainWindow):
         self._refresh_out_of_range_glow()
 
         new_num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
-        new_window_width = round(key_width * new_num_white + total_horizontal_margin())
+        new_window_width = round(key_width * new_num_white
+                                 + KEYBOARD_CANVAS_MARGIN * 2
+                                 + total_horizontal_margin())
         self.resize(new_window_width, self.height())
 
         self.piano.update()
@@ -790,29 +802,47 @@ class PianoMIDIViewer(QMainWindow):
         self.right_minus_btn.setEnabled(end - 12 >= start + 11)
 
     def update_minimum_size(self):
-        """Updates minimum window size based on current octave range."""
+        """Updates minimum window size based on current octave range.
+
+        Guarantees keys never fall below PRACTICAL_MIN_KEY_WIDTH: width floors
+        directly, and the height floor covers the squat-clamp case (at minimum
+        height, the letterbox width clamp bottoms out at the same key width).
+        """
         num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
         min_key_width = PRACTICAL_MIN_KEY_WIDTH
         min_key_height = min_key_width * MIN_HEIGHT_RATIO
-        min_width = (min_key_width * num_white_keys) + total_horizontal_margin()
-        key_based_height = min_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + scaled(WINDOW_VERTICAL_MARGIN)
+        min_width = ((min_key_width * num_white_keys) + (KEYBOARD_CANVAS_MARGIN * 2)
+                     + total_horizontal_margin())
+        key_based_height = (min_key_height + (KEYBOARD_CANVAS_MARGIN * 2)
+                            + scaled(LAYOUT_MARGIN) * 2)
         min_height = max(key_based_height, min_window_height())
         self.setMinimumSize(int(min_width), int(min_height))
 
     # --- Status messages ---
 
     def _position_status_label(self):
-        """Centers the toast near the bottom of the piano at its current size."""
-        x = (self.piano.width() - self.status_label.width()) // 2
-        y = self.piano.height() - self.status_label.height() - scaled(12)
-        self.status_label.move(max(0, x), max(0, y))
+        """Centers the toast near the bottom of the keyboard canvas.
+
+        Anchored to the canvas rect rather than the widget, so it never
+        floats in the letterbox slack when the window is dragged past the
+        proportion limits.
+        """
+        layout = self.piano._compute_layout()
+        if layout is not None:
+            cx, cy = layout.canvas_x, layout.canvas_y
+            cw, ch = layout.canvas_width, layout.canvas_height
+        else:
+            cx, cy = 0, 0
+            cw, ch = self.piano.width(), self.piano.height()
+        x = cx + (cw - self.status_label.width()) / 2
+        y = cy + ch - self.status_label.height() - scaled(12)
+        self.status_label.move(int(max(0, x)), int(max(0, y)))
 
     def show_status_message(self, text):
         """Shows a temporary toast notification centered near the bottom of the piano."""
-        num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
-        if num_white > 0:
-            white_key_width = self.piano.width() / num_white
-            font_size = max(8, int(white_key_width / 2.0))
+        layout = self.piano._compute_layout()
+        if layout is not None:
+            font_size = max(8, int(layout.white_key_width / 2.0))
         else:
             font_size = 13
         self.status_label.setStyleSheet(
@@ -853,48 +883,16 @@ class PianoMIDIViewer(QMainWindow):
     # --- Window events ---
 
     def resizeEvent(self, event):
-        """Enforces height ratio limits during window resize."""
-        if self._in_resize_event:
-            super().resizeEvent(event)
-            return
+        """Window resizing is unconstrained — key proportions are enforced by
+        letterboxing inside the piano widget (see PianoKeyboard._compute_layout),
+        so there is no programmatic resize fighting the window manager here.
+        """
+        super().resizeEvent(event)
 
-        self._in_resize_event = True
-        try:
-            super().resizeEvent(event)
-
-            w = self.width()
-            h = self.height()
-
-            num_white_keys = count_white_keys(self.piano.start_note, self.piano.end_note)
-            if num_white_keys == 0:
-                return
-
-            h_margin = total_horizontal_margin()
-            v_margin = scaled(WINDOW_VERTICAL_MARGIN)
-            piano_width = w - h_margin
-            piano_height = h - v_margin
-            white_key_width = piano_width / num_white_keys
-            white_key_height = piano_height - (KEYBOARD_CANVAS_MARGIN * 2)
-
-            if white_key_width > 0:
-                height_ratio = white_key_height / white_key_width
-
-                if height_ratio > MAX_HEIGHT_RATIO:
-                    white_key_height = white_key_width * MAX_HEIGHT_RATIO
-                    h = round(white_key_height + (KEYBOARD_CANVAS_MARGIN * 2) + v_margin)
-                elif height_ratio < MIN_HEIGHT_RATIO:
-                    white_key_width = white_key_height / MIN_HEIGHT_RATIO
-                    w = round(white_key_width * num_white_keys + h_margin)
-
-            if w != self.width() or h != self.height():
-                self.resize(w, h)
-
-            # Keep a visible toast anchored to the piano. Deferred one event-
-            # loop tick so the layout has re-positioned the piano widget first.
-            if self.status_label.isVisible():
-                QTimer.singleShot(0, self._position_status_label)
-        finally:
-            self._in_resize_event = False
+        # Keep a visible toast anchored to the keyboard canvas. Deferred one
+        # event-loop tick so the layout has re-positioned the piano first.
+        if self.status_label.isVisible():
+            QTimer.singleShot(0, self._position_status_label)
 
     # Computer keyboard → MIDI note offset mapping (one octave + C above).
     # Home row = white keys, row above = black keys (standard DAW layout).

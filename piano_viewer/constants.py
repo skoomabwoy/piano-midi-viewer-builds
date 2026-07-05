@@ -65,7 +65,6 @@ BUTTON_SPACING = 5
 
 # --- Layout margins (base values before scaling) ---
 LAYOUT_MARGIN = 5
-WINDOW_VERTICAL_MARGIN = 50
 
 
 def total_horizontal_margin():

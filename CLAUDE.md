@@ -82,7 +82,7 @@ Dev setup: `python -m venv .venv && source .venv/bin/activate && pip install -e 
 **Sizing:**
 - Initial key dimensions: 25px width x 150px height (ratio 6:1)
 - Absolute minimums: 15px width x 30px height (always enforced)
-- Ratio limits (always enforced): width 0.1-0.7x height, height 3-6x width
+- Ratio limits: white key height 3-6x width, enforced by letterboxing inside the piano widget (`fit_keyboard_box()`), never by resizing the window
 - Black key size: 80% of white key width, 60% of keyboard height
 
 **Performance:**
@@ -130,7 +130,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 ### Key Architectural Concepts
 
-**Sizing System**: Everything derives from white key width. Constants define initial size, window size = key count x key dimensions. Ratio limits and absolute minimums always enforced.
+**Sizing System**: Everything derives from white key width. Constants define initial size, window size = key count x key dimensions. The window is freely resizable — key proportion limits are enforced by letterboxing (`helpers.fit_keyboard_box()`, used by `PianoKeyboard._compute_layout()`): past the limits the keyboard stops stretching and centers in the slack, so nothing programmatically resizes the window against the user/WM (the old resize-inside-resizeEvent approach fought interactive drags, badly on Windows/macOS). Minimum window size still guarantees the 15px key floor. `rebuild_ui()` snapshots and restores the window size; `init_ui()` never resizes. Toast and save-image anchor/crop to the canvas rect, not the widget.
 
 **MIDI Handling**: Lives in `midi_input.py` (`MidiInput`). Polling-based (not callback). QTimer at 10ms parses Note On (0x90), Note Off (0x80), Control Change (0xB0 for CC 64 sustain) into `on_note_on/on_note_off/on_sustain` callbacks that the window handles. Out-of-range notes trigger +button glow (centralized in `_refresh_out_of_range_glow()`). Auto-select: if no saved device and exactly one real (non-virtual) device available, connect automatically. Virtual ports (e.g. ALSA "Midi Through") are filtered via `MidiInput._VIRTUAL_MIDI_PREFIXES` — only affects auto-select, never hides devices from Settings. Device scanning every 3 seconds handles hot-plug/unplug; scan failures latch (one error dialog per failure streak) and never count as "all devices unplugged". A saved device that is absent at launch is remembered — the scan reconnects it when it appears, and saves never erase it. The Settings device list refreshes live on hot-plug via the optional `on_devices_changed` callback. Known limitation: devices are identified by name, so two identical keyboards on Windows (WinMM duplicates names) resolve to the first. Transport tests in `tests/test_midi_input.py`.
 

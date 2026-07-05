@@ -16,10 +16,11 @@ from piano_viewer import SETTINGS_VERSION, log, _startup_errors
 from piano_viewer.constants import (
     DEFAULT_START_NOTE, DEFAULT_END_NOTE,
     INITIAL_KEY_WIDTH, INITIAL_KEY_HEIGHT,
+    MIN_HEIGHT_RATIO, MAX_HEIGHT_RATIO,
+    KEYBOARD_CANVAS_MARGIN, LAYOUT_MARGIN,
     NOTE_NAMES_BLACK_SHARPS, NOTE_NAMES_BLACK_FLATS,
     MIN_FONT_SIZE,
     scaled, total_horizontal_margin,
-    WINDOW_VERTICAL_MARGIN,
 )
 
 
@@ -201,14 +202,56 @@ def get_black_key_name(midi_note, notation_type):
         return (sharp_name, flat_name)
 
 
+# ---- Keyboard fitting (letterbox) ----
+
+def fit_keyboard_box(avail_width, avail_height, num_white_keys):
+    """Fits the keyboard canvas into an available area, enforcing proportions.
+
+    The white-key ratio limits (MIN/MAX_HEIGHT_RATIO) are enforced here, by
+    letterboxing, rather than by resizing the window: if the area is too tall
+    for the width, the keyboard stops growing vertically; if too squat, the
+    keys stop widening. The canvas centers in the leftover slack. Within the
+    limits the canvas fills the area exactly, so nothing looks different from
+    an unconstrained fit.
+
+    Returns (canvas_x, canvas_y, canvas_width, canvas_height,
+    white_key_width, white_key_height), or None if the area is too small to
+    hold anything.
+    """
+    inner_width = avail_width - KEYBOARD_CANVAS_MARGIN * 2
+    inner_height = avail_height - KEYBOARD_CANVAS_MARGIN * 2
+    if num_white_keys <= 0 or inner_width <= 0 or inner_height <= 0:
+        return None
+
+    white_key_width = inner_width / num_white_keys
+    white_key_height = inner_height
+
+    if white_key_height > white_key_width * MAX_HEIGHT_RATIO:
+        white_key_height = white_key_width * MAX_HEIGHT_RATIO
+    elif white_key_height < white_key_width * MIN_HEIGHT_RATIO:
+        white_key_width = white_key_height / MIN_HEIGHT_RATIO
+
+    canvas_width = white_key_width * num_white_keys + KEYBOARD_CANVAS_MARGIN * 2
+    canvas_height = white_key_height + KEYBOARD_CANVAS_MARGIN * 2
+    canvas_x = (avail_width - canvas_width) / 2
+    canvas_y = (avail_height - canvas_height) / 2
+    return (canvas_x, canvas_y, canvas_width, canvas_height,
+            white_key_width, white_key_height)
+
+
 # ---- Window sizing ----
 
 def calculate_initial_window_size():
-    """Calculates starting window size from initial key dimensions."""
+    """Calculates the starting window size from the initial key dimensions.
+
+    Sized so the default keyboard fits exactly (keys at INITIAL_KEY_WIDTH,
+    ratio at MAX_HEIGHT_RATIO) with no letterbox slack.
+    """
     num_white_keys = count_white_keys(DEFAULT_START_NOTE, DEFAULT_END_NOTE)
-    piano_width = INITIAL_KEY_WIDTH * num_white_keys
+    piano_width = INITIAL_KEY_WIDTH * num_white_keys + KEYBOARD_CANVAS_MARGIN * 2
     window_width = int(piano_width + total_horizontal_margin())
-    window_height = int(INITIAL_KEY_HEIGHT + scaled(WINDOW_VERTICAL_MARGIN))
+    window_height = int(INITIAL_KEY_HEIGHT + KEYBOARD_CANVAS_MARGIN * 2
+                        + scaled(LAYOUT_MARGIN) * 2)
     return window_width, window_height
 
 

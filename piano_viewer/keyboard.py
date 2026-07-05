@@ -23,7 +23,7 @@ from piano_viewer.constants import (
 )
 import piano_viewer.constants as constants
 from piano_viewer.helpers import (
-    is_black_key, get_left_white_key,
+    is_black_key, get_left_white_key, fit_keyboard_box,
     get_note_name, get_octave_number, get_black_key_name,
     get_text_color_for_highlight, blend_colors, velocity_factor,
     calculate_font_size_for_width, calculate_font_size_for_height,
@@ -31,9 +31,12 @@ from piano_viewer.helpers import (
 
 
 # Geometry shared by painting and mouse hit-testing, recomputed from the
-# widget size and note range on demand. white_index maps each white note to
-# its 0-based position so note→x lookups are O(1).
+# widget size and note range on demand. canvas_* is the grey rounded rect
+# (letterboxed within the widget when proportions demand it); x/y/width/height
+# is the key area inside it. white_index maps each white note to its 0-based
+# position so note→x lookups are O(1).
 _KeyboardLayout = namedtuple('_KeyboardLayout', [
+    'canvas_x', 'canvas_y', 'canvas_width', 'canvas_height',
     'x', 'y', 'width', 'height',
     'white_key_width', 'black_key_width', 'black_key_height',
     'key_gap', 'corner_radius', 'white_index',
@@ -75,12 +78,12 @@ class PianoKeyboard(QWidget):
         """Computes the key geometry for the current widget size and note range.
 
         Single source of truth for painting and mouse hit-testing (via
-        _key_rect), so the two can never disagree. Returns None when the range
-        contains no white keys.
+        _key_rect), so the two can never disagree. The white-key proportion
+        limits are enforced here by letterboxing (fit_keyboard_box): the
+        window can be any shape, and the keyboard simply stops stretching at
+        the limits and centers in the slack. Returns None when the range
+        contains no white keys or the widget is too small to draw in.
         """
-        keyboard_width = self.width() - (KEYBOARD_CANVAS_MARGIN * 2)
-        keyboard_height = self.height() - (KEYBOARD_CANVAS_MARGIN * 2)
-
         white_index = {}
         for note in range(self.start_note, self.end_note + 1):
             if not is_black_key(note):
@@ -88,15 +91,24 @@ class PianoKeyboard(QWidget):
         if not white_index:
             return None
 
-        white_key_width = keyboard_width / len(white_index)
+        box = fit_keyboard_box(self.width(), self.height(), len(white_index))
+        if box is None:
+            return None
+        (canvas_x, canvas_y, canvas_width, canvas_height,
+         white_key_width, white_key_height) = box
+
         return _KeyboardLayout(
-            x=KEYBOARD_CANVAS_MARGIN,
-            y=KEYBOARD_CANVAS_MARGIN,
-            width=keyboard_width,
-            height=keyboard_height,
+            canvas_x=canvas_x,
+            canvas_y=canvas_y,
+            canvas_width=canvas_width,
+            canvas_height=canvas_height,
+            x=canvas_x + KEYBOARD_CANVAS_MARGIN,
+            y=canvas_y + KEYBOARD_CANVAS_MARGIN,
+            width=white_key_width * len(white_index),
+            height=white_key_height,
             white_key_width=white_key_width,
             black_key_width=white_key_width * BLACK_KEY_WIDTH_RATIO,
-            black_key_height=keyboard_height * BLACK_KEY_HEIGHT_RATIO,
+            black_key_height=white_key_height * BLACK_KEY_HEIGHT_RATIO,
             key_gap=min(KEY_GAP_MAX, max(KEY_GAP_MIN, round(white_key_width * KEY_GAP_RATIO))),
             corner_radius=max(KEY_CORNER_RADIUS_MIN, white_key_width * KEY_CORNER_RADIUS_RATIO),
             white_index=white_index,
@@ -121,16 +133,19 @@ class PianoKeyboard(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        painter.setBrush(QBrush(BACKGROUND_COLOR))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(
-            QRectF(0, 0, self.width(), self.height()),
-            KEYBOARD_CANVAS_RADIUS, KEYBOARD_CANVAS_RADIUS
-        )
-
         layout = self._compute_layout()
         if layout is None:
             return
+
+        # Grey canvas behind the keys — letterbox slack around it (if any)
+        # keeps the plain window background.
+        painter.setBrush(QBrush(BACKGROUND_COLOR))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(
+            QRectF(layout.canvas_x, layout.canvas_y,
+                   layout.canvas_width, layout.canvas_height),
+            KEYBOARD_CANVAS_RADIUS, KEYBOARD_CANVAS_RADIUS
+        )
 
         main_window = self._get_main_window()
         show_velocity = main_window.show_velocity if main_window else False
