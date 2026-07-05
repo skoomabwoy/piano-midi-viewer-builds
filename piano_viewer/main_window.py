@@ -96,6 +96,12 @@ class PianoMIDIViewer(QMainWindow):
         # otherwise closeEvent (or any toggle) would just write it back.
         self._settings_reset = False
 
+        # Initial size is set once, here — init_ui() must never resize, since
+        # rebuild_ui() re-runs it for live scale/language changes and the
+        # current window size has to survive those.
+        initial_width, initial_height = calculate_initial_window_size()
+        self.resize(initial_width, initial_height)
+
         self.init_ui()
         self.midi.start()
 
@@ -144,11 +150,6 @@ class PianoMIDIViewer(QMainWindow):
         """Sets up the user interface (three-column layout with piano in center)."""
         self.setWindowTitle("Piano MIDI Viewer")
         # App-level icon is set in __main__.py; no need to set it per-window.
-
-        # Only set initial size on first call; rebuilds keep the current window size.
-        if not self.centralWidget():
-            initial_width, initial_height = calculate_initial_window_size()
-            self.resize(initial_width, initial_height)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -251,6 +252,9 @@ class PianoMIDIViewer(QMainWindow):
 
     def rebuild_ui(self):
         """Tears down and rebuilds the UI layout, preserving the piano widget and all state."""
+        # The rebuild must not move or resize the window; snapshot and restore.
+        size = self.size()
+
         # Detach piano so it survives central widget destruction
         self.piano.setParent(None)
         old = self.centralWidget()
@@ -258,6 +262,7 @@ class PianoMIDIViewer(QMainWindow):
             old.setParent(None)
 
         self.init_ui()
+        self.resize(size)
 
         # Re-apply stateful visuals
         self.update_pencil_button_visual()
