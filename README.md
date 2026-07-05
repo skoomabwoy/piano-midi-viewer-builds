@@ -21,7 +21,7 @@ A piano keyboard on your screen that lights up when you play. Made for music tea
 - 🌍 **7 languages** — English, Deutsch, Español, Français, Polski, Português, Русский, Українська — switch in Settings, applies instantly
 - 🔊 **Built-in sound** — optional test tones so you can hear what you press; off by default, enable in Settings
 - ↔️ **Octave range** — use the + and − buttons to show more or fewer octaves (from A0 up to C8)
-- ⌨️ **Computer keyboard** — use your computer keyboard as a piano (A–K = one octave, Z/X = shift octave); toggle with Caps Lock or in Settings
+- ⌨️ **Computer keyboard** — use your computer keyboard as a piano (A–K = one octave, Z/X = shift octave); toggle with Caps Lock or in Settings (on macOS, Caps Lock delivery can be unreliable — use the Settings checkbox if the shortcut doesn't respond)
 - 🔧 **UI scaling** — make buttons and margins bigger or smaller (50–200%) — changes apply instantly
 
 ## Screenshots
