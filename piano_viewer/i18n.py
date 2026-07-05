@@ -59,18 +59,6 @@ def tr(text):
     return _translations.get(text, text)
 
 
-def tr_for(lang_code, text):
-    """Returns a translated string for a specific language (without changing global state)."""
-    if lang_code == "en":
-        return text
-    translation_file = os.path.join(TRANSLATIONS_DIR, f"{lang_code}.json")
-    try:
-        with open(translation_file, 'r', encoding='utf-8') as f:
-            return json.load(f).get(text, text)
-    except Exception:
-        return text
-
-
 def load_language_setting():
     """Loads the language setting from config file. Called before window creation."""
     from piano_viewer.helpers import get_config_path

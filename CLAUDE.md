@@ -97,7 +97,7 @@ The application is a Python package (`piano_viewer/`) with focused modules:
 
 - **`__init__.py`** — Package root: VERSION, SETTINGS_VERSION, directory paths, logger, `_startup_errors`, `_SOUND_AVAILABLE`. Re-exports helper functions for backwards-compatible `from piano_viewer import X`.
 - **`constants.py`** — All sizing, colors, MIDI ranges, layout helpers. Mutable globals: `UI_SCALE_FACTOR`, `LOADED_FONT_FAMILY` (set in `__main__.py`, accessed via `constants.X`).
-- **`i18n.py`** — Translation system: `LANGUAGES`, `tr()`, `tr_for()`, `load_translations()`, `get_current_language()`.
+- **`i18n.py`** — Translation system: `LANGUAGES`, `tr()`, `load_translations()`, `get_current_language()`.
 - **`helpers.py`** — Pure logic: config management, MIDI math, color blending, font sizing, button styling. No widget creation.
 - **`icons.py`** — Loads Phosphor Bold SVGs from `resources/icons/`, renders to QPixmap/QIcon via `_render_svg_to_pixmap()`. Color customization via string replacement. Also creates pencil/eraser cursors from cursor SVGs and loads the PNG app icon.
 - **`synth.py`** — Optional wavetable synthesizer (`PianoSynthesizer`, `_Voice`). Conditional on `_SOUND_AVAILABLE`.
