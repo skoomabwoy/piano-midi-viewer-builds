@@ -11,13 +11,18 @@ The pedal icon is custom (stroke-based, not from Phosphor).
 import os
 import re
 
-from PyQt6.QtGui import QPixmap, QIcon, QCursor
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap, QIcon, QCursor, QGuiApplication
 
 from piano_viewer import ICONS_DIR, IMAGES_DIR
 from piano_viewer.constants import scaled, BUTTON_SIZE
 
-CURSOR_SIZE = 24
+CURSOR_SIZE = 24  # logical px at 100% UI scale; scaled() is applied at creation
+
+
+def _device_pixel_ratio():
+    """Highest device pixel ratio among attached screens (1.0 pre-QApplication)."""
+    app = QGuiApplication.instance()
+    return app.devicePixelRatio() if app is not None else 1.0
 
 
 def _load_svg(filename):
@@ -28,17 +33,23 @@ def _load_svg(filename):
 
 
 def _render_svg_to_pixmap(svg_data, size):
-    """Renders an SVG string to a QPixmap at the given pixel size.
+    """Renders an SVG string to a QPixmap at the given logical pixel size.
 
     Replaces or injects width/height attributes so Qt renders at the exact
     size we want. Handles SVGs both with and without existing dimensions.
+    Renders at device resolution (logical size x screen pixel ratio) and tags
+    the pixmap with the ratio, so icons and cursors stay crisp on HiDPI
+    displays instead of being upscaled from a 1x raster.
     """
+    dpr = _device_pixel_ratio()
+    px = max(1, round(size * dpr))
     # Strip any existing width/height so we can set our own
     svg = re.sub(r'\bwidth="[^"]*"', '', svg_data, count=1)
     svg = re.sub(r'\bheight="[^"]*"', '', svg, count=1)
-    svg = svg.replace('viewBox=', f'width="{size}" height="{size}" viewBox=')
+    svg = svg.replace('viewBox=', f'width="{px}" height="{px}" viewBox=')
     pixmap = QPixmap()
     pixmap.loadFromData(svg.encode())
+    pixmap.setDevicePixelRatio(dpr)
     return pixmap
 
 
@@ -103,14 +114,18 @@ def create_pedal_icon(size=None, color="#000000"):
 
 
 def create_pencil_cursor():
-    """Creates a pencil QCursor from the cursor SVG. Hotspot at the pencil tip (bottom-left)."""
+    """Creates a pencil QCursor from the cursor SVG. Hotspot at the pencil tip (bottom-left).
+
+    Size and hotspot follow the UI scale so the cursor keeps its proportion
+    to the buttons and keys it is used with.
+    """
     svg_data = _load_svg('pencil-cursor.svg')
-    pixmap = _render_svg_to_pixmap(svg_data, CURSOR_SIZE)
-    return QCursor(pixmap, 1, 23)
+    pixmap = _render_svg_to_pixmap(svg_data, scaled(CURSOR_SIZE))
+    return QCursor(pixmap, scaled(1), scaled(23))
 
 
 def create_eraser_cursor():
     """Creates an eraser QCursor from the cursor SVG. Hotspot at the eraser edge (bottom-left)."""
     svg_data = _load_svg('eraser-cursor.svg')
-    pixmap = _render_svg_to_pixmap(svg_data, CURSOR_SIZE)
-    return QCursor(pixmap, 4, 21)
+    pixmap = _render_svg_to_pixmap(svg_data, scaled(CURSOR_SIZE))
+    return QCursor(pixmap, scaled(4), scaled(21))
