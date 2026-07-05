@@ -91,6 +91,11 @@ class PianoMIDIViewer(QMainWindow):
         self.sound_enabled = False
         self.synth = PianoSynthesizer() if _SOUND_AVAILABLE else None
 
+        # Set by _reset_settings_file(): suppresses every further save so the
+        # deleted settings file stays deleted until the promised restart —
+        # otherwise closeEvent (or any toggle) would just write it back.
+        self._settings_reset = False
+
         self.init_ui()
         self.midi.start()
 
@@ -389,6 +394,8 @@ class PianoMIDIViewer(QMainWindow):
 
     def save_settings(self):
         """Saves current settings to the configuration file."""
+        if self._settings_reset:
+            return
         config_path = get_config_path()
         config = configparser.ConfigParser()
 
@@ -812,11 +819,12 @@ class PianoMIDIViewer(QMainWindow):
         dialog.exec()
 
     def _reset_settings_file(self):
-        """Deletes the settings file and shows a confirmation toast."""
+        """Deletes the settings file and blocks re-saving until restart."""
         config_path = get_config_path()
         try:
             if config_path.exists():
                 config_path.unlink()
+            self._settings_reset = True
             self.show_status_message(tr("Settings reset — restart to apply"))
         except Exception as e:
             log.error(f"Error resetting settings: {e}")
