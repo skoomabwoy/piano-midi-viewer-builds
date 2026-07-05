@@ -10,8 +10,23 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QTimer
 
 from piano_viewer import VERSION
+import piano_viewer.constants as constants
+from piano_viewer.constants import scaled
 from piano_viewer.i18n import tr
 from piano_viewer.helpers import make_button_style
+
+
+def apply_dialog_scale(dialog):
+    """Scales a dialog's base font by the app UI scale factor.
+
+    The main window scales through explicit pixel math; dialogs are regular
+    layouts, so scaling the font (which children inherit) is what makes them
+    follow — pixel sizes inside each dialog go through scaled() individually.
+    """
+    if constants.UI_SCALE_FACTOR != 1.0:
+        font = dialog.font()
+        font.setPointSizeF(font.pointSizeF() * constants.UI_SCALE_FACTOR)
+        dialog.setFont(font)
 
 
 class ErrorDialog(QDialog):
@@ -20,12 +35,13 @@ class ErrorDialog(QDialog):
     def __init__(self, title, details, parent=None, reset_callback=None):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setMinimumWidth(450)
-        self.setMinimumHeight(250)
+        apply_dialog_scale(self)
+        self.setMinimumWidth(scaled(450))
+        self.setMinimumHeight(scaled(250))
         self.reset_callback = reset_callback
 
         layout = QVBoxLayout()
-        layout.setSpacing(10)
+        layout.setSpacing(scaled(10))
 
         header = QLabel(tr("Something went wrong. You can copy the details "
                         "below and report this issue."))
@@ -43,7 +59,7 @@ class ErrorDialog(QDialog):
         self.text_area = QPlainTextEdit()
         self.text_area.setPlainText(self.report_text)
         self.text_area.setReadOnly(True)
-        self.text_area.setFont(QFont("monospace", 10))
+        self.text_area.setFont(QFont("monospace", max(7, scaled(10))))
         layout.addWidget(self.text_area)
 
         button_layout = QHBoxLayout()
@@ -51,18 +67,18 @@ class ErrorDialog(QDialog):
 
         if reset_callback:
             reset_btn = QPushButton(tr("Reset Settings"))
-            reset_btn.setFixedHeight(32)
+            reset_btn.setFixedHeight(scaled(32))
             reset_btn.setStyleSheet(make_button_style())
             reset_btn.clicked.connect(self._reset_settings)
             button_layout.addWidget(reset_btn)
 
         self.copy_btn = QPushButton(tr("Copy to Clipboard"))
-        self.copy_btn.setFixedHeight(32)
+        self.copy_btn.setFixedHeight(scaled(32))
         self.copy_btn.setStyleSheet(make_button_style())
         self.copy_btn.clicked.connect(self._copy_to_clipboard)
 
         close_btn = QPushButton(tr("Close"))
-        close_btn.setFixedHeight(32)
+        close_btn.setFixedHeight(scaled(32))
         close_btn.setStyleSheet(make_button_style())
         close_btn.clicked.connect(self.close)
 

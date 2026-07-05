@@ -25,6 +25,8 @@ from piano_viewer import VERSION, _SOUND_AVAILABLE
 import piano_viewer.constants as constants
 import piano_viewer.i18n as i18n
 from piano_viewer.i18n import tr, LANGUAGES
+from piano_viewer.constants import scaled
+from piano_viewer.dialogs import apply_dialog_scale
 from piano_viewer.icons import create_refresh_icon
 
 
@@ -69,13 +71,14 @@ class SettingsDialog(QDialog):
         self.setWindowTitle(tr("Settings"))
         # Must NOT be modal — MIDI polling runs on QTimer in the main window,
         # and a modal dialog blocks input to the parent, freezing note display.
-        self.setMinimumWidth(300)
+        apply_dialog_scale(self)
+        self.setMinimumWidth(scaled(300))
         self.main_window = parent
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout()
-        layout.setSpacing(15)
+        layout.setSpacing(scaled(15))
 
         # LANGUAGE
         lang_layout = QHBoxLayout()
@@ -112,7 +115,7 @@ class SettingsDialog(QDialog):
         refresh_btn = QPushButton()
         refresh_btn.setToolTip(tr("Refresh MIDI device list"))
         refresh_btn.setIcon(create_refresh_icon())
-        refresh_btn.setFixedSize(30, 30)
+        refresh_btn.setFixedSize(scaled(30), scaled(30))
         refresh_btn.setIconSize(refresh_btn.size() * 0.7)
         refresh_btn.clicked.connect(self.refresh_midi_devices)
 
@@ -127,7 +130,7 @@ class SettingsDialog(QDialog):
         color_label = QLabel(tr("Highlight Color"))
 
         self.color_preview = QPushButton()
-        self.color_preview.setFixedSize(30, 30)
+        self.color_preview.setFixedSize(scaled(30), scaled(30))
         self.color_preview.clicked.connect(self.choose_color)
         self.update_color_preview(self.main_window.piano.highlight_color)
 
@@ -158,7 +161,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(scale_layout)
 
         # SEPARATOR
-        layout.addSpacing(10)
+        layout.addSpacing(scaled(10))
 
         # SHOW OCTAVE NUMBERS
         self.octave_numbers_checkbox = QCheckBox(tr("Show Octave Numbers"))
@@ -180,7 +183,7 @@ class SettingsDialog(QDialog):
 
         # BLACK KEY NOTATION DROPDOWN
         notation_layout = QHBoxLayout()
-        notation_layout.setContentsMargins(20, 0, 0, 0)
+        notation_layout.setContentsMargins(scaled(20), 0, 0, 0)
 
         self.black_key_notation_dropdown = QComboBox()
         self.black_key_notation_dropdown.addItem(tr("♭ Flats"), "Flats")
@@ -207,7 +210,7 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.names_when_pressed_checkbox)
 
         # SEPARATOR
-        layout.addSpacing(10)
+        layout.addSpacing(scaled(10))
 
         # SHOW VELOCITY
         self.velocity_checkbox = QCheckBox(tr("Show Velocity"))
@@ -217,7 +220,7 @@ class SettingsDialog(QDialog):
 
         # BUILT-IN SOUND
         if _SOUND_AVAILABLE:
-            layout.addSpacing(10)
+            layout.addSpacing(scaled(10))
             self.sound_checkbox = QCheckBox(tr("Built-in Sound"))
             self.sound_checkbox.setToolTip(tr("Simple test tones — not a replacement for a piano library"))
             self.sound_checkbox.setChecked(self.main_window.sound_enabled)
@@ -225,7 +228,7 @@ class SettingsDialog(QDialog):
             layout.addWidget(self.sound_checkbox)
 
         # COMPUTER KEYBOARD
-        layout.addSpacing(10)
+        layout.addSpacing(scaled(10))
         self.computer_keyboard_checkbox = QCheckBox(tr("Computer Keyboard Input"))
         self.computer_keyboard_checkbox.setToolTip(
             tr("Use your computer keyboard as a piano — toggle with Caps Lock"))
@@ -315,7 +318,7 @@ class SettingsDialog(QDialog):
             self.main_window.save_settings()
 
     def update_color_preview(self, color):
-        radius = 15
+        radius = scaled(30) // 2
         self.color_preview.setStyleSheet(
             f"background-color: {color.name()}; border: 1px solid #999; border-radius: {radius}px;"
         )

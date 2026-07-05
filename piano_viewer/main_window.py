@@ -233,8 +233,8 @@ class PianoMIDIViewer(QMainWindow):
             self.status_label = QLabel("", self.piano)
             self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.status_label.setStyleSheet(
-                "background-color: #404040; color: #ffffff;"
-                "padding: 6px 16px; border-radius: 8px;"
+                f"background-color: #404040; color: #ffffff;"
+                f"padding: {scaled(6)}px {scaled(16)}px; border-radius: {scaled(8)}px;"
             )
             self.status_label.setVisible(False)
 
@@ -796,6 +796,12 @@ class PianoMIDIViewer(QMainWindow):
 
     # --- Status messages ---
 
+    def _position_status_label(self):
+        """Centers the toast near the bottom of the piano at its current size."""
+        x = (self.piano.width() - self.status_label.width()) // 2
+        y = self.piano.height() - self.status_label.height() - scaled(12)
+        self.status_label.move(max(0, x), max(0, y))
+
     def show_status_message(self, text):
         """Shows a temporary toast notification centered near the bottom of the piano."""
         num_white = count_white_keys(self.piano.start_note, self.piano.end_note)
@@ -806,13 +812,12 @@ class PianoMIDIViewer(QMainWindow):
             font_size = 13
         self.status_label.setStyleSheet(
             f"background-color: #404040; color: #ffffff;"
-            f"font-size: {font_size}px; padding: 6px 16px; border-radius: 8px;"
+            f"font-size: {font_size}px; padding: {scaled(6)}px {scaled(16)}px;"
+            f"border-radius: {scaled(8)}px;"
         )
         self.status_label.setText(text)
         self.status_label.adjustSize()
-        x = (self.piano.width() - self.status_label.width()) // 2
-        y = self.piano.height() - self.status_label.height() - 12
-        self.status_label.move(max(0, x), max(0, y))
+        self._position_status_label()
         self.status_label.setVisible(True)
         self.status_label.raise_()
 
