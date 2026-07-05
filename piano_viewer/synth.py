@@ -44,12 +44,13 @@ class _Voice:
     keep note onsets and cutoffs click-free; the brief decay to a sustain floor
     gives the tone a bit of life instead of a dead-flat organ hold.
     """
-    __slots__ = ('phase', 'phase_inc', 'amplitude', 'wavetable',
-                 'env_stage', 'env_level', 'peak', 'sustain_level',
+    __slots__ = ('phase', 'phase_inc', 'amplitude', 'wavetable', 'wavetable2',
+                 'blend', 'env_stage', 'env_level', 'peak', 'sustain_level',
                  'attack_rate', 'decay_coef', 'decay_floor',
                  'release_coef', 'fast_release_coef')
 
-    def __init__(self, freq, level, wavetable, sample_rate, loudness=1.0):
+    def __init__(self, freq, level, wavetable, sample_rate, loudness=1.0,
+                 wavetable2=None, blend=0.0):
         # Random start phase: chord voices launched together would otherwise
         # be phase-locked, making simple-ratio intervals (octaves, fifths)
         # sound arbitrarily louder or thinner depending on fixed alignment.
@@ -57,7 +58,12 @@ class _Voice:
         self.phase = random.random()
         self.phase_inc = freq / sample_rate
         self.amplitude = 0.15 * loudness
+        # Crossfaded pair: the rendered sample interpolates between the two
+        # neighboring profile wavetables by `blend`, which is equivalent to
+        # interpolating the harmonic amplitudes themselves (mixing is linear).
         self.wavetable = wavetable
+        self.wavetable2 = wavetable2 if wavetable2 is not None else wavetable
+        self.blend = blend
 
         self.peak = level
         self.sustain_level = level * _SUSTAIN_RATIO
@@ -97,6 +103,13 @@ class _Voice:
 # - Top ranges keep a 2nd partial: the octave harmonic anchors pitch identity
 #   where a bare sine would sound glassy.
 #
+# Profiles are anchor points, not bands: each note's timbre is interpolated
+# between the two neighboring profiles (voices crossfade their wavetables),
+# so the harmonic balance changes smoothly per semitone. Discrete bands put
+# an audible timbre step between adjacent notes at each boundary — with the
+# missing-fundamental voicing, E1->F1 sounded like a resolution because F1's
+# band suddenly had 50% more fundamental.
+#
 # Per-note loudness lives in constants.LOUDNESS_BY_NOTE (see
 # tools/generate_loudness_table.py) — regenerate it after editing these.
 _HARMONIC_PROFILES = [
@@ -111,6 +124,25 @@ _HARMONIC_PROFILES = [
     (96,  [1.0, 0.45, 0.20]),
     (MIDI_NOTE_MAX, [1.0, 0.40, 0.15]),
 ]
+
+
+def band_blend(note):
+    """Returns (low_band, high_band, t) to interpolate profiles at `note`.
+
+    Each profile is anchored at its max_note; between anchors t ramps 0..1.
+    Notes at or below the first anchor (or above the last) use one profile
+    unblended. Shared by note_on (wavetable crossfade weights) and
+    tools/generate_loudness_table.py (so loudness matches the heard timbre).
+    """
+    anchors = [m for m, _ in _HARMONIC_PROFILES]
+    if note <= anchors[0]:
+        return 0, 0, 0.0
+    for i in range(len(anchors) - 1):
+        if note <= anchors[i + 1]:
+            t = (note - anchors[i]) / (anchors[i + 1] - anchors[i])
+            return i, i + 1, t
+    last = len(anchors) - 1
+    return last, last, 0.0
 
 
 class PianoSynthesizer:
@@ -152,12 +184,10 @@ class PianoSynthesizer:
             tables.append(table)
         return tables
 
-    def _wavetable_for_note(self, note):
-        """Returns the wavetable matching the note's pitch range."""
-        for i, (max_note, _) in enumerate(_HARMONIC_PROFILES):
-            if note <= max_note:
-                return self._wavetables[i]
-        return self._wavetables[-1]
+    def _wavetables_for_note(self, note):
+        """Returns (table_low, table_high, blend) for the note's crossfade."""
+        low, high, t = band_blend(note)
+        return self._wavetables[low], self._wavetables[high], t
 
     def start(self):
         """Opens the audio stream (and builds the wavetables on first use)."""
@@ -200,12 +230,13 @@ class PianoSynthesizer:
         if self._stream is None:
             return
         freq = 440.0 * (2.0 ** ((note - 69) / 12.0))
-        wt = self._wavetable_for_note(note)
         # Clamp so MIDI notes outside the 88-key range reuse the nearest
-        # voiced note's gain instead of indexing out of the table.
+        # voiced note's gain and timbre instead of indexing out of the table.
         clamped = min(max(note, MIDI_NOTE_MIN), MIDI_NOTE_MAX)
+        wt, wt2, blend = self._wavetables_for_note(clamped)
         loudness = LOUDNESS_BY_NOTE[clamped - MIDI_NOTE_MIN]
-        voice = _Voice(freq, velocity_scale, wt, self.SAMPLE_RATE, loudness)
+        voice = _Voice(freq, velocity_scale, wt, self.SAMPLE_RATE, loudness,
+                       wavetable2=wt2, blend=blend)
         with self._lock:
             self._sustained.discard(note)
 
@@ -270,6 +301,8 @@ class PianoSynthesizer:
             return
 
         wt = v.wavetable
+        wt2 = v.wavetable2
+        blend = v.blend
         wt_size = self.WAVETABLE_SIZE
         # Work in wavetable units so indexing is a plain int() per sample
         # (phase stays in [0, wt_size), no multiply or modulo needed).
@@ -286,7 +319,9 @@ class PianoSynthesizer:
         scaled_level = level * amp  # constant while sustaining
 
         for i in range(frames):
-            mix[i] += wt[int(phase)] * scaled_level
+            idx = int(phase)
+            sample = wt[idx]
+            mix[i] += (sample + (wt2[idx] - sample) * blend) * scaled_level
             phase += phase_inc
             if phase >= wt_size:
                 phase -= wt_size

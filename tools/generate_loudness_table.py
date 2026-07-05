@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from piano_viewer.synth import _HARMONIC_PROFILES  # noqa: E402
+from piano_viewer.synth import _HARMONIC_PROFILES, band_blend  # noqa: E402
 from piano_viewer.constants import MIDI_NOTE_MIN, MIDI_NOTE_MAX  # noqa: E402
 
 BASE_AMPLITUDE = 0.15        # must match _Voice's base amplitude in synth.py
@@ -59,19 +59,25 @@ def speaker(f):
 
 
 def profile_for(note):
-    for max_note, harmonics in _HARMONIC_PROFILES:
-        if note <= max_note:
-            return harmonics
-    return _HARMONIC_PROFILES[-1][1]
+    """The note's effective partial amplitudes: the same crossfade of the two
+    neighboring sum-normalized profiles that the synth renders (mixing
+    wavetables is linear, so this is exactly the heard spectrum)."""
+    low, high, t = band_blend(note)
+    a_low = _HARMONIC_PROFILES[low][1]
+    a_high = _HARMONIC_PROFILES[high][1]
+    n_low, n_high = sum(a_low), sum(a_high)
+    length = max(len(a_low), len(a_high))
+    return [(1 - t) * (a_low[h] / n_low if h < len(a_low) else 0.0)
+            + t * (a_high[h] / n_high if h < len(a_high) else 0.0)
+            for h in range(length)]
 
 
 def shape_rms(note, small_speaker):
-    """Perceived RMS of a note's sum-normalized wavetable at unit gain."""
+    """Perceived RMS of a note's crossfaded wavetable at unit gain."""
     f0 = 440.0 * 2 ** ((note - 69) / 12)
     harmonics = profile_for(note)
-    norm = sum(harmonics)
     return math.sqrt(sum(
-        (amp / norm * a_weight(h * f0) * (speaker(h * f0) if small_speaker else 1.0)) ** 2
+        (amp * a_weight(h * f0) * (speaker(h * f0) if small_speaker else 1.0)) ** 2
         for h, amp in enumerate(harmonics, 1)) / 2)
 
 

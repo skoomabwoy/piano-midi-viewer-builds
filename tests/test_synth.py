@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from piano_viewer.synth import PianoSynthesizer, _HARMONIC_PROFILES
+from piano_viewer.synth import PianoSynthesizer, _HARMONIC_PROFILES, band_blend
 from piano_viewer.constants import LOUDNESS_BY_NOTE, MIDI_NOTE_MIN, MIDI_NOTE_MAX
 
 
@@ -31,6 +31,39 @@ def test_no_profile_aliases():
     for max_note, harmonics in _HARMONIC_PROFILES:
         f0 = 440.0 * 2 ** ((max_note - 69) / 12)
         assert f0 * len(harmonics) < PianoSynthesizer.SAMPLE_RATE / 2
+
+
+def _effective_spectrum(note):
+    """Normalized partial amplitudes as heard: the profile crossfade."""
+    low, high, t = band_blend(note)
+    a_low = _HARMONIC_PROFILES[low][1]
+    a_high = _HARMONIC_PROFILES[high][1]
+    n_low, n_high = sum(a_low), sum(a_high)
+    length = max(len(a_low), len(a_high))
+    return [(1 - t) * (a_low[h] / n_low if h < len(a_low) else 0.0)
+            + t * (a_high[h] / n_high if h < len(a_high) else 0.0)
+            for h in range(length)]
+
+
+def test_band_blend_bounds():
+    assert band_blend(MIDI_NOTE_MIN) == (0, 0, 0.0)
+    assert band_blend(MIDI_NOTE_MAX)[2] in (0.0, 1.0)
+    for note in range(MIDI_NOTE_MIN, MIDI_NOTE_MAX + 1):
+        low, high, t = band_blend(note)
+        assert 0.0 <= t <= 1.0
+        assert high in (low, low + 1)
+
+
+def test_timbre_changes_smoothly_between_adjacent_notes():
+    """No audible spectrum step between neighboring semitones (the E1->F1
+    band seam used to make the transition sound like a resolution)."""
+    for note in range(MIDI_NOTE_MIN, MIDI_NOTE_MAX):
+        a = _effective_spectrum(note)
+        b = _effective_spectrum(note + 1)
+        length = max(len(a), len(b))
+        step = max(abs((a[h] if h < len(a) else 0.0) - (b[h] if h < len(b) else 0.0))
+                   for h in range(length))
+        assert step < 0.03, f"partial amplitude jump {step:.3f} at {note}->{note + 1}"
 
 
 def test_wavetables_normalized(synth):
