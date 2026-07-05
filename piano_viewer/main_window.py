@@ -372,6 +372,16 @@ class PianoMIDIViewer(QMainWindow):
             except ValueError:
                 reset_keys.append('start_note/end_note')
 
+        if config.has_option('input', 'computer_keyboard_octave'):
+            try:
+                octave = config.getint('input', 'computer_keyboard_octave')
+                if 1 <= octave <= 7:
+                    self.computer_keyboard_octave = octave
+                else:
+                    reset_keys.append('computer_keyboard_octave')
+            except ValueError:
+                reset_keys.append('computer_keyboard_octave')
+
         if _SOUND_AVAILABLE and config.has_option('audio', 'sound_enabled'):
             try:
                 self.sound_enabled = config.getboolean('audio', 'sound_enabled')
@@ -419,7 +429,9 @@ class PianoMIDIViewer(QMainWindow):
             'sound_enabled': str(self.sound_enabled),
         }
 
-        config['input'] = {}
+        config['input'] = {
+            'computer_keyboard_octave': str(self.computer_keyboard_octave),
+        }
 
         geometry_bytes = self.saveGeometry()
         geometry_string = geometry_bytes.toBase64().data().decode()
@@ -969,12 +981,14 @@ class PianoMIDIViewer(QMainWindow):
                 self.computer_keyboard_octave -= 1
                 self.show_status_message(
                     tr("Keyboard: {}").format(self._octave_label()))
+                self.save_settings()
             return
         if key == Qt.Key.Key_X:
             if self.computer_keyboard_octave < 7:
                 self.computer_keyboard_octave += 1
                 self.show_status_message(
                     tr("Keyboard: {}").format(self._octave_label()))
+                self.save_settings()
             return
 
         # Piano keys
