@@ -58,7 +58,7 @@ def load_ui_scale():
         return 1.0
     config = configparser.ConfigParser()
     try:
-        config.read(config_path)
+        config.read(config_path, encoding="utf-8")
         if config.has_option('appearance', 'ui_scale'):
             scale = config.getfloat('appearance', 'ui_scale')
             if 0.50 <= scale <= 2.0:
@@ -81,7 +81,7 @@ def migrate_settings():
 
     config = configparser.ConfigParser()
     try:
-        config.read(config_path)
+        config.read(config_path, encoding="utf-8")
     except Exception as e:
         log.error(f"Error reading settings for migration: {e}")
         _startup_errors.append(f"Could not read settings file: {e}")
@@ -108,7 +108,7 @@ def migrate_settings():
     config.set('meta', 'settings_version', str(SETTINGS_VERSION))
 
     try:
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             config.write(f)
         log.info("Settings migration complete")
     except Exception as e:

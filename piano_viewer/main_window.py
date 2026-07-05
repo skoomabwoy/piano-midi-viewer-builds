@@ -314,7 +314,7 @@ class PianoMIDIViewer(QMainWindow):
             return
 
         try:
-            config.read(config_path)
+            config.read(config_path, encoding="utf-8")
         except Exception as e:
             log.error(f"Error reading settings file: {e}")
             error_msg = tr("Could not read settings file: {}\n\nDefault settings will be used.").format(e)
@@ -437,7 +437,7 @@ class PianoMIDIViewer(QMainWindow):
             config[section][key] = str(getattr(self, attr))
 
         try:
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 config.write(f)
         except Exception as e:
             log.error(f"Error saving settings: {e}")

@@ -79,7 +79,7 @@ def load_language_setting():
         return "en"
     config = configparser.ConfigParser()
     try:
-        config.read(config_path)
+        config.read(config_path, encoding="utf-8")
         if config.has_option('appearance', 'language'):
             lang = config.get('appearance', 'language')
             if lang in LANGUAGES:
