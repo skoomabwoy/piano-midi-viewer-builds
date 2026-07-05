@@ -2,6 +2,17 @@
 
 Full release history for Piano MIDI Viewer. For download links, see [Releases](https://codeberg.org/skoomabwoy/piano-midi-viewer/releases).
 
+## 9.4.0
+- **Clearer built-in sound on any speaker**: The synth was re-voiced for ear training — the bottom octaves are now clearly audible even on laptop and classroom speakers (energy shifted into overtones small speakers can actually reproduce), all 88 keys play at even perceived loudness, and the highs keep a gentle anti-piercing rolloff. Full-range speakers won't boom on bass notes either
+- **Seamless timbre across the keyboard**: Tone character now changes smoothly from note to note (previously E→F in the low octaves could sound like a chord resolution), chords have consistent loudness, and note endings fade naturally instead of cutting
+- **Smoother window resizing on every platform**: Key proportions are now kept by letterboxing inside the window instead of fighting your drag — no more snapping or jitter, especially noticeable on Windows and macOS
+- **Window size survives settings changes**: Changing language or UI scale no longer resets the window size and proportions
+- **Sharper visuals on HiDPI displays**: Icons and cursors render at native resolution; the Settings and error dialogs, the toast, and the pencil/eraser cursors now follow the UI Scale setting
+- **More reliable MIDI hot-plug**: A saved device that's switched off at launch is remembered and reconnects the moment it appears; the Settings device list updates live on plug/unplug; scan hiccups no longer disconnect you or spam error dialogs; system virtual ports (macOS IAC, ALSA VirMIDI) are never auto-selected
+- **No more stuck notes**: Sound stops correctly when a device unplugs mid-note or when entering pencil mode while holding keys
+- **Safer settings file**: Written atomically (a crash can't corrupt it), read and written as UTF-8 (fixes saving with non-Latin MIDI device names on Windows), and "Reset Settings" now actually sticks instead of being undone when the app closes
+- **Small fixes**: Octave +/- buttons are enabled exactly when they can act, held notes light up correctly when the visible range changes, the computer keyboard octave is remembered between sessions, and the update checker no longer crashes if Settings closes mid-check
+
 ## 9.3.2
 - **Smoother built-in sound**: Notes now have a soft attack and a brief decay instead of an abrupt organ-like onset, and the clicks when repeating a note or holding many notes at once are gone
 - **Settings no longer reset on launch**: Fixed a bug where reconnecting a saved MIDI device at startup could overwrite your display settings and window size with defaults

@@ -8,7 +8,7 @@ Piano MIDI Viewer is a PyQt6-based desktop application that displays a visual pi
 
 **Package architecture**: The application is split into the `piano_viewer/` Python package with focused modules.
 
-**Current Version: 9.3.2**
+**Current Version: 9.4.0**
 
 For full version history, see [CHANGELOG.md](CHANGELOG.md).
 
@@ -43,7 +43,7 @@ packaging/               # Build specs + scripts
   macos.spec             # macOS PyInstaller spec
   build-appimage.sh      # Local AppImage build (mirrors the CI Linux job)
 
-tests/                   # Test suite (pytest, 92 tests)
+tests/                   # Test suite (pytest, 100 tests)
 tools/                   # Dev utilities (loudness table generator)
 website/                 # Landing page (HTML/CSS/JS, deploy.sh)
 docs/screenshots/        # Screenshots shared by README and the website

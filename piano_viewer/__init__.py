@@ -3,7 +3,7 @@
 import os
 import logging
 
-VERSION = "9.3.2"
+VERSION = "9.4.0"
 SETTINGS_VERSION = 1
 
 # Package paths — runtime resources live inside the package (piano_viewer/
