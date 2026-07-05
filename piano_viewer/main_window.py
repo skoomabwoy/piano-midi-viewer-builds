@@ -62,6 +62,7 @@ class PianoMIDIViewer(QMainWindow):
             on_connect=self._on_midi_connect,
             on_status=self.show_status_message,
             on_error=self.show_error_dialog,
+            on_devices_changed=self._on_midi_devices_changed,
         )
         self.status_hide_timer = None
 
@@ -320,8 +321,12 @@ class PianoMIDIViewer(QMainWindow):
 
         if config.has_option('midi', 'device'):
             device_name = config.get('midi', 'device')
-            if device_name:
-                self.connect_midi_device(device_name, save=False)
+            if device_name and not self.connect_midi_device(device_name, save=False):
+                # Saved device isn't plugged in right now. Remember it anyway:
+                # the background scan reconnects it the moment it appears, and
+                # the next save_settings() keeps the user's choice instead of
+                # erasing it just because the keyboard was off at launch.
+                self.midi.current_device = device_name
 
         if config.has_option('appearance', 'highlight_color'):
             color_hex = config.get('appearance', 'highlight_color')
@@ -569,6 +574,12 @@ class PianoMIDIViewer(QMainWindow):
     def _on_midi_connect(self, device_name):
         """Persist a connection the transport made on its own (background scan)."""
         self.save_settings()
+
+    def _on_midi_devices_changed(self):
+        """Keeps the Settings device list live while devices are hot-plugged."""
+        dialog = getattr(self, '_settings_dialog', None)
+        if dialog is not None and dialog.isVisible():
+            dialog.populate_midi_devices()
 
     def handle_sustain(self, active):
         """Handles a sustain-pedal (CC 64) state change."""

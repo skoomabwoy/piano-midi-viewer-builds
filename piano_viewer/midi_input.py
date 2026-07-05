@@ -6,7 +6,7 @@ events (note on/off, sustain) and delivers them through callbacks supplied at
 construction. This keeps the main window free of transport details and makes
 the MIDI parsing testable in isolation.
 
-Callbacks (all required):
+Callbacks (all required unless noted):
     on_note_on(note, velocity)  — Note On with velocity > 0
     on_note_off(note)           — Note Off (or Note On with velocity 0)
     on_sustain(active)          — CC 64 crossed the 64 threshold
@@ -14,6 +14,9 @@ Callbacks (all required):
     on_connect(device_name)     — auto-(re)connected during a background scan
     on_status(text)             — short user-facing status/toast text
     on_error(title, details)    — a failure worth a dialog
+    on_devices_changed()        — optional; the available-device list changed
+                                  (fires after any connect/disconnect handling,
+                                  so UI reading transport state sees the result)
 """
 
 import rtmidi
@@ -29,12 +32,17 @@ class MidiInput:
 
     # Known virtual/system MIDI port prefixes — never auto-selected, but always
     # returned by get_devices() so the user can connect to them manually.
+    # Deliberately not listed: user-installed routers like loopMIDI — someone
+    # who set one up as their only port probably wants it picked.
     _VIRTUAL_MIDI_PREFIXES = (
         "Midi Through",     # ALSA built-in virtual loopback
+        "VirMIDI",          # ALSA snd-virmidi kernel module ports
+        "IAC Driver",       # macOS built-in inter-application bus
     )
 
     def __init__(self, *, on_note_on, on_note_off, on_sustain,
-                 on_disconnect, on_connect, on_status, on_error):
+                 on_disconnect, on_connect, on_status, on_error,
+                 on_devices_changed=None):
         self._on_note_on = on_note_on
         self._on_note_off = on_note_off
         self._on_sustain = on_sustain
@@ -42,6 +50,7 @@ class MidiInput:
         self._on_connect = on_connect
         self._on_status = on_status
         self._on_error = on_error
+        self._on_devices_changed = on_devices_changed
 
         self._midi_in = None
         self._scanner = None
@@ -49,6 +58,10 @@ class MidiInput:
         self.known_devices = []
         self._poll_timer = None
         self._scan_timer = None
+        # True while device scanning is failing. Latches the error dialog so a
+        # persistent failure reports once instead of once per 3-second scan,
+        # and lets _scan() tell "scan broke" apart from "no devices".
+        self._scan_failed = False
 
     # --- Lifecycle ---
 
@@ -94,15 +107,27 @@ class MidiInput:
         return self._filter_virtual(self.known_devices)
 
     def get_devices(self):
-        """Returns the list of available MIDI input device names."""
+        """Returns the list of available MIDI input device names.
+
+        On failure returns [] and sets _scan_failed. The error dialog fires
+        only on the first failure of a streak — this runs every 3 seconds
+        from the scan timer, and a broken MIDI backend must not stack a new
+        modal dialog per tick.
+        """
         try:
             if not self._scanner:
                 self._scanner = rtmidi.MidiIn()
-            return self._scanner.get_ports()
+            ports = self._scanner.get_ports()
+            self._scan_failed = False
+            return ports
         except Exception as e:
             log.error(f"Error scanning MIDI devices: {e}")
-            self._on_error(tr("MIDI Error"),
-                           tr("Could not scan for MIDI devices: {}").format(e))
+            # Drop the handle so the next attempt starts from a fresh one.
+            self._scanner = None
+            if not self._scan_failed:
+                self._scan_failed = True
+                self._on_error(tr("MIDI Error"),
+                               tr("Could not scan for MIDI devices: {}").format(e))
             return []
 
     # --- Connection ---
@@ -196,6 +221,11 @@ class MidiInput:
           on_connect so the caller can persist the choice.
         """
         current_ports = self.get_devices()
+        if self._scan_failed:
+            # Transient scan failure — an empty result here means "couldn't
+            # look", not "every device was unplugged". Keep the known list and
+            # the active connection; we'll reconcile once scanning recovers.
+            return
 
         previous = set(self.known_devices)
         current = set(current_ports)
@@ -221,3 +251,8 @@ class MidiInput:
                     target = real_appeared[0]
             if target and self.connect(target):
                 self._on_connect(target)
+
+        # Fired last so listeners (e.g. the Settings device list) see the
+        # final connection state, not the mid-scan one.
+        if self._on_devices_changed is not None:
+            self._on_devices_changed()
